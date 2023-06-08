@@ -1,11 +1,6 @@
-name: iOS starter workflow
+name: PerformanceSuite Tests
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
+on: push
 jobs:
   build:
     name: Build and Test PerformanceApp

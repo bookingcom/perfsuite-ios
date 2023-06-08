@@ -103,6 +103,8 @@ class HangReporterTests: XCTestCase {
         XCTAssertNotNil(receiver.hangInfo)
         #if arch(arm64)
             XCTAssertTrue(receiver.hangInfo!.callStack.contains("XCTestCore"))
+        #else
+            XCTAssertEqual(receiver.hangInfo!.callStack, "")
         #endif
         XCTAssertEqual(receiver.fatalHang, false)
         XCTAssertTrue(receiver.hangInfo!.duringStartup)
@@ -119,7 +121,11 @@ class HangReporterTests: XCTestCase {
             guard let value = value else {
                 return
             }
-            XCTAssertTrue(value.contains("XCTestCore"))
+            #if arch(arm64)
+                XCTAssertTrue(value.contains("XCTestCore"))
+            #else
+                XCTAssertTrue(value.contains("\"callStack\":\"\""))
+            #endif
             if !fullfilled {
                 exp.fulfill()
                 fullfilled = true

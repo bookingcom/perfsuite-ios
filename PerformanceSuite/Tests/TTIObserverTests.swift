@@ -449,6 +449,10 @@ class TTIObserverTests: XCTestCase {
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))  // between 100 and 900
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(300))  // between 100 and 400
+        
+        // prepare for the next test
+        TTIObserver.clearCustomCreationTime()
+        waitForTheNextRunLoop()
     }
 
     func test2ViewWillAppearCallsWithoutViewDidAppear() {

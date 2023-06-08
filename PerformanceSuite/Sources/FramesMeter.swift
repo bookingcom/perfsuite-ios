@@ -30,7 +30,7 @@ private class DisplayLinkProxy {
         self.displayLinkUpdatedAction = displayLinkUpdatedAction
     }
     private let displayLinkUpdatedAction: () -> Void
-    
+
     @objc func displayLinkUpdated() {
         displayLinkUpdatedAction()
     }

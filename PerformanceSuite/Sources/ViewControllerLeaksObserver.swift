@@ -48,7 +48,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
         guard PerformanceSuite.experiments.ios_adq_leak_detection_check_on_view_will_disappear else {
             return
         }
-        
+
         // We separate detection logic by 2 parts:
         // In the viewWillDisappear we check if we should handle view controller at all.
         // We skip all the exceptions.
@@ -66,7 +66,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             // This check also avoids false-alerts for view controllers inside UITabBarController.
             return
         }
-        
+
         if isKnownException(viewController) {
             // this is the hard coded exception, ignore it
             return
@@ -75,10 +75,10 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             // this is the exception marked by a developer, ignore it
             return
         }
-        
+
         viewControllersToHandle.insert(ObjectIdentifier(viewController))
     }
-    
+
     func beforeViewDidDisappearV1(viewController: UIViewController) {
         assert(Thread.isMainThread)
         let identifier = ObjectIdentifier(viewController)
@@ -86,7 +86,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             return
         }
         viewControllersToHandle.remove(identifier)
-        
+
         // We will come here only for view controller which is root in disappearing stack,
         // but some child controller may leak too, that's why we call `checkDeallocation` for all the child controllers.
         let allViewControllers = selfAndAllChildren(viewController: viewController)
@@ -116,7 +116,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             beforeViewDidDisappearV1(viewController: viewController)
             return
         }
-            
+
         let isMovingFromParent = viewController.isMovingFromParent
         let isBeingDismissed = viewController.isBeingDismissed
         guard isMovingFromParent || isBeingDismissed else {
@@ -148,7 +148,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             }
         }
     }
-    
+
     // MARK: - Helpers
 
     private func selfAndAllChildren(viewController: UIViewController) -> [UIViewController] {
@@ -210,8 +210,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
 
         // check if this is UIHostingController with a SwiftUI view
         if let rootView = (viewController as? RootViewIntrospectable)?.introspectRootView(),
-            rootView is LeakCheckDisabled
-        {
+            rootView is LeakCheckDisabled {
             // this view was marked to be ignored
             return true
         }

@@ -58,7 +58,7 @@ import MainThreadCallStack
             guard let mainThreadMachPort = mainThreadMachPort else {
                 throw StackError.noMachPort
             }
-            
+
             switch PerformanceSuite.experiments.ios_adq_no_locks_in_main_thread_call_stack {
             case 1:
                 let frames = try readThreadState_v1(mainThreadMachPort: mainThreadMachPort)
@@ -85,7 +85,7 @@ import MainThreadCallStack
                 return value
             }
         }
-        
+
         // drop if ios_adq_no_locks_in_main_thread_call_stack full-on
         private static func readFrames(framePointer bitPattern: UInt64) throws -> [uintptr_t] {
             guard bitPattern != 0,
@@ -144,7 +144,7 @@ import MainThreadCallStack
             result.append(contentsOf: try readFrames(framePointer: threadState.__fp))
             return result
         }
-        
+
         private static func readThreadState_v1(mainThreadMachPort: mach_port_t) throws -> [uintptr_t] {
             // call out C-function to read thread state, it pauses and resumes the main thread during the execution
             let result = read_thread_state(mainThreadMachPort)
@@ -153,15 +153,15 @@ import MainThreadCallStack
                     frames.deallocate()
                 }
             }
-            
+
             if result.size == 0 {
                 throw StackError.cannotReadStack
             }
-            
+
             guard let frames = result.frames else {
                 throw StackError.cannotReadStack
             }
-            
+
             let swiftFrames = Array(UnsafeBufferPointer(start: frames, count: Int(result.size)))
             return swiftFrames
         }

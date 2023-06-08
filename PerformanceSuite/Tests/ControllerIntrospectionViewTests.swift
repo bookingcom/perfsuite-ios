@@ -35,7 +35,7 @@ class ControllerIntrospectionViewTests: XCTestCase {
         }
 
         let vc = UIHostingController(rootView: view)
-        
+
         let window = makeWindow()
         window.rootViewController = vc
         window.makeKeyAndVisible()

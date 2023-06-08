@@ -25,7 +25,7 @@ public struct AppStartInfo: Equatable, Codable {
     static func merge(_ lhs: AppStartInfo, _ rhs: AppStartInfo) -> AppStartInfo {
         return AppStartInfo(appStartedWithPrewarming: lhs.appStartedWithPrewarming || rhs.appStartedWithPrewarming)
     }
-    
+
     static var empty: AppStartInfo {
         return AppStartInfo(appStartedWithPrewarming: false)
     }
@@ -33,11 +33,11 @@ public struct AppStartInfo: Equatable, Codable {
 
 public struct AppRuntimeInfo: Equatable, Codable {
     public private(set) var openedScreens: [String]
-    
+
     mutating func append(screen: String) {
         openedScreens.append(screen)
     }
-    
+
     static var empty: AppRuntimeInfo {
         return AppRuntimeInfo(openedScreens: [])
     }
@@ -71,7 +71,7 @@ class AppInfoHolder {
     /// But we still will have `totalTime` there.
     static func recordMainStarted() {
         assert(Thread.isMainThread)
-        
+
         queue.async(flags: .barrier) {
             // picked the idea from FirebasePerformance
             // we should track it in the beginning of main(), because later this flag will not be available in the environment
@@ -79,19 +79,19 @@ class AppInfoHolder {
             appStartInfoStorage = AppStartInfo(appStartedWithPrewarming: appStartedWithPrewarming)
         }
     }
-    
+
     static func screenOpened(_ screen: String) {
         queue.async(flags: .barrier) {
             appRuntimeInfoStorage.append(screen: screen)
         }
     }
-    
+
     static var appRuntimeInfo: AppRuntimeInfo {
         return queue.sync {
             return appRuntimeInfoStorage
         }
     }
-    
+
     static func resetForTests() {
         queue.sync(flags: .barrier) {
             appStartInfoStorage = .empty

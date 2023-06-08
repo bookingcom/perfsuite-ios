@@ -82,12 +82,12 @@ class MetricsConsumerImpl: PerformanceSuiteMetricsReceiver {
         if let introspectable = viewController as? RootViewIntrospectable {
             let view = introspectable.introspectRootView()
             switch view {
-                case is RootView,
-                    is ListView,
-                    is MemoryLeakView:
-                    return true
-                default:
-                    fatalError("Unknown root view \(type(of: view))")
+            case is RootView,
+                is ListView,
+                is MemoryLeakView:
+                return true
+            default:
+                fatalError("Unknown root view \(type(of: view))")
             }
         }
         return false
@@ -116,45 +116,45 @@ class MetricsConsumerImpl: PerformanceSuiteMetricsReceiver {
     func startupTimeReceived(_ data: StartupTimeData) {
         debugPrint("Startup time received \(data.totalTime.milliseconds ?? 0) ms")
     }
-    
+
     func fragmentTTIMetricsReceived(metrics: TTIMetrics, identifier: String) {
         debugPrint("fragmentTTIMetricsReceived \(identifier) \(metrics)")
     }
-    
+
     func fatalHangReceived(info: HangInfo) {
         debugPrint("fatalHangReceived \(info)")
     }
-    
+
     func nonFatalHangReceived(info: HangInfo) {
         debugPrint("nonFatalHangReceived \(info)")
     }
-    
+
     // MARK: - ViewControllerLoggingReceiver
-    
+
     func key(for viewController: UIViewController) -> String {
         return String(describing: viewController)
     }
-    
+
     func onInit(viewControllerKey: String) {
         debugPrint("onInit \(viewControllerKey)")
     }
-    
+
     func onViewDidLoad(viewControllerKey: String) {
         debugPrint("onViewDidLoad \(viewControllerKey)")
     }
-    
+
     func onViewWillAppear(viewControllerKey: String) {
         debugPrint("onViewWillAppear \(viewControllerKey)")
     }
-    
+
     func onViewDidAppear(viewControllerKey: String) {
         debugPrint("onViewDidAppear \(viewControllerKey)")
     }
-    
+
     func onViewWillDisappear(viewControllerKey: String) {
         debugPrint("onViewWillDisappear \(viewControllerKey)")
     }
-    
+
     func onViewDidDisappear(viewControllerKey: String) {
         debugPrint("onViewDidDisappear \(viewControllerKey)")
     }

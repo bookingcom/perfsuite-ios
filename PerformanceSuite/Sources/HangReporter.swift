@@ -148,8 +148,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         operationQueue.underlyingQueue = workingQueue
         didBecomeActiveSubscription = NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: operationQueue
-        ) {
-            [weak self] _ in
+        ) { [weak self] _ in
             guard let self = self else {
                 return
             }
@@ -163,8 +162,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
 
         willResignSubscription = NotificationCenter.default.addObserver(
             forName: UIApplication.willResignActiveNotification, object: nil, queue: operationQueue
-        ) {
-            [weak self] _ in
+        ) { [weak self] _ in
             guard let self = self else {
                 return
             }
@@ -193,11 +191,11 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
             // new hang detected - save the stack trace
             if hangInterval > hangThreshold {
                 let callStack: String
-                #if arch(arm64)
-                    callStack = (try? MainThreadCallStack.readStack()) ?? ""
-                #else
-                    callStack = ""
-                #endif
+#if arch(arm64)
+                callStack = (try? MainThreadCallStack.readStack()) ?? ""
+#else
+                callStack = ""
+#endif
                 let info = HangInfo.with(callStack: callStack, duringStartup: startupIsHappening, duration: currentHangInterval)
                 store(hangInfo: info)
             }
@@ -218,13 +216,13 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
             // we update hang with the proper duration
             info.duration = currentHangInterval
             PerformanceSuite.consumerQueue.async {
-                #if DEBUG
-                    if !self.enabledInDebug {
-                        // In debug we can just pause on the breakpoint and this might be considered as a hang,
-                        // that's why in Debug we send events only in unit-tests. Or you may enable it manually to debug.
-                        return
-                    }
-                #endif
+#if DEBUG
+                if !self.enabledInDebug {
+                    // In debug we can just pause on the breakpoint and this might be considered as a hang,
+                    // that's why in Debug we send events only in unit-tests. Or you may enable it manually to debug.
+                    return
+                }
+#endif
                 self.receiver.nonFatalHangReceived(info: info)
             }
         }
@@ -253,7 +251,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         hangInfoInMemory = nil
         storage.writeJSON(key: StorageKey.hangInfo, value: nil as HangInfo?)
     }
-    
+
     deinit {
         // we shouldn't deallocate timer in suspended state
         // https://developer.apple.com/documentation/dispatch/1452801-dispatch_suspend
@@ -279,6 +277,6 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private var hangInfoInMemory: HangInfo?
 
     enum StorageKey: String {
-         case hangInfo
+        case hangInfo
     }
 }

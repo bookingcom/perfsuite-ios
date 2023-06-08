@@ -178,8 +178,7 @@ final class OutOfMemoryReporter: AppMetricsReporter {
         } else if storedAppInformation.appTerminated == true {
             // app was terminated by the user, ignore
         } else if storedAppInformation.preferredLanguages != actualAppInformation.preferredLanguages
-            || storedAppInformation.preferredLocalizations != actualAppInformation.preferredLocalizations
-        {
+            || storedAppInformation.preferredLocalizations != actualAppInformation.preferredLocalizations {
             // system or app language changed, app is killed by the system after that, ignore
         } else if storedAppInformation.systemVersion != actualAppInformation.systemVersion {
             // system was updated, app might be killed because of that
@@ -187,8 +186,7 @@ final class OutOfMemoryReporter: AppMetricsReporter {
             // app was updated and killed by the system, ignore
         } else if (actualAppInformation.systemRebootTime?.timeIntervalSinceReferenceDate ?? 0)
             - (storedAppInformation.systemRebootTime?.timeIntervalSinceReferenceDate ?? 0)
-            > systemUptimeChangeThreshold
-        {
+            > systemUptimeChangeThreshold {
             // device was rebooted between 2 launches of the app, this may cause the termination, ignore
         } else if didHangPreviouslyProvider?.didHangPreviously() == true {
             // system killed the app because of the hang on the main thread, this wasn't OOM, ignore

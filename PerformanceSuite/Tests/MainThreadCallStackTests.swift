@@ -10,7 +10,7 @@ import XCTest
 @testable import PerformanceSuite
 
 #if arch(arm64)
-    //swiftlint:disable force_try
+    // swiftlint:disable force_try
     class MainThreadCallStackTests: XCTestCase {
 
         func testCallStack() throws {
@@ -50,7 +50,7 @@ import XCTest
             XCTAssertEqual(hangInfo2.callStack, "stack_trace bla bla bla")
             XCTAssertTrue(hangInfo2.appStartInfo.appStartedWithPrewarming)
             XCTAssertEqual(hangInfo2.appRuntimeInfo?.openedScreens, ["screen1", "screen2"])
-            
+
             XCTAssertTrue(hangInfo2.duringStartup)
             XCTAssertEqual(hangInfo2.duration.milliseconds, 2001)
             enum Key: String {

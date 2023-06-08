@@ -9,7 +9,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
-//swiftlint:disable force_unwrapping
+// swiftlint:disable force_unwrapping
 class OutOfMemoryReporterTests: XCTestCase {
 
     override func tearDown() {

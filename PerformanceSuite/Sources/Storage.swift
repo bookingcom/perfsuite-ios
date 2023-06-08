@@ -40,8 +40,7 @@ public extension Storage {
     /// So if you name enums the same - keys should be unique.
     func readJSON<K, V>(key: K) -> V? where K: RawRepresentable, K.RawValue == String, V: Decodable {
         if let str = read(domain: String(describing: K.self), key: key.rawValue),
-            let data = str.data(using: .utf8)
-        {
+            let data = str.data(using: .utf8) {
             return try? decoder.decode(V.self, from: data)
         } else {
             return nil
@@ -51,8 +50,7 @@ public extension Storage {
     func writeJSON<K, V>(key: K, value: V?) where K: RawRepresentable, K.RawValue == String, V: Encodable {
         if let value = value,
             let data = try? encoder.encode(value),
-            let str = String(data: data, encoding: .utf8)
-        {
+            let str = String(data: data, encoding: .utf8) {
             write(domain: String(describing: K.self), key: key.rawValue, value: str)
         } else {
             write(domain: String(describing: K.self), key: key.rawValue, value: nil)

@@ -10,7 +10,7 @@ import XCTest
 @testable import PerformanceSuite
 
 final class FragmentTTIReporterTests: XCTestCase {
-    
+
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
@@ -145,7 +145,7 @@ final class FragmentTTIReporterTests: XCTestCase {
     func testPerformanceSuiteIntegration() throws {
 
         let fragment = PerformanceSuite.startFragmentTTI(identifier: "throws")
-        
+
         // preconditionFailure should be raised, because we haven't registered FragmentTTIReceiver
         let exp1 = expectation(description: "preconditionFailure1")
         preconditionFailureQueue.sync {
@@ -155,7 +155,7 @@ final class FragmentTTIReporterTests: XCTestCase {
             fragment.fragmentIsReady()
         }
         wait(for: [exp1], timeout: 1)
-        
+
         // preconditionFailure should be raised, because we haven't registered FragmentTTIReceiver
         let exp2 = expectation(description: "preconditionFailure2")
         preconditionFailureQueue.sync {
@@ -168,7 +168,7 @@ final class FragmentTTIReporterTests: XCTestCase {
         preconditionFailureQueue.sync {
             XCTAssertNil(preconditionFailureExpectation)
         }
-        
+
         let metricsReciever = FragmentTTIMetricsReceiverStub()
         let config = ConfigItem.fragmentTTI(metricsReciever)
         try PerformanceSuite.enable(config: [config])
@@ -249,7 +249,7 @@ func preconditionFailureInTests(message: String, file: StaticString, line: UInt)
     let expectation = preconditionFailureQueue.sync {
         preconditionFailureExpectation
     }
-    
+
     if expectation != nil {
         preconditionFailureQueue.sync {
             preconditionFailureExpectation = nil

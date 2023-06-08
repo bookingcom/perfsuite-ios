@@ -9,7 +9,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
-//swiftlint:disable force_unwrapping
+// swiftlint:disable force_unwrapping
 
 
 class RenderingObserverTests: XCTestCase {
@@ -178,8 +178,7 @@ class RenderingMetricsReceiverStub: RenderingMetricsReceiver {
 
     func shouldTrack(viewController: UIViewController) -> Bool {
         if viewController is UINavigationController
-            || viewController is UITabBarController
-        {
+            || viewController is UITabBarController {
             return false
         }
         return true

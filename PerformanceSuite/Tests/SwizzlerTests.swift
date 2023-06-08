@@ -9,6 +9,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
+// swiftlint:disable type_name
 class SwizzlerTests: XCTestCase {
 
     func testSecondSwizzleFails() throws {

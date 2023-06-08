@@ -22,17 +22,17 @@ public enum ConfigItem {
 public typealias Config = [ConfigItem]
 
 public typealias PerformanceSuiteMetricsReceiver = TTIMetricsReceiver & RenderingMetricsReceiver & AppRenderingMetricsReceiver
-    & OutOfMemoryReceiver & HangReceiver & ViewControllerLeaksReceiver & StartupTimeReceiver & ViewControllerLoggingReceiver
-    & FragmentTTIMetricsReceiver
+& OutOfMemoryReceiver & HangReceiver & ViewControllerLeaksReceiver & StartupTimeReceiver & ViewControllerLoggingReceiver
+& FragmentTTIMetricsReceiver
 
 
 extension ConfigItem {
     var isRendering: Bool {
         switch self {
-            case .appLevelRendering, .screenLevelRendering:
-                return true
-            default:
-                return false
+        case .appLevelRendering, .screenLevelRendering:
+            return true
+        default:
+            return false
         }
     }
 }

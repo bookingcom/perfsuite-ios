@@ -39,7 +39,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver>: ViewContro
             }
             vc = current.parent
         }
-            
+
         return nil
     }
 

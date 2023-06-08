@@ -24,8 +24,8 @@ public struct HangInfo: Codable {
     /// Information about how app was started.
     /// You may want to ignore hang events events if app started after pre-warming or in background. Because the detection is not reliable in that case.
     public let appStartInfo: AppStartInfo
-    
-    
+
+
     /// Information about app runtime
     /// Make non-optional if ios_adq_add_screen_information_to_termination_squeaks goes full-on
     public let appRuntimeInfo: AppRuntimeInfo?

@@ -9,7 +9,8 @@ import UIKit
 import XCTest
 
 @testable import PerformanceSuite
-
+// swiftlint:disable type_body_length
+// swiftlint:disable file_length
 class TTIObserverTests: XCTestCase {
 
     override func setUp() {
@@ -449,7 +450,7 @@ class TTIObserverTests: XCTestCase {
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))  // between 100 and 900
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(300))  // between 100 and 400
-        
+
         // prepare for the next test
         TTIObserver.clearCustomCreationTime()
         waitForTheNextRunLoop()
@@ -536,8 +537,7 @@ class TTIMetricsReceiverStub: TTIMetricsReceiver {
 
     func shouldTrack(viewController: UIViewController) -> Bool {
         if viewController is UINavigationController
-            || viewController is UITabBarController
-        {
+            || viewController is UITabBarController {
             return false
         }
         return true

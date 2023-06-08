@@ -1,8 +1,8 @@
 {
   "name": "PerformanceSuite",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "summary": "Performance monitoring library for iOS",
-  "homepage": "https://gitlab.booking.com/ios/performance-suite",
+  "homepage": "https://github.com/bookingcom/perfsuite-ios",
   "license": {
     "type": "MIT",
     "file": "LICENSE"
@@ -11,8 +11,8 @@
     "Gleb Tarasov": "gleb.tarasov@booking.com"
   },
   "source": {
-    "git": "https://gitlab.booking.com/ios/performance-suite.git",
-    "tag": "0.0.1"
+    "git": "https://github.com/bookingcom/perfsuite-ios.git",
+    "tag": "0.0.2"
   },
   "source_files": [
     "PerformanceSuite/Sources/**/*.swift",

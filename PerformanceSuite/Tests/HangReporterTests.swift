@@ -9,7 +9,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
-//swiftlint:disable force_unwrapping
+// swiftlint:disable force_unwrapping
 class HangReporterTests: XCTestCase {
 
     override func setUp() {
@@ -24,12 +24,12 @@ class HangReporterTests: XCTestCase {
     override func tearDown() {
         super.tearDown()
         reporter = nil
-        
+
         // Wait for hang reporter to be deallocated
         receiver.wait()
-        
+
         PerformanceSuite.experiments = Experiments()
-        
+
         receiver.fatalHang = nil
         receiver.hangInfo = nil
     }
@@ -142,11 +142,11 @@ class HangReporterTests: XCTestCase {
             enabledInDebug: true,
             receiver: receiver
         )
-        
+
         startupProvider.onViewDidLoadOfTheFirstViewController()
         startupProvider.onViewDidAppearOfTheFirstViewController()
         receiver.wait()
-        
+
 
         Thread.sleep(forTimeInterval: sleepInterval)
         wait(for: [exp], timeout: 1)
@@ -314,7 +314,7 @@ class HangReceiverStub: HangReceiver {
         // wait for all the queues
         PerformanceSuite.queue.sync {}
         PerformanceSuite.consumerQueue.sync {}
-        
+
         // skip one run loop
         let exp = XCTestExpectation(description: "run loop")
         DispatchQueue.global().async {
@@ -344,7 +344,7 @@ class StartupProviderStub: StartupProvider {
         let isStarting = syncQueue.sync {
             appIsStarting
         }
-        
+
         if isStarting {
             syncQueue.sync {
                 actions.append(action)

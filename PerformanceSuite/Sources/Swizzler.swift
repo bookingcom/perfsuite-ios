@@ -21,13 +21,12 @@ public enum SwizzlerError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-            case let .methodNotFound(class: cls, selector: selector):
-                return "No method \(selector) found in class \(cls)."
-            case let .swizzledSecondTime(class: cls, selector: selector):
-                return
-                    "You are trying to swizzle method \(selector) in class \(cls) that was already swizzled. You should unswizzle before that."
-            case let .unswizzleNotSwizzled(class: cls, selector: selector):
-                return "You are trying to unswizzle method \(selector) in class \(cls) that wasn't swizzled."
+        case let .methodNotFound(class: cls, selector: selector):
+            return "No method \(selector) found in class \(cls)."
+        case let .swizzledSecondTime(class: cls, selector: selector):
+            return "You are trying to swizzle method \(selector) in class \(cls) that was already swizzled. You should unswizzle before that."
+        case let .unswizzleNotSwizzled(class: cls, selector: selector):
+            return "You are trying to unswizzle method \(selector) in class \(cls) that wasn't swizzled."
         }
     }
 }
@@ -53,7 +52,7 @@ public enum Swizzler {
         let swizzledSelector = makeSwizzledSelector(selector)
 
         guard let method = class_getInstanceMethod(classToSwizzle, selector),
-            let oldImp = class_getMethodImplementation(classToSwizzle, selector)
+              let oldImp = class_getMethodImplementation(classToSwizzle, selector)
         else {
             throw SwizzlerError.methodNotFound(class: classToSwizzle, selector: selector)
         }
@@ -64,8 +63,7 @@ public enum Swizzler {
 
         let types = method_getTypeEncoding(method)
 
-        let block: @convention(block) (NSObject, UnsafeMutableRawPointer, UnsafeMutableRawPointer) -> UnsafeMutableRawPointer = {
-            (sself, p1, p2) in
+        let block: @convention(block) (NSObject, UnsafeMutableRawPointer, UnsafeMutableRawPointer) -> UnsafeMutableRawPointer = { (sself, p1, p2) in
             guard let sself = sself as? T else {
                 // we can't throw error from here, but this shouldn't happen, so just do a fatalError
                 fatalError("Expected \(T.self) but got object \(sself).")
@@ -108,7 +106,7 @@ public enum Swizzler {
         }
 
         guard let oldMethod = class_getInstanceMethod(classToSwizzle, swizzledSelector),
-            let oldImp = class_getMethodImplementation(classToSwizzle, swizzledSelector)
+              let oldImp = class_getMethodImplementation(classToSwizzle, swizzledSelector)
         else {
             throw SwizzlerError.unswizzleNotSwizzled(class: classToSwizzle, selector: selector)
         }

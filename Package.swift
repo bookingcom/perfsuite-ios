@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "PerformanceSuite",
     platforms: [
-        .iOS(.v14),
+        .iOS(.v14)
     ],
     products: [
         .library(
@@ -19,6 +19,6 @@ let package = Package(
             path: "PerformanceSuite/Sources"
         ),
         .target(name: "MainThreadCallStack",
-                path: "PerformanceSuite/MainThreadCallStack")
+                path: "PerformanceSuite/MainThreadCallStack"),
     ]
 )

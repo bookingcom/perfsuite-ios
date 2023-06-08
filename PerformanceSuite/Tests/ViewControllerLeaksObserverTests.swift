@@ -11,12 +11,12 @@ import XCTest
 @testable import PerformanceSuite
 
 class ViewControllerLeaksObserverTests: XCTestCase {
-    
+
     override func setUp() {
         super.setUp()
         PerformanceSuite.experiments = Experiments(ios_adq_leak_detection_check_on_view_will_disappear: true)
     }
-    
+
     override func tearDown() {
         super.tearDown()
         PerformanceSuite.experiments = Experiments()

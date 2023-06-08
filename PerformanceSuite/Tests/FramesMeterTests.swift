@@ -9,7 +9,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
-//swiftlint:disable force_unwrapping
+// swiftlint:disable force_unwrapping
 
 class FramesMeterTests: XCTestCase, FramesMeterReceiver {
     func frameTicked(frameDuration: CFTimeInterval, refreshRateDuration: CFTimeInterval) {

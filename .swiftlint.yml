@@ -1,0 +1,14 @@
+disabled_rules:
+  - line_length
+  - vertical_whitespace
+  - blanket_disable_command
+  - shorthand_operator
+
+excluded:
+  - Pods
+
+identifier_name:
+  min_length: 1
+
+trailing_comma:
+  mandatory_comma: true

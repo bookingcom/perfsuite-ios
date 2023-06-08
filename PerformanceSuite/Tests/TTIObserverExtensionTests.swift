@@ -11,6 +11,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
+// swiftlint:disable function_body_length
 class TTIObserverExtensionTests: XCTestCase {
 
     private let timeProvider = TimeProviderStub()
@@ -165,7 +166,7 @@ class TTIObserverExtensionTests: XCTestCase {
                 exp.fulfill()
             }
         }
-        
+
         let window = makeWindow()
         window.rootViewController = vc
         window.makeKeyAndVisible()
@@ -195,7 +196,7 @@ class TTIObserverExtensionTests: XCTestCase {
     func testScreenIsReadyForSwiftUIViewGeneratesTTIMetrics() {
         let vc = MyHostingController(rootView: MyView())
         vc.title = "hosting vc"
-        
+
         let window = makeWindow()
         window.rootViewController = vc
         window.makeKeyAndVisible()
@@ -238,7 +239,7 @@ class TTIObserverExtensionTests: XCTestCase {
 
         let tabbar = UITabBarController()
         tabbar.viewControllers = [vc1, vc2, vc3]
-        
+
         let window = makeWindow()
         window.rootViewController = tabbar
         window.makeKeyAndVisible()

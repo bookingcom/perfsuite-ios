@@ -18,7 +18,7 @@ public struct Experiments {
         self.ios_adq_leak_detection_check_on_view_will_disappear = ios_adq_leak_detection_check_on_view_will_disappear
         self.ios_adq_no_locks_in_main_thread_call_stack = ios_adq_no_locks_in_main_thread_call_stack
     }
-    
+
     public let ios_adq_add_screen_information_to_termination_squeaks: Int
     public let ios_adq_leak_detection_check_on_view_will_disappear: Bool
     public let ios_adq_no_locks_in_main_thread_call_stack: Int

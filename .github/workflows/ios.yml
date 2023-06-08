@@ -15,4 +15,4 @@ jobs:
           workspace: PerformanceApp.xcworkspace
         run: |
           device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device"
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device" -test-iterations 30 -run-tests-until-failure

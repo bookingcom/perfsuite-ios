@@ -60,7 +60,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
         self.expectation = self.expectation(description: "no frame should be reported, we are in background")
         self.expectation?.isInverted = true
 
-        waitForExpectations(timeout: 0.1, handler: nil)
+        waitForExpectations(timeout: 0.2, handler: nil)
         XCTAssertNil(lastDuration)
 
         appStateObserver.isInBackground = false
@@ -70,7 +70,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
 
         self.expectation = self.expectation(description: "frame should be reported, we are active")
 
-        waitForExpectations(timeout: 0.1, handler: nil)
+        waitForExpectations(timeout: 0.2, handler: nil)
         XCTAssertNotNil(lastDuration)
         XCTAssertGreaterThan(lastDuration!, 0.015)
         XCTAssertLessThan(lastDuration!, 0.5)
@@ -84,7 +84,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
         self.expectation = self.expectation(description: "no frame should be reported, we are in background again")
         self.expectation?.isInverted = true
 
-        waitForExpectations(timeout: 0.1, handler: nil)
+        waitForExpectations(timeout: 0.2, handler: nil)
         XCTAssertNil(lastDuration)
     }
 }

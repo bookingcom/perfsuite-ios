@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.homepage             = 'https://github.com/bookingcom/perfsuite-ios' 
   s.license              = { :type => 'MIT', :file => 'LICENSE' }
   s.author               = { 'Gleb Tarasov' => 'gleb.tarasov@booking.com' }
-  s.source               = { :git => 'git@github.com:bookingcom/perfsuite-ios.git', :tag => s.version.to_s }
+  s.source               = { :git => 'https://github.com/bookingcom/perfsuite-ios.git', :tag => s.version.to_s }
   s.source_files         = 'PerformanceSuite/Sources/**/*.swift', 'PerformanceSuite/MainThreadCallStack/**/*.{h,c}'  
   s.public_header_files = 'PerformanceSuite/MainThreadCallStack/include/*.h'
   s.platform             = :ios, "14.0"

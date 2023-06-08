@@ -1,0 +1,18 @@
+PODS:
+  - PerformanceSuite (0.0.1)
+  - PerformanceSuite/Tests (0.0.1)
+
+DEPENDENCIES:
+  - PerformanceSuite (from `.`)
+  - PerformanceSuite/Tests (from `.`)
+
+EXTERNAL SOURCES:
+  PerformanceSuite:
+    :path: "."
+
+SPEC CHECKSUMS:
+  PerformanceSuite: f5c19619e8ff3f81592a343dd1afccd39ce0b27c
+
+PODFILE CHECKSUM: 98b2f729c276e0289f105e728de562b92d18d0cf
+
+COCOAPODS: 1.12.1

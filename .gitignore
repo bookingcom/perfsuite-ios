@@ -1,0 +1,9 @@
+xcuserdata/
+.DS_Store
+*.swp
+*.swo
+*.swn
+
+## SwiftPM
+.swiftpm
+

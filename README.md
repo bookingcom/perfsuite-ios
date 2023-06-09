@@ -31,7 +31,7 @@ Compared to other solutions like MetricKit, Firebase Performance, Instabug, Sent
 - Watchdog terminations (memory or CPU terminations).
 - Logging of all UIKit controller events for easier debugging.
 
-Check our [Wiki](https://github.com/bookingcom/perfsuite-ios/wiki) for more details.
+#### Check our [Wiki](https://github.com/bookingcom/perfsuite-ios/wiki) for more details.
 
 Please note that PerformanceSuite currently does not support the tracking of standard crashes. You will need an additional tool to collect stack traces for crashes (for example, Firebase Crashlytics).
 

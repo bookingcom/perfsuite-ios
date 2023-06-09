@@ -10,6 +10,8 @@ PerformanceSuite is an iOS Swift library designed to measure and collect perform
 
 Compared to other solutions like MetricKit, Firebase Performance, Instabug, Sentry, etc., it offers additional flexibility. However, it focuses on the native part of performance monitoring. For storing and visualizing your metrics, building monitoring graphs, and setting up alerts, you will need to have your own backend.
 
+This library is used in the [main Booking.com iOS app](https://apps.apple.com/app/booking-com-hotels-travel/id367003839) which is used by millions of users every day.
+
 ## Pros
 
 - Performance events are delivered in real-time directly to your code, allowing for comprehensive analysis.

@@ -21,16 +21,17 @@ Compared to other solutions like MetricKit, Firebase Performance, Instabug, Sent
 
 - A custom backend is needed to collect the metrics, display the graphs and setup alerting. 
 
-
 ## Supported features
 
 - TTI (Time to Interactive) monitoring for screens.
 - Freeze time rendering performance monitoring for screens.
 - Overall app freeze time monitoring.
-Startup time monitoring.
+- Startup time monitoring.
 - Fatal and non-fatal hangs with the stack trace.
 - Watchdog terminations (memory or CPU terminations).
 - Logging of all UIKit controller events for easier debugging.
+
+Check our [Wiki](https://github.com/bookingcom/perfsuite-ios/wiki) for more details.
 
 Please note that PerformanceSuite currently does not support the tracking of standard crashes. You will need an additional tool to collect stack traces for crashes (for example, Firebase Crashlytics).
 

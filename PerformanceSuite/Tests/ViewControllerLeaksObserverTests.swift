@@ -10,6 +10,7 @@ import XCTest
 
 @testable import PerformanceSuite
 
+// swiftlint:disable force_unwrapping
 class ViewControllerLeaksObserverTests: XCTestCase {
 
     override func setUp() {
@@ -38,16 +39,24 @@ class ViewControllerLeaksObserverTests: XCTestCase {
 
         weak var weakViewController: UIViewController?
         autoreleasepool {
-            var viewController: UIViewController? = viewControllerMaker()
-            weakViewController = viewController
-            if let viewController = viewController {
-                rootViewController.present(viewController, animated: false)
-                viewController.dismiss(animated: false)
+            let exp = expectation(description: "view controller presentation")
+            var strongViewController: UIViewController? = viewControllerMaker()
+            weakViewController = strongViewController
+            if let viewController = strongViewController {
+                rootViewController.present(viewController, animated: false) {
+                    viewController.dismiss(animated: false) {
+                        strongViewController = nil
+                        exp.fulfill()
+                    }
+                }
             }
-            viewController = nil
+            wait(for: [exp], timeout: 1)
         }
 
-        waitForExpectations(timeout: 1)
+        PerformanceSuite.queue.sync { }
+        PerformanceSuite.consumerQueue.sync { }
+
+        wait(for: [receiver.expectation!], timeout: 1)
         if expectLeak {
             let vc = weakViewController
             XCTAssertNotNil(vc)

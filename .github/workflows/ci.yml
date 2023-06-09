@@ -49,7 +49,7 @@ jobs:
         with:
           label: coverage
           message: "${{ steps.load-coverage.outputs.coverage }}"
-          message-color: green
+          message-color: brightgreen
           file-name: code_coverage.svg
           badge-branch: badges
           github-token: "${{ secrets.GITHUB_TOKEN }}"

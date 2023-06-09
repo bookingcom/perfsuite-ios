@@ -23,12 +23,12 @@ Compared to other solutions like MetricKit, Firebase Performance, Instabug, Sent
 
 ## Supported features
 
-- TTI (Time to Interactive) monitoring for screens.
-- Freeze time rendering performance monitoring for screens.
+- [TTI](https://github.com/bookingcom/perfsuite-ios/wiki/TTI) (Time to Interactive) monitoring for screens.
+- [Freeze time](https://github.com/bookingcom/perfsuite-ios/wiki/Freeze-Time) rendering performance monitoring for screens.
 - Overall app freeze time monitoring.
-- Startup time monitoring.
-- Fatal and non-fatal hangs with the stack trace.
-- Watchdog terminations (memory or CPU terminations).
+- [Startup time](https://github.com/bookingcom/perfsuite-ios/wiki/Startup-Time) monitoring.
+- Fatal and non-fatal [hangs](https://github.com/bookingcom/perfsuite-ios/wiki/Hangs) with the stack trace.
+- Watchdog [terminations](https://github.com/bookingcom/perfsuite-ios/wiki/Watchdog-Terminations) (memory or CPU terminations).
 - Logging of all UIKit controller events for easier debugging.
 
 #### Check our [Wiki](https://github.com/bookingcom/perfsuite-ios/wiki) for more details.

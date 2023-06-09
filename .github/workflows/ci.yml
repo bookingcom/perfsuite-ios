@@ -36,11 +36,6 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - uses: action-badges/create-orphan-branch@0.1.0
-        with:
-          branch-name: badges
       - name: Download code_coverage.txt
         uses: actions/download-artifact@v3
         with:

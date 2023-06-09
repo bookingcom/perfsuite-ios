@@ -9,7 +9,6 @@ on:
       - '*'
 jobs:
   test:
-    name: Build and Test PerformanceApp
     runs-on: macos-latest
     steps:
       - name: Checkout

@@ -1,4 +1,8 @@
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/bookingcom/perfsuite-ios/ios.yml)![Cocoapods](https://img.shields.io/cocoapods/l/PerformanceSuite)![Cocoapods](https://img.shields.io/cocoapods/v/PerformanceSuite)![Cocoapods platforms](https://img.shields.io/cocoapods/p/PerformanceSuite)![Code Coverage](https://raw.githubusercontent.com/bookingcom/perfsuite-ios/badges/code_coverage.svg)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/bookingcom/perfsuite-ios/ci.yml)
+ ![Cocoapods](https://img.shields.io/cocoapods/l/PerformanceSuite)
+ ![Cocoapods](https://img.shields.io/cocoapods/v/PerformanceSuite)
+ ![Cocoapods platforms](https://img.shields.io/cocoapods/p/PerformanceSuite)
+ ![Code Coverage](https://raw.githubusercontent.com/bookingcom/perfsuite-ios/badges/code_coverage.svg)
 
 # PerformanceSuite
 

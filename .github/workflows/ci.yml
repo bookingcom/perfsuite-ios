@@ -43,8 +43,7 @@ jobs:
       - name: Load coverage data
         id: load-coverage
         run: |
-          COVERAGE=$(cat code_coverage.txt)
-          echo "{coverage}={$COVERAGE}" >> $GITHUB_OUTPUT
+          echo "{coverage}={$(cat code_coverage.txt)}" >> $GITHUB_OUTPUT
       - name: Make Coverage Badge
         uses: action-badges/core@0.2.2
         with:

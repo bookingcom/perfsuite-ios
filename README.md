@@ -48,8 +48,8 @@ To receive performance events, you must have a class implementing some of the fo
 - `TTIMetricsReceiver`
 - `RenderingMetricsReceiver` 
 - `AppRenderingMetricsReceiver`
-- `WatchDogTerminationReceiver`
-- `HangReceiver`
+- `WatchDogTerminationsReceiver`
+- `HangsReceiver`
 - `ViewControllerLeaksReceiver` 
 - `StartupTimeReceiver`
 - `ViewControllerLoggingReceiver`

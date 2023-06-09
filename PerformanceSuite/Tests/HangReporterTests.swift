@@ -35,7 +35,7 @@ class HangReporterTests: XCTestCase {
     }
 
     private let storage = StorageStub()
-    private let receiver = HangReceiverStub()
+    private let receiver = HangsReceiverStub()
     private let startupProvider = StartupTimeReporter(receiver: StartupTimeReceiverStub())
     private let detectionInterval = DispatchTimeInterval.milliseconds(5)
     private let hangThreshold = DispatchTimeInterval.milliseconds(40)
@@ -296,7 +296,7 @@ private class StorageStubWithBlock: Storage {
     }
 }
 
-class HangReceiverStub: HangReceiver {
+class HangsReceiverStub: HangsReceiver {
     var fatalHang: Bool?
     var hangInfo: HangInfo?
 

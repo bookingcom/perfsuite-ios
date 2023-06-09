@@ -19,17 +19,17 @@ class OutOfMemoryReporterTests: XCTestCase {
     }
 
     private let storage = StorageStub()
-    private let receiver = OutOfMemoryReceiverStub()
+    private let receiver = WatchdogTerminationsReceiverStub()
 
     func testTheFirstLaunch() {
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testOOMDetection() {
         // first launch
-        var reporter = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        var reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
         NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
@@ -39,7 +39,7 @@ class OutOfMemoryReporterTests: XCTestCase {
         _ = reporter
 
         // second launch, OOM should be detected
-        reporter = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNotNil(receiver.oomData)
 
@@ -48,57 +48,57 @@ class OutOfMemoryReporterTests: XCTestCase {
 
     func testSystemRebooted() {
         // first launch
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch, but after system reboot
         let currentUptime = ProcessInfo.processInfo.systemUptime
-        storage.write(key: OutOfMemoryReporter.StorageKey.systemRebootTime, value: currentUptime - 1000)
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        storage.write(key: WatchdogTerminationReporter.StorageKey.systemRebootTime, value: currentUptime - 1000)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testLanguageChanged() {
         // first launch
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch with the changed app language, no OOM
-        storage.write(key: OutOfMemoryReporter.StorageKey.preferredLocalizations, value: "")
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        storage.write(key: WatchdogTerminationReporter.StorageKey.preferredLocalizations, value: "")
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // third launch with the changed system language, no OOM
-        storage.write(key: OutOfMemoryReporter.StorageKey.preferredLanguages, value: "")
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        storage.write(key: WatchdogTerminationReporter.StorageKey.preferredLanguages, value: "")
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testAppCrashed() {
         // first launch
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch after the crash, no OOM
-        _ = OutOfMemoryReporter(storage: storage, didCrashPreviously: true, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, didCrashPreviously: true, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testFatalHangHappened() {
         // first launch
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch after the crash, no OOM
-        _ = OutOfMemoryReporter(
+        _ = WatchdogTerminationReporter(
             storage: storage, didHangPreviouslyProvider: DidHangPreviouslyProviderStub(), enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
@@ -112,7 +112,7 @@ class OutOfMemoryReporterTests: XCTestCase {
 
     func testAppWasTerminated() {
         // first launch
-        var reporter = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        var reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         NotificationCenter.default.post(name: UIApplication.willTerminateNotification, object: nil)
         receiver.wait()
@@ -121,20 +121,20 @@ class OutOfMemoryReporterTests: XCTestCase {
         _ = reporter
 
         // second launch after app was terminated, no OOM
-        reporter = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testAppUpdated() {
         // first launch
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch, but after app update, no OOM
-        storage.write(key: OutOfMemoryReporter.StorageKey.bundleVersion, value: "9.9.9")
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        storage.write(key: WatchdogTerminationReporter.StorageKey.bundleVersion, value: "9.9.9")
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
@@ -144,14 +144,14 @@ class OutOfMemoryReporterTests: XCTestCase {
 
         NSTimeZone.default = TimeZone(secondsFromGMT: 3600)!
         // first launch
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch, but after timezone changed,
         // OOM should be detected, since systemRebootTime hasn't changed, only timezone changed
         NSTimeZone.default = TimeZone(secondsFromGMT: -3600)!
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNotNil(receiver.oomData)
 
@@ -159,7 +159,7 @@ class OutOfMemoryReporterTests: XCTestCase {
         // OOM should be detected, since systemRebootTime hasn't changed, only timezone changed
         NSTimeZone.default = TimeZone(secondsFromGMT: 3600)!
 
-        _ = OutOfMemoryReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNotNil(receiver.oomData)
 
@@ -167,11 +167,11 @@ class OutOfMemoryReporterTests: XCTestCase {
     }
 }
 
-class OutOfMemoryReceiverStub: OutOfMemoryReceiver {
+class WatchdogTerminationsReceiverStub: WatchdogTerminationsReceiver {
 
-    var oomData: OOMData?
+    var oomData: WatchdogTerminationData?
 
-    func outOfMemoryTerminationReceived(_ data: OOMData) {
+    func watchdogTerminationReceived(_ data: WatchdogTerminationData) {
         oomData = data
     }
 

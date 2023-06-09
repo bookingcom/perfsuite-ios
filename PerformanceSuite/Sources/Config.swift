@@ -12,8 +12,8 @@ public enum ConfigItem {
     case screenLevelRendering(RenderingMetricsReceiver)
     case appLevelRendering(AppRenderingMetricsReceiver)
     case startupTime(StartupTimeReceiver)
-    case outOfMemory(OutOfMemoryReceiver)
-    case hangs(HangReceiver)
+    case watchdogTerminations(WatchdogTerminationsReceiver)
+    case hangs(HangsReceiver)
     case viewControllerLeaks(ViewControllerLeaksReceiver)
     case logging(ViewControllerLoggingReceiver)
     case fragmentTTI(FragmentTTIMetricsReceiver)
@@ -22,7 +22,7 @@ public enum ConfigItem {
 public typealias Config = [ConfigItem]
 
 public typealias PerformanceSuiteMetricsReceiver = TTIMetricsReceiver & RenderingMetricsReceiver & AppRenderingMetricsReceiver
-& OutOfMemoryReceiver & HangReceiver & ViewControllerLeaksReceiver & StartupTimeReceiver & ViewControllerLoggingReceiver
+& WatchdogTerminationsReceiver & HangsReceiver & ViewControllerLeaksReceiver & StartupTimeReceiver & ViewControllerLoggingReceiver
 & FragmentTTIMetricsReceiver
 
 
@@ -86,9 +86,9 @@ extension Config {
         }
     }
 
-    var oomReceiver: OutOfMemoryReceiver? {
-        findReceiver(title: "outOfMemory") { item in
-            if case .outOfMemory(let result) = item {
+    var watchdogTerminationsReceiver: WatchdogTerminationsReceiver? {
+        findReceiver(title: "watchdogTerminations") { item in
+            if case .watchdogTerminations(let result) = item {
                 return result
             } else {
                 return nil
@@ -96,7 +96,7 @@ extension Config {
         }
     }
 
-    var hangReceiver: HangReceiver? {
+    var hangsReceiver: HangsReceiver? {
         findReceiver(title: "hangs") { item in
             if case .hangs(let result) = item {
                 return result
@@ -152,7 +152,7 @@ extension Config {
             .screenLevelRendering(receiver),
             .appLevelRendering(receiver),
             .startupTime(receiver),
-            .outOfMemory(receiver),
+            .watchdogTerminations(receiver),
             .hangs(receiver),
             .viewControllerLeaks(receiver),
             .logging(receiver),

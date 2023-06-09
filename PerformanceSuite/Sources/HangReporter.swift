@@ -1,6 +1,6 @@
 //
 //  HangsReporter.swift
-//  PerformanceTrackingServices#iphonesimulator-x86_64,static
+//  PerformanceSuite
 //
 //  Created by Gleb Tarasov on 08/09/2021.
 //
@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-public protocol HangReceiver: AnyObject {
+public protocol HangsReceiver: AnyObject {
 
     /// This method will be called on `PerformanceSuite.consumerQueue` just after the app launch for the fatal hangs,
     /// in case during the previous launch app was terminated during the main thread hang.
@@ -21,7 +21,7 @@ public protocol HangReceiver: AnyObject {
 }
 
 
-/// OOMReporter should know if app was killed because of the hang.
+/// WatchdogTerminationsReporter should know if app was killed because of the hang.
 /// Providing this information via this protocol
 protocol DidHangPreviouslyProvider: AnyObject {
     func didHangPreviously() -> Bool
@@ -62,7 +62,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private var willResignSubscription: AnyObject?
     private var didBecomeActiveSubscription: AnyObject?
 
-    private let receiver: HangReceiver
+    private let receiver: HangsReceiver
 
     init(
         timeProvider: TimeProvider = DefaultTimeProvider(),
@@ -74,7 +74,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         hangThreshold: DispatchTimeInterval = .seconds(2),
         didCrashPreviously: Bool = false,
         enabledInDebug: Bool = false,
-        receiver: HangReceiver
+        receiver: HangsReceiver
     ) {
         self.timeProvider = timeProvider
         self.storage = storage

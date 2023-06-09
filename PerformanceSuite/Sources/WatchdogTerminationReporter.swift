@@ -1,5 +1,5 @@
 //
-//  OutOfMemoryReporter.swift
+//  WatchdogTerminationReporter.swift
 //  PerformanceSuite
 //
 //  Created by Gleb Tarasov on 25/01/2022.
@@ -8,35 +8,40 @@
 import Foundation
 import UIKit
 
-public struct OOMData {
+public struct WatchdogTerminationData {
 
-    /// Application state during OOM.
-    /// The most important OOM that we should fix are when `applicationState == .active`.
-    /// In this case crash is visible to the user.
+    /// Application state during a termination.
+    /// The most important terminations that we should fix are when `applicationState == .active`.
+    /// In this case it is visible to the user.
     ///
-    /// JFYI: some other background terminations are tracked as background OOM, because it is hard to differ such events.
-    /// For example, fatal hang in background is detected as a background OOM.
-    /// Also, iOS can kill our app, because it uses too much CPU in background,
-    /// and this event will also be reported as a background OOM, etc.
+    /// JFYI: some other background terminations are tracked as background watchdog terminations, because it is hard to differ such events.
+    /// For example, fatal hang in background is detected as a background watchdog termination.
     public let applicationState: UIApplication.State?
 
-    /// Number of memory warnings generated before OOM
+    /// Number of memory warnings generated before termination. Can be useful to differ memory terminations from other types.
     public let memoryWarnings: Int?
 }
 
 
-/// Object can receive events about OOM from `OutOfMemoryReporter`.
-public protocol OutOfMemoryReceiver: AnyObject {
+/// Object can receive events about watchdog terminations from `WatchdogTerminationReporter`.
+///
+/// It detects if the reason of the previous death of the application is unknown.
+/// We consider such terminations as Watchdog terminations.
+///
+/// The reason of a termination can vary: out of memory, too high CPU, something else.
+/// But in most cases foreground terminations happen because of some problem in the code.
+public protocol WatchdogTerminationsReceiver: AnyObject {
 
     /// This method will be called on `PerformanceSuite.consumerQueue` just after the app launch,
-    /// in case during the previous launch app was killed by the system because of the memory warning
+    /// in case during the previous launch app was killed by the system because of the out-of-memory, too high CPU
     /// (or because any other reason that we are not aware about).
-    func outOfMemoryTerminationReceived(_ data: OOMData)
+    func watchdogTerminationReceived(_ data: WatchdogTerminationData)
 }
 
-/// Object detects if the previous death of the application is related to OOM.
+/// Object detects if the reason of the previous death of the application is unknown.
+/// We consider such terminations as Watchdog terminations.
 /// Initial idea is taken from here: https://engineering.fb.com/2015/08/24/ios/reducing-fooms-in-the-facebook-ios-app/
-final class OutOfMemoryReporter: AppMetricsReporter {
+final class WatchdogTerminationReporter: AppMetricsReporter {
 
     private struct AppInformation {
         var bundleVersion: String?
@@ -62,7 +67,7 @@ final class OutOfMemoryReporter: AppMetricsReporter {
 
     init(
         storage: Storage, didCrashPreviously: Bool = false, didHangPreviouslyProvider: DidHangPreviouslyProvider? = nil,
-        enabledInDebug: Bool = false, receiver: OutOfMemoryReceiver
+        enabledInDebug: Bool = false, receiver: WatchdogTerminationsReceiver
     ) {
         self.storage = storage
         self.didCrashPreviously = didCrashPreviously
@@ -79,7 +84,7 @@ final class OutOfMemoryReporter: AppMetricsReporter {
     private let didCrashPreviously: Bool
     private let didHangPreviouslyProvider: DidHangPreviouslyProvider?
     private let enabledInDebug: Bool
-    private let receiver: OutOfMemoryReceiver
+    private let receiver: WatchdogTerminationsReceiver
 
     // MARK: - Notifications
 
@@ -174,7 +179,7 @@ final class OutOfMemoryReporter: AppMetricsReporter {
         if storedAppInformation.bundleVersion == nil {
             // the first launch of the app, ignore
         } else if didCrashPreviously {
-            // it was the real crash, not OOM, ignore
+            // it was the real crash with a stack trace, ignore
         } else if storedAppInformation.appTerminated == true {
             // app was terminated by the user, ignore
         } else if storedAppInformation.preferredLanguages != actualAppInformation.preferredLanguages
@@ -189,10 +194,10 @@ final class OutOfMemoryReporter: AppMetricsReporter {
             > systemUptimeChangeThreshold {
             // device was rebooted between 2 launches of the app, this may cause the termination, ignore
         } else if didHangPreviouslyProvider?.didHangPreviously() == true {
-            // system killed the app because of the hang on the main thread, this wasn't OOM, ignore
+            // system killed the app because of the hang on the main thread, ignore
         } else {
-            // we don't know any more valid reason, consider this as OOM
-            let data = OOMData(
+            // we don't know any more valid reason, consider this as a watchdog termination
+            let data = WatchdogTerminationData(
                 applicationState: storedAppInformation.appState,
                 memoryWarnings: storedAppInformation.memoryWarnings)
             PerformanceSuite.consumerQueue.async {
@@ -203,7 +208,7 @@ final class OutOfMemoryReporter: AppMetricsReporter {
                         return
                     }
                 #endif
-                self.receiver.outOfMemoryTerminationReceived(data)
+                self.receiver.watchdogTerminationReceived(data)
             }
         }
     }

@@ -93,8 +93,8 @@ class MetricsConsumerImpl: PerformanceSuiteMetricsReceiver {
         return false
     }
 
-    func outOfMemoryTerminationReceived(_ data: OOMData) {
-        debugPrint("OutOfMemory reported")
+    func watchdogTerminationReceived(_ data: WatchdogTerminationData) {
+        debugPrint("WatchdogTermination reported")
     }
 
     func fatalHangReceived() {

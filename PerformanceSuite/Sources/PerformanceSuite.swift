@@ -165,17 +165,17 @@ public enum PerformanceSuite {
         return startupTimeReporter
     }
 
-    private static func appendOOMObserver(
+    private static func appendWatchdogTerminationsObserver(
         config: Config, storage: Storage, didCrashPreviously: Bool, didHangPreviouslyProvider: DidHangPreviouslyProvider?,
         appReporters: inout [AppMetricsReporter]
     ) {
-        guard let oomReceiver = config.oomReceiver else {
+        guard let watchdogTerminationsReceiver = config.watchdogTerminationsReceiver else {
             return
         }
-        let oomReporter = OutOfMemoryReporter(
+        let watchdogTerminationsReporter = WatchdogTerminationReporter(
             storage: storage, didCrashPreviously: didCrashPreviously, didHangPreviouslyProvider: didHangPreviouslyProvider,
-            receiver: oomReceiver)
-        appReporters.append(oomReporter)
+            receiver: watchdogTerminationsReceiver)
+        appReporters.append(watchdogTerminationsReporter)
     }
 
     private static func appendHangObservers(
@@ -185,12 +185,12 @@ public enum PerformanceSuite {
         didCrashPreviously: Bool,
         appReporters: inout [AppMetricsReporter]
     ) -> DidHangPreviouslyProvider? {
-        guard let hangReceiver = config.hangReceiver else {
+        guard let hangsReceiver = config.hangsReceiver else {
             return nil
         }
         if let startupProvider = startupProvider {
             let hangReporter = HangReporter(
-                storage: storage, startupProvider: startupProvider, didCrashPreviously: didCrashPreviously, receiver: hangReceiver)
+                storage: storage, startupProvider: startupProvider, didCrashPreviously: didCrashPreviously, receiver: hangsReceiver)
             appReporters.append(hangReporter)
 
             #if arch(arm64)
@@ -245,7 +245,7 @@ public enum PerformanceSuite {
             didCrashPreviously: didCrashPreviously,
             appReporters: &appReporters
         )
-        appendOOMObserver(
+        appendWatchdogTerminationsObserver(
             config: config,
             storage: storage,
             didCrashPreviously: didCrashPreviously,

@@ -53,7 +53,7 @@ jobs:
       - name: Make Coverage Badge
         uses: action-badges/core@0.2.2
         with:
-          label: Make code coverage badge
+          label: coverage
           message: "${{ steps.load-coverage.outputs.coverage }}"
           message-color: green
           file-name: code_coverage.svg

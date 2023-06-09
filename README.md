@@ -1,3 +1,5 @@
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/bookingcom/perfsuite-ios/ios.yml)![Cocoapods](https://img.shields.io/cocoapods/l/PerformanceSuite)![Cocoapods](https://img.shields.io/cocoapods/v/PerformanceSuite)![Cocoapods platforms](https://img.shields.io/cocoapods/p/PerformanceSuite)![Code Coverage](https://raw.githubusercontent.com/bookingcom/perfsuite-ios/badges/code_coverage.svg)
+
 # PerformanceSuite
 
 PerformanceSuite is an iOS Swift library designed to measure and collect performance and quality metrics of iOS applications. 

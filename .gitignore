@@ -7,3 +7,5 @@ xcuserdata/
 ## SwiftPM
 .swiftpm
 
+*.xcresult
+/code_coverage.txt

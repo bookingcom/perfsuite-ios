@@ -43,7 +43,7 @@ PerformanceSuite screen tracking heavily relies on the UIKit UIViewController's 
 
 For purely SwiftUI apps, iOS still creates `UINavigationController` under the hood to perform navigations, and these cases are supported by PerformanceSuite.
 
-However, custom SwiftUI transitions that do not create any `UIHostingController` under the hood are currently unsupported. We plan to support these cases in the future, but the tracking might not be as automatic as it is currently in UIKit reality.
+However, custom SwiftUI transitions that do not create any `UIHostingController` under the hood are not currently automated. For now you can use Fragment TTI tracking for such cases. We may introduce some syntax sugar later if there is a demand for that.
 
 For most apps, though, the current setup is good enough to automatically track screen openings with SwiftUI views inside `UIHostingController`.
 

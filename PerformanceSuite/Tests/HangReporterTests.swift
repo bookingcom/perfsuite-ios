@@ -45,6 +45,47 @@ class HangReporterTests: XCTestCase {
         return 3 * (hangThreshold.timeInterval ?? 0)
     }
 
+    func testHangStarted() {
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: AppStateProviderStub(),
+            workingQueue: PerformanceSuite.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+        XCTAssertNil(receiver.hangInfo)
+        XCTAssertNil(receiver.fatalHang)
+        XCTAssertNil(receiver.hangJustStarted)
+
+        receiver.wait()
+
+        let exp = expectation(description: "wait background thread")
+        DispatchQueue.global().async {
+            Thread.sleep(forTimeInterval: self.sleepInterval / 2)
+            PerformanceSuite.queue.sync {}
+            PerformanceSuite.consumerQueue.sync {}
+            // we should detect that hang started
+            XCTAssertEqual(self.receiver.hangJustStarted, true)
+            XCTAssertNotNil(self.receiver.hangInfo)
+
+            Thread.sleep(forTimeInterval: self.sleepInterval)
+            PerformanceSuite.queue.sync {}
+            PerformanceSuite.consumerQueue.sync {}
+
+            // hang finished
+            XCTAssertEqual(self.receiver.hangJustStarted, nil)
+            XCTAssertNotNil(self.receiver.hangInfo)
+
+            exp.fulfill()
+        }
+        Thread.sleep(forTimeInterval: sleepInterval)
+        wait(for: [exp], timeout: 1)
+    }
+
     func testNonFatalHang() {
         reporter = HangReporter(
             timeProvider: defaultTimeProvider,
@@ -59,6 +100,7 @@ class HangReporterTests: XCTestCase {
         )
         XCTAssertNil(receiver.hangInfo)
         XCTAssertNil(receiver.fatalHang)
+        XCTAssertNil(receiver.hangJustStarted)
 
         startupProvider.onViewDidLoadOfTheFirstViewController()
         startupProvider.onViewDidAppearOfTheFirstViewController()
@@ -73,6 +115,7 @@ class HangReporterTests: XCTestCase {
         #if arch(arm64)
             XCTAssertTrue(receiver.hangInfo!.callStack.contains("XCTestCore"))
         #endif
+        XCTAssertNil(receiver.hangJustStarted)
         XCTAssertEqual(receiver.fatalHang, false)
         XCTAssertGreaterThan(receiver.hangInfo!.duration.timeInterval!, hangThreshold.timeInterval!)
         XCTAssertFalse(receiver.hangInfo!.duringStartup)
@@ -298,16 +341,24 @@ private class StorageStubWithBlock: Storage {
 
 class HangsReceiverStub: HangsReceiver {
     var fatalHang: Bool?
+    var hangJustStarted: Bool?
     var hangInfo: HangInfo?
 
+    func hangStarted(info: HangInfo) {
+        hangJustStarted = true
+        hangInfo = info
+    }
+
     func fatalHangReceived(info: HangInfo) {
+        hangJustStarted = nil
         fatalHang = true
-        self.hangInfo = info
+        hangInfo = info
     }
 
     func nonFatalHangReceived(info: HangInfo) {
+        hangJustStarted = nil
         fatalHang = false
-        self.hangInfo = info
+        hangInfo = info
     }
 
     func wait() {

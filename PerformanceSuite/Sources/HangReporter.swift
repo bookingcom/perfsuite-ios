@@ -18,6 +18,10 @@ public protocol HangsReceiver: AnyObject {
     /// This method will be called on `PerformanceSuite.consumerQueue` after the main thread freeze resolved.
     /// - Parameter info: info related to the hang
     func nonFatalHangReceived(info: HangInfo)
+
+    /// This method will be called on `PerformanceSuite.consumerQueue` just after the main thread is detected to be frozen.
+    /// At this stage we do not know if this will be non-fatal or fatal hang. We just know, that some hang has started.
+    func hangStarted(info: HangInfo)
 }
 
 
@@ -198,6 +202,11 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
 #endif
                 let info = HangInfo.with(callStack: callStack, duringStartup: startupIsHappening, duration: currentHangInterval)
                 store(hangInfo: info)
+
+                PerformanceSuite.consumerQueue.async {
+                    // notify receiver, that hang has started
+                    self.receiver.hangStarted(info: info)
+                }
             }
         }
 

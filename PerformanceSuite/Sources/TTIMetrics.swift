@@ -13,7 +13,7 @@ public struct TTIMetrics: CustomStringConvertible, Equatable {
     /// Time to interactive
     ///
     /// Time between view controller is created and view controller displays all data:
-    /// ViewController.init -> ViewController.perf_screenIsReady
+    /// ViewController.init -> ViewController.screenIsReady
     public let tti: DispatchTimeInterval
 
     /// Time to first frame

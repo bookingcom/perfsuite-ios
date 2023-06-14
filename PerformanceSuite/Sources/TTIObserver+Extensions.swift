@@ -23,12 +23,12 @@ public extension UIViewController {
     ///          super.viewDidLoad()
     ///          networkManager.loadData { [self] response in
     ///              self.reloadData(response)
-    ///              self.perf_screenIsReady()
+    ///              self.screenIsReady()
     ///          }
     ///     }
     /// }
     /// ```
-    @objc func perf_screenIsReady() {
+    @objc func screenIsReady() {
         let observer = ViewControllerObserverFactory<TTIObserver>.existingObserver(for: self)
         observer?.screenIsReady()
     }
@@ -72,12 +72,12 @@ extension View {
     ///     if viewModel.isLoading {
     ///         ProgressView()
     ///     } else {
-    ///         Text("Screen is ready").perf_screenIsReadyOnAppear()
+    ///         Text("Screen is ready").screenIsReadyOnAppear()
     ///     }
     /// }
     /// ```
-    @ViewBuilder public func perf_screenIsReadyOnAppear(_ condition: @autoclosure @escaping () -> Bool = true) -> some View {
-        overlay(overlayView(condition: condition, onAppear: { $0.perf_screenIsReady() }))
+    @ViewBuilder public func screenIsReadyOnAppear(_ condition: @autoclosure @escaping () -> Bool = true) -> some View {
+        overlay(overlayView(condition: condition, onAppear: { $0.screenIsReady() }))
     }
 
     @ViewBuilder private func overlayView(condition: () -> Bool, onAppear: @escaping (UIViewController) -> Void) -> some View {

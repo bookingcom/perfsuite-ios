@@ -178,7 +178,7 @@ class TTIObserverExtensionTests: XCTestCase {
         XCTAssertNil(metricsReceiver.lastController)
 
         DispatchQueue.main.async {
-            vc.perf_screenIsReady()
+            vc.screenIsReady()
         }
 
         waitForExpectations(timeout: 3, handler: nil)
@@ -247,7 +247,7 @@ class TTIObserverExtensionTests: XCTestCase {
         waitForExpectations(timeout: 3, handler: nil)
 
         // for the first controller we should calculate TTI between `init` and `screenIsReady` -> 1 second
-        vc1.perf_screenIsReady()
+        vc1.screenIsReady()
 
         PerformanceSuite.queue.sync {}
         PerformanceSuite.consumerQueue.sync {}
@@ -274,7 +274,7 @@ class TTIObserverExtensionTests: XCTestCase {
 
         self.timeProvider.time = now.advanced(by: .seconds(12))
         // for the second controller we should calculate TTI between `setSelectedIndex` and `screenIsReady` -> 7 seconds
-        vc2.perf_screenIsReady()
+        vc2.screenIsReady()
 
         PerformanceSuite.queue.sync {}
         PerformanceSuite.consumerQueue.sync {}
@@ -299,7 +299,7 @@ class TTIObserverExtensionTests: XCTestCase {
 
         self.timeProvider.time = now.advanced(by: .seconds(18))
         // for the third controller we should calculate TTI between `setSelectedViewController` and `screenIsReady` -> 2 seconds
-        vc3.perf_screenIsReady()
+        vc3.screenIsReady()
 
         PerformanceSuite.queue.sync {}
         PerformanceSuite.consumerQueue.sync {}
@@ -369,6 +369,6 @@ private class MyViewController: UIViewController {
 
 private struct MyView: View {
     var body: some View {
-        return Text("test").perf_screenIsReadyOnAppear()
+        return Text("test").screenIsReadyOnAppear()
     }
 }

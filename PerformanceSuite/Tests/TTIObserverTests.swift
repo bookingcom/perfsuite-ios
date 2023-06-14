@@ -352,7 +352,7 @@ class TTIObserverTests: XCTestCase {
     }
 
     func testScreenIsReadyCallBeforeTTI() {
-        // There can be the case, when we call `perf_screenIsReady` for the second screen while TTI for the first screen is not calculated
+        // There can be the case, when we call `screenIsReady` for the second screen while TTI for the first screen is not calculated
         // We should test that we won't take customCreationTime for the first screen TTI calculation
 
         let timeProvider = TimeProviderStub()

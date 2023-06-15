@@ -81,7 +81,7 @@ For purely SwiftUI apps, iOS still creates `UINavigationController` under the ho
 
 However, custom SwiftUI transitions that do not create any `UIHostingController` under the hood are not currently automated. For now you can use [Fragment TTI tracking](https://github.com/bookingcom/perfsuite-ios/wiki/TTI#fragments-tti-tracking) for such cases. We may introduce some syntax sugar later if there is a demand for that.
 
-For most apps, though, the current setup is good enough to automatically track screen openings with SwiftUI views inside `UIHostingController`.
+For most apps, though, the current setup is good enough to automatically track screen openings with SwiftUI views inside `UIHostingController`. Check [Usage](README.md#usage) section for the details.
 
 ## Installation
 

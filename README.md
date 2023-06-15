@@ -52,7 +52,26 @@ For most apps, though, the current setup is good enough to automatically track s
 
 ## Installation
 
-We support SwiftPM and CocoaPods. Full manual will be written later.
+
+#### Swift Package Manager
+- In Xcode, select File > Add Packages.
+- Enter https://github.com/bookingcom/perfsuite-ios in the "Search or Enter Package URL" dialog.
+- In the next page select "Up to Next Major" and specify the latest version.
+- On the final page, choose the `PerformanceSuite` library and add it to your target.
+- Your package dependency will be added to your .xcodeproj file.
+
+#### CocoaPods
+To integrate `PerformanceSuite` into your Xcode project using CocoaPods, specify it in your Podfile:
+
+```
+pod 'PerformanceSuite'
+```
+
+Currently CocoaPods repo [has problems](https://github.com/CocoaPods/cocoapods.org/issues/424) with indexing the new added pods, that's why if it doesn't work you may specify the source url and tag
+
+```
+pod 'PerformanceSuite', :git => 'https://github.com/bookingcom/perfsuite-ios.git', :tag => '0.0.4' # use the last released version here
+```
 
 ## Usage
 

@@ -40,6 +40,39 @@ This library is used in the [main Booking.com iOS app](https://apps.apple.com/ap
 
 Please note that PerformanceSuite currently does not support the tracking of standard crashes. You will need an additional tool to collect stack traces for crashes (for example, Firebase Crashlytics).
 
+## How it works
+
+`PerformanceSuite` monitoring should be activated as your application launches, by supplying an object that is set up to gather the performance metrics. As your application continues to run, you'll obtain numerous callbacks that deliver these metrics.
+
+```swift
+
+func startupTimeReceived(_ data: StartupTimeData) { ... }
+
+func fatalHangReceived(info: HangInfo) { ... }
+
+func nonFatalHangReceived(info: HangInfo) { ... }
+
+func viewControllerLeakReceived(viewController: UIViewController) { ... }
+
+func watchdogTerminationReceived(_ data: WatchdogTerminationData) { ... }
+
+func appRenderingMetricsReceived(metrics: RenderingMetrics) { ... }
+
+```
+
+For screen-level metrics you should return `true` or `false` if we should monitor this exact view controller object
+
+```swift
+
+func shouldTrack(viewController: UIViewController) -> Bool { ... }
+
+func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) { ... }
+
+func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController) { ... }
+
+```
+
+
 ## SwiftUI support
 
 PerformanceSuite screen tracking heavily relies on the UIKit UIViewController's lifecycle.
@@ -51,7 +84,6 @@ However, custom SwiftUI transitions that do not create any `UIHostingController`
 For most apps, though, the current setup is good enough to automatically track screen openings with SwiftUI views inside `UIHostingController`.
 
 ## Installation
-
 
 #### Swift Package Manager
 - In Xcode, select File > Add Packages.

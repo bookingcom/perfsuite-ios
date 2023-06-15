@@ -3,6 +3,9 @@
  ![Cocoapods](https://img.shields.io/cocoapods/v/PerformanceSuite)
  ![Cocoapods platforms](https://img.shields.io/cocoapods/p/PerformanceSuite)
  ![Code Coverage](https://raw.githubusercontent.com/bookingcom/perfsuite-ios/badges/.badges/main/code_coverage.svg)
+ 
+![PerformanceSuite_logo_small](https://github.com/bookingcom/perfsuite-ios/assets/983021/384c8786-c7ee-40cf-a46a-ee7ee656e814)
+
 
 # PerformanceSuite
 

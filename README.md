@@ -42,7 +42,7 @@ Please note that PerformanceSuite currently does not support the tracking of sta
 
 ## How it works
 
-`PerformanceSuite` monitoring should be activated as your application launches, by supplying an object that is set up to gather the performance metrics. As your application continues to run, you'll obtain numerous callbacks that deliver these metrics.
+`PerformanceSuite` monitoring should be activated as your application launches, by supplying an object that is set up to process the performance metrics. As your application continues to run, you'll receive callbacks that deliver these metrics.
 
 ```swift
 

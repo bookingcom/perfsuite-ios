@@ -42,8 +42,8 @@ jobs:
         id: get_commit_messages
         run: |
           VERSION_NAME="${{ github.event.inputs.version }}"
-          PREVIOUS_TAG=$(git show-ref --tags | grep -o 'refs/tags/[0-9]*\.[0-9]*\.[0-9]*' | cut -d '/' -f 3 | sort -rV | sed -n '2p')
-          COMMIT_MESSAGES=$(git log --format=%B ${PREVIOUS_TAG}..${TAG_NAME})
+          PREVIOUS_VERSION=$(git show-ref --tags | grep -o 'refs/tags/[0-9]*\.[0-9]*\.[0-9]*' | cut -d '/' -f 3 | sort -rV | sed -n '2p')
+          COMMIT_MESSAGES=$(git log --format=%B ${PREVIOUS_VERSION}..${VERSION_NAME})
           COMMIT_MESSAGES="${COMMIT_MESSAGES//'%'/'%25'}"
           COMMIT_MESSAGES="${COMMIT_MESSAGES//$'\n'/'%0A'}"
           COMMIT_MESSAGES="${COMMIT_MESSAGES//$'\r'/'%0D'}"

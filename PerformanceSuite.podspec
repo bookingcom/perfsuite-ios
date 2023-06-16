@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name                 = 'PerformanceSuite'
-  s.version              = '0.0.5'
+  s.version              = ''
   s.summary              = 'Performance monitoring library for iOS'
   s.homepage             = 'https://github.com/bookingcom/perfsuite-ios' 
   s.license              = { :type => 'MIT', :file => 'LICENSE' }

@@ -12,15 +12,12 @@ protocol AppMetricsReporter: AnyObject {}
 public struct Experiments {
     // swiftlint:disable identifier_name
     public init(ios_adq_add_screen_information_to_termination_squeaks: Int = 0,
-                ios_adq_leak_detection_check_on_view_will_disappear: Bool = false,
                 ios_adq_no_locks_in_main_thread_call_stack: Int = 0) {
         self.ios_adq_add_screen_information_to_termination_squeaks = ios_adq_add_screen_information_to_termination_squeaks
-        self.ios_adq_leak_detection_check_on_view_will_disappear = ios_adq_leak_detection_check_on_view_will_disappear
         self.ios_adq_no_locks_in_main_thread_call_stack = ios_adq_no_locks_in_main_thread_call_stack
     }
 
     public let ios_adq_add_screen_information_to_termination_squeaks: Int
-    public let ios_adq_leak_detection_check_on_view_will_disappear: Bool
     public let ios_adq_no_locks_in_main_thread_call_stack: Int
     // swiftlint:enable identifier_name
 }

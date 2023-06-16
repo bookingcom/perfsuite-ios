@@ -45,10 +45,6 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
     func afterViewWillAppear(viewController: UIViewController) {}
     func afterViewDidAppear(viewController: UIViewController) {}
     func beforeViewWillDisappear(viewController: UIViewController) {
-        guard PerformanceSuite.experiments.ios_adq_leak_detection_check_on_view_will_disappear else {
-            return
-        }
-
         // We separate detection logic by 2 parts:
         // In the viewWillDisappear we check if we should handle view controller at all.
         // We skip all the exceptions.
@@ -79,7 +75,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
         viewControllersToHandle.insert(ObjectIdentifier(viewController))
     }
 
-    func beforeViewDidDisappearV1(viewController: UIViewController) {
+    func beforeViewDidDisappear(viewController: UIViewController) {
         assert(Thread.isMainThread)
         let identifier = ObjectIdentifier(viewController)
         guard viewControllersToHandle.contains(identifier) else {
@@ -104,44 +100,6 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             .map(WeakViewController.init(_:))
 
         let isMovingFromParent = viewController.isMovingFromParent
-        DispatchQueue.main.asyncAfter(deadline: .now() + detectionTimeout) {
-            for weakViewController in allViewControllers {
-                self.checkDeallocation(viewController: weakViewController.viewController, isMovingFromParent: isMovingFromParent)
-            }
-        }
-    }
-
-    func beforeViewDidDisappear(viewController: UIViewController) {
-        if PerformanceSuite.experiments.ios_adq_leak_detection_check_on_view_will_disappear {
-            beforeViewDidDisappearV1(viewController: viewController)
-            return
-        }
-
-        let isMovingFromParent = viewController.isMovingFromParent
-        let isBeingDismissed = viewController.isBeingDismissed
-        guard isMovingFromParent || isBeingDismissed else {
-            // We check only cases when we dismiss view controller, or go back in navigation stack.
-            // Ignore cases when view controller disappeared because we went forward or presented a new view controller.
-            // This check also avoids false-alerts for view controllers inside UITabBarController.
-            return
-        }
-
-        // We will come here only for view controller which is root in disappearing stack,
-        // but some child controller may leak too, that's why we call `checkDeallocation` for all the child controllers.
-        let allViewControllers = selfAndAllChildren(viewController: viewController)
-            .filter { vc in
-                if isKnownException(vc) {
-                    // this is the hard coded exception, ignore it
-                    return false
-                }
-                if isMarkedAsException(vc) {
-                    // this is the exception marked by a developer, ignore it
-                    return false
-                }
-                return true
-            }
-            .map(WeakViewController.init(_:))
-
         DispatchQueue.main.asyncAfter(deadline: .now() + detectionTimeout) {
             for weakViewController in allViewControllers {
                 self.checkDeallocation(viewController: weakViewController.viewController, isMovingFromParent: isMovingFromParent)

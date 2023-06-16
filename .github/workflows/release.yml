@@ -9,13 +9,22 @@ on:
 
 
 jobs:
-  build:
+  create-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
           ref: 'main'
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v2
+        with:
+          ruby-version: 3.1
+
+      - name: Install CocoaPods
+        run: |
+          gem install cocoapods cocoapods-trunk
 
       - name: Update Version in PerformanceSuite.podspec
         run: |
@@ -24,10 +33,7 @@ jobs:
             echo "The version ${VERSION_NAME} doesn't match the format X.X.X. Exiting"
             exit 0
           fi
-
-          sed -i "s/\(s.version\s*=\s*\)'.*'$/\1'$VERSION_NAME'/" PerformanceSuite.podspec
-          
-
+          sed -i '' "s/s.version.*=.*/s.version              = '$VERSION'/g" PerformanceSuite.podspec
       - name: Push Changes
         run: |
           VERSION_NAME="${{ github.event.inputs.version }}"
@@ -51,7 +57,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -60,3 +66,9 @@ jobs:
           body: ${{ steps.get_commit_messages.outputs.commit_messages }}
           draft: false
           prerelease: false
+
+      - name: Push to CocoaPods
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          pod trunk push PerformanceSuite.podspec

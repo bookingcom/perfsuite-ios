@@ -415,7 +415,7 @@ class TTIObserverTests: XCTestCase {
     }
 
     func testCustomCreationAfterViewWillAppear() {
-        // There can be the case, when user called `perf_screenIsBeingCreated` after `viewWillAppear`.
+        // There can be the case, when user called `screenIsBeingCreated` after `viewWillAppear`.
         // We should consider this `customCreationTime` for the second screen, not for the first one.
 
         let timeProvider = TimeProviderStub()

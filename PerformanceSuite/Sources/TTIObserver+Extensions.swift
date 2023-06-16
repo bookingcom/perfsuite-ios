@@ -39,19 +39,19 @@ public extension UIViewController {
     /// The first case is when TTI should be started before view controller is created.
     /// For example, if you start network request on the previous screen and show loading indicator there.
     /// And create controller only after network request succeeded.
-    /// Don't forget to call `perf_screenCreationCancelled` when network request failed in this case.
+    /// Don't forget to call `screenCreationCancelled` when network request failed in this case.
     ///
     /// The second case is when TTI should be started after view controller is created.
     /// For example, when you create UIViewController and cache it in some property earlier then showing it.
     /// Then you call this method before actually showing this controller.
-    @objc static func perf_screenIsBeingCreated() {
+    @objc static func screenIsBeingCreated() {
         TTIObserver.startCustomCreationTime()
     }
 
 
-    /// Call this method in case you called `perf_screenIsBeingCreated`, but screen won't be created.
+    /// Call this method in case you called `screenIsBeingCreated`, but screen won't be created.
     /// For example network request failed, or user tapped `cancel` or so on.
-    @objc static func perf_screenCreationCancelled() {
+    @objc static func screenCreationCancelled() {
         TTIObserver.clearCustomCreationTime()
     }
 }

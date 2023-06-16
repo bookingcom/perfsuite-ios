@@ -21,6 +21,10 @@ public protocol HangsReceiver: AnyObject {
 
     /// This method will be called on `PerformanceSuite.consumerQueue` just after the main thread is detected to be frozen.
     /// At this stage we do not know if this will be non-fatal or fatal hang. We just know, that some hang has started.
+    ///
+    /// We send `fatalHangReceived` events only after user re-launched the app after the fatal hang. 
+    /// If user has never launched the app after the hang, we won't receive such event. To track those 
+    /// users, you can track them in this method.
     func hangStarted(info: HangInfo)
 }
 

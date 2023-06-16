@@ -1,9 +1,12 @@
 name: Create Release
 
 on:
-  push:
-    tags:
-      - '*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        required: true
+
 
 jobs:
   build:
@@ -11,41 +14,40 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Setup Git User
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+        with:
+          ref: 'main'
 
       - name: Update Version in PerformanceSuite.podspec
         run: |
-          VERSION_NAME=$(git tag --points-at HEAD)
+          VERSION_NAME="${{ github.event.inputs.version }}"
           if [[ ! "${VERSION_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "The tag ${VERSION_NAME} doesn't match the format X.X.X. Exiting"
+            echo "The version ${VERSION_NAME} doesn't match the format X.X.X. Exiting"
             exit 0
           fi
 
-          sed -i '' -e "s/s.version              = '.*'/s.version              = '$VERSION_NAME'/" PerformanceSuite.podspec
-          git add PerformanceSuite.podspec
-          git commit -m "Update version to $VERSION_NAME"
-          NEW_COMMIT_SHA=$(git rev-parse HEAD)
-          git tag -f -a $TAG_NAME $NEW_COMMIT_SHA -m "Update version to $VERSION_NAME"
+          sed -i "s/\(s.version\s*=\s*\)'.*'$/\1'$VERSION_NAME'/" PerformanceSuite.podspec
+          
 
       - name: Push Changes
         run: |
+          VERSION_NAME="${{ github.event.inputs.version }}"
+          git add PerformanceSuite.podspec
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -m "Update version to $VERSION_NAME"
+          git tag -f -a $VERSION_NAME HEAD -m "Update version to $VERSION_NAME"
           git push --follow-tags
 
       - name: Get Commit Messages
         id: get_commit_messages
         run: |
-          TAG_NAME=$(git tag --points-at HEAD)
+          VERSION_NAME="${{ github.event.inputs.version }}"
           PREVIOUS_TAG=$(git show-ref --tags | grep -o 'refs/tags/[0-9]*\.[0-9]*\.[0-9]*' | cut -d '/' -f 3 | sort -rV | sed -n '2p')
           COMMIT_MESSAGES=$(git log --format=%B ${PREVIOUS_TAG}..${TAG_NAME})
           COMMIT_MESSAGES="${COMMIT_MESSAGES//'%'/'%25'}"
           COMMIT_MESSAGES="${COMMIT_MESSAGES//$'\n'/'%0A'}"
           COMMIT_MESSAGES="${COMMIT_MESSAGES//$'\r'/'%0D'}"
           echo "commit_messages=$COMMIT_MESSAGES" >> $GITHUB_OUTPUT
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
@@ -53,8 +55,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.get_commit_messages.outputs.tag_name }}
-          release_name: ${{ steps.get_commit_messages.outputs.tag_name }}
+          tag_name: ${{ github.event.inputs.version }}
+          release_name: ${{ github.event.inputs.version }}
           body: ${{ steps.get_commit_messages.outputs.commit_messages }}
           draft: false
           prerelease: false

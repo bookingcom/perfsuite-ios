@@ -31,7 +31,7 @@ jobs:
             echo "The version ${VERSION_NAME} doesn't match the format X.X.X. Exiting"
             exit 0
           fi
-          sed -i '' "s/s.version.*=.*/s.version              = '$VERSION'/g" PerformanceSuite.podspec
+          sed -i '' "s/s.version.*=.*/s.version              = '$VERSION_NAME'/g" PerformanceSuite.podspec
       - name: Push Changes
         run: |
           VERSION_NAME="${{ github.event.inputs.version }}"

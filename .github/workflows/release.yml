@@ -10,17 +10,15 @@ on:
 
 jobs:
   create-release:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          ref: 'main'
+        uses: actions/checkout@v3
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v2
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1
+          ruby-version: '3.1'
 
       - name: Install CocoaPods
         run: |
@@ -44,28 +42,15 @@ jobs:
           git tag -f -a $VERSION_NAME HEAD -m "Update version to $VERSION_NAME"
           git push --follow-tags
 
-      - name: Get Commit Messages
-        id: get_commit_messages
-        run: |
-          VERSION_NAME="${{ github.event.inputs.version }}"
-          PREVIOUS_VERSION=$(git show-ref --tags | grep -o 'refs/tags/[0-9]*\.[0-9]*\.[0-9]*' | cut -d '/' -f 3 | sort -rV | sed -n '2p')
-          COMMIT_MESSAGES=$(git log --format=%B ${PREVIOUS_VERSION}..${VERSION_NAME})
-          COMMIT_MESSAGES="${COMMIT_MESSAGES//'%'/'%25'}"
-          COMMIT_MESSAGES="${COMMIT_MESSAGES//$'\n'/'%0A'}"
-          COMMIT_MESSAGES="${COMMIT_MESSAGES//$'\r'/'%0D'}"
-          echo "commit_messages=$COMMIT_MESSAGES" >> $GITHUB_OUTPUT
-
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.version }}
-          release_name: ${{ github.event.inputs.version }}
-          body: ${{ steps.get_commit_messages.outputs.commit_messages }}
+          name: ${{ github.event.inputs.version }}
           draft: false
           prerelease: false
+          generate_release_notes: true
 
       - name: Push to CocoaPods
         env:

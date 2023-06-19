@@ -13,7 +13,6 @@ import XCTest
 final class LoggingObserverTests: XCTestCase {
 
     func testMethodsAreCalled() {
-        PerformanceSuite.experiments = Experiments(ios_adq_no_locks_in_main_thread_call_stack: 1)
         let stub = LoggingReceiverStub()
         let observer = LoggingObserver(receiver: stub)
         let vc = UIViewController()
@@ -62,7 +61,6 @@ final class LoggingObserverTests: XCTestCase {
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)
         stub.clear()
-        PerformanceSuite.experiments = Experiments()
     }
 
     func testRuntimeInfoIsSavedV1() {

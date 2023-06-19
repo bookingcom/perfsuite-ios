@@ -11,8 +11,6 @@
 
 #define MAX_STACK_SIZE 1024
 
-// ios_adq_no_locks_in_main_thread_call_stack
-
 typedef struct frame {
     struct frame *previous_frame;
     uintptr_t return_address;

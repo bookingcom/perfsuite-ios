@@ -27,7 +27,7 @@ import MainThreadCallStack
     ///
     /// We cannot write the whole logic in Swift, because to read call stack we pause the main thread.
     /// Swift runtime can obtain a lot of locks, so if main thread did acquire some lock before we paused it,
-    /// we will be getting a dead lock. To avoid that the whole stack reading process is implemented in C.
+    /// we will be getting a dead lock. To avoid that the part of stack reading process is implemented in C.
     ///
     /// Logic here is simplified a bit:
     /// - support only arm64 architecture
@@ -59,93 +59,15 @@ import MainThreadCallStack
                 throw StackError.noMachPort
             }
 
-            switch PerformanceSuite.experiments.ios_adq_no_locks_in_main_thread_call_stack {
-            case 1:
-                let frames = try readThreadState_v1(mainThreadMachPort: mainThreadMachPort)
-                let stack = frames.enumerated().compactMap { (index, frame) in
-                    StackItem(index: index, frame: frame)?.description
-                }
-                let value = stack.joined(separator: "\n")
-                return value
-            case 2:
-                return ""
-            default:
-                // we should pause the main thread so it's state doesn't change during our reading
-                let suspensionResult = thread_suspend(mainThreadMachPort)
-                if suspensionResult != KERN_SUCCESS {
-                    throw StackError.threadSuspendFailed
-                }
-                defer { thread_resume(mainThreadMachPort) }
-
-                let frames = try readThreadState(mainThreadMachPort: mainThreadMachPort)
-                let stack = frames.enumerated().compactMap { (index, frame) in
-                    StackItem(index: index, frame: frame)?.description
-                }
-                let value = stack.joined(separator: "\n")
-                return value
+            let frames = try readThreadState(mainThreadMachPort: mainThreadMachPort)
+            let stack = frames.enumerated().compactMap { (index, frame) in
+                StackItem(index: index, frame: frame)?.description
             }
+            let value = stack.joined(separator: "\n")
+            return value
         }
 
-        // drop if ios_adq_no_locks_in_main_thread_call_stack full-on
-        private static func readFrames(framePointer bitPattern: UInt64) throws -> [uintptr_t] {
-            guard bitPattern != 0,
-                let framePointer = UnsafePointer<Frame>(bitPattern: UInt(bitPattern))
-            else {
-                throw StackError.invalidThreadState
-            }
-
-            var frame = framePointer.pointee
-            var result: [uintptr_t] = []
-            while true {
-                // We take only lower bits from the return address, higher bits of 64bit number may contain garbage
-                // in Release mode, which I'm not sure where is coming from.
-                // I suspect it might be connected to pointer authentication, but I have no proofs
-                // https://developer.apple.com/documentation/security/preparing_your_app_to_work_with_pointer_authentication
-                // For example, raw value can be 0x8b5d1b0105b0b1d8, but actually should be 0x0000000105b0b1d8,
-                // or 0x572a6b8102e75668 instead of 0x0000000102e75668.
-                // To tackle this we add mask to the address. Mask value I picked up after testing, it may be covering not all the cases.
-                let address = frame.returnAddress & 0x7_ffff_ffff
-                if address == 0 {
-                    break
-                } else if let previous = frame.previousFrame {
-                    frame = previous.pointee
-                } else {
-                    break
-                }
-
-                result.append(address)
-            }
-            return result
-        }
-
-        // drop if ios_adq_no_locks_in_main_thread_call_stack full-on
         private static func readThreadState(mainThreadMachPort: mach_port_t) throws -> [uintptr_t] {
-            let threadStateEmpty = __darwin_arm_thread_state64()
-            var threadState = threadStateEmpty
-            try withUnsafePointer(to: &threadState) { threadStatePointer in
-                // thread_get_state takes `natural_t` pointer, so we need to rebound our pointer to `natural_t`
-                let voidPointer = UnsafeMutableRawPointer(mutating: threadStatePointer)
-                let statePointer = voidPointer.assumingMemoryBound(to: natural_t.self)
-
-                var stateCount = mach_msg_type_number_t(MemoryLayout.size(ofValue: threadStateEmpty) / MemoryLayout<natural_t>.size)
-                let getStateResult = thread_get_state(mainThreadMachPort, ARM_THREAD_STATE64, statePointer, &stateCount)
-                guard getStateResult == KERN_SUCCESS else {
-                    throw StackError.threadGetStateFailed
-                }
-            }
-
-            var result: [uintptr_t] = []
-            let pc = uintptr_t(threadState.__pc)  // Program counter
-            let lr = uintptr_t(threadState.__lr)  // Link register
-            if pc == 0 || lr == 0 {
-                throw StackError.invalidThreadState
-            }
-            result.append(contentsOf: [pc, lr])
-            result.append(contentsOf: try readFrames(framePointer: threadState.__fp))
-            return result
-        }
-
-        private static func readThreadState_v1(mainThreadMachPort: mach_port_t) throws -> [uintptr_t] {
             // call out C-function to read thread state, it pauses and resumes the main thread during the execution
             let result = read_thread_state(mainThreadMachPort)
             defer {
@@ -205,15 +127,7 @@ import MainThreadCallStack
 
     private enum StackError: Error {
         case noMachPort
-        case threadSuspendFailed
-        case threadGetStateFailed
-        case invalidThreadState
         case cannotReadStack
-    }
-
-    private struct Frame {
-        let previousFrame: UnsafePointer<Frame>?
-        let returnAddress: uintptr_t
     }
 
     private struct StackItem {

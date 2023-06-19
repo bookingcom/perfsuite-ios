@@ -14,7 +14,6 @@ import XCTest
     class MainThreadCallStackTests: XCTestCase {
 
         func testCallStack() throws {
-            PerformanceSuite.experiments = Experiments(ios_adq_no_locks_in_main_thread_call_stack: 1)
             MainThreadCallStack.storeMainThread()
             let exp = expectation(description: "test")
             DispatchQueue.global().async {
@@ -23,11 +22,10 @@ import XCTest
                 exp.fulfill()
             }
             waitForExpectations(timeout: 1)
-            PerformanceSuite.experiments = Experiments()
         }
 
         func testCallStackConversion() throws {
-            PerformanceSuite.experiments = Experiments(ios_adq_add_screen_information_to_termination_squeaks: 2, ios_adq_no_locks_in_main_thread_call_stack: 1)
+            PerformanceSuite.experiments = Experiments(ios_adq_add_screen_information_to_termination_squeaks: 2)
             setenv("ActivePrewarm", "1", 1)
             AppInfoHolder.resetForTests()
             AppInfoHolder.recordMainStarted()

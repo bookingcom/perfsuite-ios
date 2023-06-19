@@ -10,12 +10,13 @@ import XCTest
 @testable import PerformanceSuite
 
 // swiftlint:disable force_unwrapping
+// swiftlint:disable file_length
+// swiftlint:disable type_body_length
 class HangReporterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
         self.continueAfterFailure = false
-        PerformanceSuite.experiments = Experiments(ios_adq_no_locks_in_main_thread_call_stack: 1)
         #if arch(arm64)
             MainThreadCallStack.storeMainThread()
         #endif
@@ -27,8 +28,6 @@ class HangReporterTests: XCTestCase {
 
         // Wait for hang reporter to be deallocated
         receiver.wait()
-
-        PerformanceSuite.experiments = Experiments()
 
         receiver.fatalHang = nil
         receiver.hangInfo = nil

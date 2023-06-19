@@ -215,3 +215,6 @@ class MetricsConsumer: TTIMetricsReceiver {
 }
 
 ```
+
+# ACKNOWLEDGMENT
+This software was originally developed at Booking.com. With approval from Booking.com, this software was released as open source, for which the authors would like to express their gratitude.

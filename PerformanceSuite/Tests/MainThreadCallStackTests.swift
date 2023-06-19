@@ -25,7 +25,6 @@ import XCTest
         }
 
         func testCallStackConversion() throws {
-            PerformanceSuite.experiments = Experiments(ios_adq_add_screen_information_to_termination_squeaks: 2)
             setenv("ActivePrewarm", "1", 1)
             AppInfoHolder.resetForTests()
             AppInfoHolder.recordMainStarted()
@@ -37,7 +36,7 @@ import XCTest
             XCTAssert(hangInfo.iOSVersion.contains("."))
             XCTAssertEqual(hangInfo.callStack, "stack_trace bla bla bla")
             XCTAssertTrue(hangInfo.appStartInfo.appStartedWithPrewarming)
-            XCTAssertEqual(hangInfo.appRuntimeInfo?.openedScreens, ["screen1", "screen2"])
+            XCTAssertEqual(hangInfo.appRuntimeInfo.openedScreens, ["screen1", "screen2"])
             XCTAssertTrue(hangInfo.duringStartup)
             XCTAssertEqual(hangInfo.duration.milliseconds, 2001)
 
@@ -47,7 +46,7 @@ import XCTest
             XCTAssert(hangInfo2.iOSVersion.contains("."))
             XCTAssertEqual(hangInfo2.callStack, "stack_trace bla bla bla")
             XCTAssertTrue(hangInfo2.appStartInfo.appStartedWithPrewarming)
-            XCTAssertEqual(hangInfo2.appRuntimeInfo?.openedScreens, ["screen1", "screen2"])
+            XCTAssertEqual(hangInfo2.appRuntimeInfo.openedScreens, ["screen1", "screen2"])
 
             XCTAssertTrue(hangInfo2.duringStartup)
             XCTAssertEqual(hangInfo2.duration.milliseconds, 2001)
@@ -61,12 +60,11 @@ import XCTest
             XCTAssert(stack3.iOSVersion.contains("."))
             XCTAssertEqual(stack3.callStack, "stack_trace bla bla bla")
             XCTAssertTrue(stack3.appStartInfo.appStartedWithPrewarming)
-            XCTAssertEqual(stack3.appRuntimeInfo?.openedScreens, ["screen1", "screen2"])
+            XCTAssertEqual(stack3.appRuntimeInfo.openedScreens, ["screen1", "screen2"])
             XCTAssertTrue(stack3.duringStartup)
             XCTAssertEqual(stack3.duration.milliseconds, 2001)
 
             setenv("ActivePrewarm", "", 1)
-            PerformanceSuite.experiments = Experiments()
         }
     }
 #endif

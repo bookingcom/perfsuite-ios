@@ -63,35 +63,7 @@ final class LoggingObserverTests: XCTestCase {
         stub.clear()
     }
 
-    func testRuntimeInfoIsSavedV1() {
-        PerformanceSuite.experiments = Experiments(ios_adq_add_screen_information_to_termination_squeaks: 1)
-        AppInfoHolder.resetForTests()
-
-        let stub = LoggingReceiverStub()
-        let observer = LoggingObserver(receiver: stub)
-        let vcs = [
-            UIViewController(), // ignored, UIKit
-            UIHostingController(rootView: MyViewForLoggingObserverTests()), // take
-            UINavigationController(rootViewController: UIViewController()), // ignored, UIKit
-            MyViewController1(), // take
-            UIPageViewController(), // ignored, container
-            MyViewController2(), // ignored, container
-            MyViewController3(rootView: MyView3()), // take
-
-        ]
-        vcs.forEach { observer.afterViewDidAppear(viewController: $0) }
-
-        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [
-            "_TtGC7SwiftUI19UIHostingControllerV27PerformanceSuite_Unit_Tests29MyViewForLoggingObserverTests_",
-            "_TtC27PerformanceSuite_Unit_TestsP33_ACF6D520A1CF33499E18FE4EF54EC1EC17MyViewController1",
-            "_TtC27PerformanceSuite_Unit_TestsP33_ACF6D520A1CF33499E18FE4EF54EC1EC17MyViewController3",
-        ])
-
-        PerformanceSuite.experiments = Experiments()
-    }
-
-    func testRuntimeInfoIsSavedV2() {
-        PerformanceSuite.experiments = Experiments(ios_adq_add_screen_information_to_termination_squeaks: 2)
+    func testRuntimeInfoIsSaved() {
         AppInfoHolder.resetForTests()
 
         let stub = LoggingReceiverStub()
@@ -113,8 +85,6 @@ final class LoggingObserverTests: XCTestCase {
             "_TtC27PerformanceSuite_Unit_TestsP33_ACF6D520A1CF33499E18FE4EF54EC1EC17MyViewController1",
             "MyView3",
         ])
-
-        PerformanceSuite.experiments = Experiments()
     }
 }
 

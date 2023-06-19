@@ -79,9 +79,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard let key = self.receiver?.key(for: viewController) else {
             return
         }
-        if PerformanceSuite.experiments.ios_adq_add_screen_information_to_termination_squeaks > 0 {
-            rememberOpenedScreenIfNeeded(viewController)
-        }
+        rememberOpenedScreenIfNeeded(viewController)
         PerformanceSuite.consumerQueue.async {
             self.receiver?.onViewDidAppear(viewControllerKey: key)
         }
@@ -112,14 +110,10 @@ final class LoggingObserver: ViewControllerObserver {
             return
         }
         let description: String
-        if PerformanceSuite.experiments.ios_adq_add_screen_information_to_termination_squeaks > 1 {
-            if let introspectable = viewController as? RootViewIntrospectable {
-                // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
-                // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
-                description = String(describing: type(of: introspectable.introspectRootView()))
-            } else {
-                description = type(of: viewController).description()
-            }
+        if let introspectable = viewController as? RootViewIntrospectable {
+            // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
+            // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
+            description = String(describing: type(of: introspectable.introspectRootView()))
         } else {
             description = type(of: viewController).description()
         }

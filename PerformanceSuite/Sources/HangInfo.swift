@@ -27,8 +27,7 @@ public struct HangInfo: Codable {
 
 
     /// Information about app runtime
-    /// Make non-optional if ios_adq_add_screen_information_to_termination_squeaks goes full-on
-    public let appRuntimeInfo: AppRuntimeInfo?
+    public let appRuntimeInfo: AppRuntimeInfo
 
     /// Flag that hang happened during startup (before viewDidAppear of the first view controller).
     /// You may want to ignore startup non-fatal hangs, because those events are measured with startup time.
@@ -52,7 +51,7 @@ public struct HangInfo: Codable {
         architecture: String,
         iOSVersion: String,
         appStartInfo: AppStartInfo,
-        appRuntimeInfo: AppRuntimeInfo?,
+        appRuntimeInfo: AppRuntimeInfo,
         duringStartup: Bool,
         duration: DispatchTimeInterval
     ) {
@@ -71,7 +70,7 @@ public struct HangInfo: Codable {
             architecture: currentArchitecture,
             iOSVersion: currentIOSVersion,
             appStartInfo: AppInfoHolder.appStartInfo,
-            appRuntimeInfo: PerformanceSuite.experiments.ios_adq_add_screen_information_to_termination_squeaks > 0 ? AppInfoHolder.appRuntimeInfo : nil,
+            appRuntimeInfo: AppInfoHolder.appRuntimeInfo,
             duringStartup: duringStartup,
             duration: duration)
     }

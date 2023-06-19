@@ -10,13 +10,7 @@ import UIKit
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
-    // swiftlint:disable identifier_name
-    public init(ios_adq_add_screen_information_to_termination_squeaks: Int = 0) {
-        self.ios_adq_add_screen_information_to_termination_squeaks = ios_adq_add_screen_information_to_termination_squeaks
-    }
-
-    public let ios_adq_add_screen_information_to_termination_squeaks: Int
-    // swiftlint:enable identifier_name
+    public init() { }
 }
 
 public enum PerformanceSuite {

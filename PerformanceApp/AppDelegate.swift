@@ -129,6 +129,10 @@ class MetricsConsumerImpl: PerformanceSuiteMetricsReceiver {
         debugPrint("nonFatalHangReceived \(info)")
     }
 
+    func hangStarted(info: HangInfo) {
+        debugPrint("hangStarted \(info)")
+    }
+
     // MARK: - ViewControllerLoggingReceiver
 
     func key(for viewController: UIViewController) -> String {

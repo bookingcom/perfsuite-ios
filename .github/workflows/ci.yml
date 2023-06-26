@@ -16,10 +16,18 @@ jobs:
       - name: SwiftLint
         run:
           Pods/SwiftLint/swiftlint
-      - name: Build & Test
+      - name: Build PerformanceApp
+        env:
+          scheme: PerformanceApp
+          platform: iOS Simulator
+          workspace: PerformanceApp.xcworkspace
+        run: |
+          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
+          xcodebuild build -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device"
+      - name: Test PerformanceSuite
         env:
           scheme: PerformanceSuite-Unit-Tests
-          platform: ${{ 'iOS Simulator' }}
+          platform: iOS Simulator
           workspace: PerformanceApp.xcworkspace
         run: |
           device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`

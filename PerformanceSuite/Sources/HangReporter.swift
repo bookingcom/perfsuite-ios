@@ -146,6 +146,13 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
             // if it crashed during hang, we do not report this as a hang, as it will be probably reported as a crash
             return
         }
+#if DEBUG
+        if !self.enabledInDebug {
+            // In debug we can just pause on the breakpoint and this might be considered as a hang,
+            // that's why in Debug we send events only in unit-tests. Or you may enable it manually to debug.
+            return
+        }
+#endif
         PerformanceSuite.consumerQueue.async {
             self.receiver.fatalHangReceived(info: info)
         }
@@ -207,6 +214,13 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
                 let info = HangInfo.with(callStack: callStack, duringStartup: startupIsHappening, duration: currentHangInterval)
                 store(hangInfo: info)
 
+#if DEBUG
+                if !self.enabledInDebug {
+                    // In debug we can just pause on the breakpoint and this might be considered as a hang,
+                    // that's why in Debug we send events only in unit-tests. Or you may enable it manually to debug.
+                    return
+                }
+#endif
                 PerformanceSuite.consumerQueue.async {
                     // notify receiver, that hang has started
                     self.receiver.hangStarted(info: info)

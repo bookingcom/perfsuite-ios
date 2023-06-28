@@ -21,14 +21,14 @@ class TTIObserverExtensionTests: XCTestCase {
         try super.setUpWithError()
         defaultTimeProvider = timeProvider
         metricsReceiver = TTIMetricsReceiverStub()
-        try PerformanceSuite.enable(config: [.screenLevelTTI(metricsReceiver)], experiments: Experiments())
+        try PerformanceMonitoring.enable(config: [.screenLevelTTI(metricsReceiver)], experiments: Experiments())
     }
 
     override func tearDownWithError() throws {
         try super.tearDownWithError()
         defaultTimeProvider = DefaultTimeProvider()
-        try PerformanceSuite.disable()
-        PerformanceSuite.experiments = Experiments()
+        try PerformanceMonitoring.disable()
+        PerformanceMonitoring.experiments = Experiments()
     }
 
     func testAllViewControllerMethodsAreCalledWhenMonitoringIsEnabled() {
@@ -100,8 +100,8 @@ class TTIObserverExtensionTests: XCTestCase {
 
         waitForExpectations(timeout: 1, handler: nil)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.lastController?.title, "root")
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
@@ -119,8 +119,8 @@ class TTIObserverExtensionTests: XCTestCase {
 
         waitForExpectations(timeout: 100, handler: nil)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc1")
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
@@ -141,16 +141,16 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = vc
         window.makeKeyAndVisible()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
         XCTAssertNil(metricsReceiver.lastController)
 
         waitForExpectations(timeout: 3, handler: nil)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
         XCTAssertNil(metricsReceiver.lastController)
@@ -171,8 +171,8 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = vc
         window.makeKeyAndVisible()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
         XCTAssertNil(metricsReceiver.lastController)
@@ -183,11 +183,11 @@ class TTIObserverExtensionTests: XCTestCase {
 
         waitForExpectations(timeout: 3, handler: nil)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc")
@@ -208,8 +208,8 @@ class TTIObserverExtensionTests: XCTestCase {
 
         waitForExpectations(timeout: 3, handler: nil)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.lastController?.title, "hosting vc")
@@ -249,8 +249,8 @@ class TTIObserverExtensionTests: XCTestCase {
         // for the first controller we should calculate TTI between `init` and `screenIsReady` -> 1 second
         vc1.screenIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
@@ -276,8 +276,8 @@ class TTIObserverExtensionTests: XCTestCase {
         // for the second controller we should calculate TTI between `setSelectedIndex` and `screenIsReady` -> 7 seconds
         vc2.screenIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(7))
@@ -301,8 +301,8 @@ class TTIObserverExtensionTests: XCTestCase {
         // for the third controller we should calculate TTI between `setSelectedViewController` and `screenIsReady` -> 2 seconds
         vc3.screenIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(2))

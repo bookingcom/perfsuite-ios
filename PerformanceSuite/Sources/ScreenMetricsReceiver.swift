@@ -28,7 +28,7 @@ public protocol TTIMetricsReceiver: ScreenMetricsReceiver {
     ///
     /// `Config.screenLevelTTI` should be enabled.
     ///
-    /// Method is called on a separate background queue `PerformanceSuite.consumerQueue`.
+    /// Method is called on a separate background queue `PerformanceMonitoring.consumerQueue`.
     ///
     /// It is called after screen is ready and view controller `viewDidAppear` method is called.
     ///
@@ -47,7 +47,7 @@ public protocol RenderingMetricsReceiver: ScreenMetricsReceiver {
     ///
     /// `Config.screenLevelRendering` should be enabled.
     ///
-    /// Method is called on a separate background queue `PerformanceSuite.consumerQueue`.
+    /// Method is called on a separate background queue `PerformanceMonitoring.consumerQueue`.
     ///
     /// It is called after screen disappeared, when `viewWillDisappear` method is called.
     ///

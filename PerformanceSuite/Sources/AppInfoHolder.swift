@@ -19,7 +19,7 @@ public struct AppStartInfo: Equatable, Codable {
     /// Starting from iOS 15 system can pre-warm app by executing it's `main()`,
     /// but without showing the UI.
     ///
-    /// You need to call `PerformanceSuite.onMainStarted()` to detect prewarming.
+    /// You need to call `PerformanceMonitoring.onMainStarted()` to detect prewarming.
     public let appStartedWithPrewarming: Bool
 
     static func merge(_ lhs: AppStartInfo, _ rhs: AppStartInfo) -> AppStartInfo {

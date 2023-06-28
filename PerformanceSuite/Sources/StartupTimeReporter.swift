@@ -29,7 +29,7 @@ public struct StartupTimeData {
     ///
     /// In this time loading of dylibs, objective-c `load` and `initialize` methods and other stuff is included which is happening before `main` function is called.
     ///
-    /// You need to call `PerformanceSuite.onMainStarted()` to track this time.
+    /// You need to call `PerformanceMonitoring.onMainStarted()` to track this time.
     public let preMainTime: DispatchTimeInterval?
 
     /// Time from `main` function is called until `viewDidAppear` of the first view controller is finished.
@@ -37,7 +37,7 @@ public struct StartupTimeData {
     /// `mainTime = totalTime - preMainTime`.
     /// You may want to monitor this time separately because this is the most controlled by developer part of startup time.
     ///
-    /// You need to call `PerformanceSuite.onMainStarted()` to track this time.
+    /// You need to call `PerformanceMonitoring.onMainStarted()` to track this time.
     public let mainTime: DispatchTimeInterval?
 
     /// Time from app launched until `viewDidLoad` of the first view controller is called.
@@ -64,7 +64,7 @@ public struct StartupTimeData {
     /// `mainBeforeViewControllerTime = totalBeforeViewControllerTime - preMainTime`.
     /// You may want to monitor this time instead of `totalBeforeViewControllerTime` because this is the most controlled by developer part of startup time.
     ///
-    /// You need to call `PerformanceSuite.onMainStarted()` to track this time.
+    /// You need to call `PerformanceMonitoring.onMainStarted()` to track this time.
     public let mainBeforeViewControllerTime: DispatchTimeInterval?
 
     /// Information about how app was started.
@@ -149,11 +149,11 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             mainBeforeViewControllerTime: mainBeforeViewControllerTime,
             appStartInfo: AppInfoHolder.appStartInfo
         )
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver.startupTimeReceived(data)
         }
 
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.isStarting = false
             self.onStartedActions.forEach { $0() }
             self.onStartedActions.removeAll()
@@ -187,12 +187,12 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
     // MARK: - StartupProvider
 
     var appIsStarting: Bool {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         return isStarting
     }
 
     func notifyAfterAppStarted(_ action: @escaping () -> Void) {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         if isStarting {
             onStartedActions.append(action)
         } else {

@@ -16,15 +16,15 @@ class RenderingObserverTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        PerformanceSuite.queue.sync {}
-        self.previousQueue = PerformanceSuite.changeQueueForTests(DispatchQueue.main)
+        PerformanceMonitoring.queue.sync {}
+        self.previousQueue = PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
     }
     private var previousQueue: DispatchQueue?
 
     override func tearDown() {
         super.tearDown()
         if let previousQueue = previousQueue {
-            PerformanceSuite.changeQueueForTests(previousQueue)
+            PerformanceMonitoring.changeQueueForTests(previousQueue)
         }
     }
 
@@ -140,7 +140,7 @@ class RenderingObserverTests: XCTestCase {
             exp.fulfill()
         }
         waitForExpectations(timeout: 1, handler: nil)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
     }
 
 }

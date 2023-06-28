@@ -64,7 +64,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
         XCTAssertNil(lastDuration)
 
         appStateObserver.isInBackground = false
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             appStateObserver.didChange()
         }
 
@@ -77,7 +77,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
         lastDuration = nil
 
         appStateObserver.isInBackground = true
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             appStateObserver.didChange()
         }
 

@@ -32,7 +32,7 @@ public struct WatchdogTerminationData {
 /// But in most cases foreground terminations happen because of some problem in the code.
 public protocol WatchdogTerminationsReceiver: AnyObject {
 
-    /// This method will be called on `PerformanceSuite.consumerQueue` just after the app launch,
+    /// This method will be called on `PerformanceMonitoring.consumerQueue` just after the app launch,
     /// in case during the previous launch app was killed by the system because of the out-of-memory, too high CPU
     /// (or because any other reason that we are not aware about).
     func watchdogTerminationReceived(_ data: WatchdogTerminationData)
@@ -127,7 +127,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     }
 
     @objc private func appDidReceiveMemoryWarning() {
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             var warnings: Int = self.storage.read(key: StorageKey.memoryWarnings) ?? 0
             warnings += 1
             self.storage.write(key: StorageKey.memoryWarnings, value: warnings)
@@ -136,7 +136,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
 
     @objc private func appWillTerminate() {
         // We use sync here, because otherwise app may be terminated before we saved the value
-        PerformanceSuite.queue.sync {
+        PerformanceMonitoring.queue.sync {
             self.storage.write(key: StorageKey.appTerminated, value: true)
         }
     }
@@ -158,7 +158,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     }
 
     private func appChangedState(_ state: UIApplication.State) {
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.storage.write(key: StorageKey.appState, value: state.rawValue)
         }
     }
@@ -166,7 +166,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     private func detectPreviousTermination() {
         DispatchQueue.main.async {
             let applicationState = UIApplication.shared.applicationState
-            PerformanceSuite.queue.async {
+            PerformanceMonitoring.queue.async {
                 let storedAppInformation = self.readStoredAppInformation()
                 let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
                 self.detectTermination(storedAppInformation: storedAppInformation, actualAppInformation: actualAppInformation)
@@ -200,7 +200,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             let data = WatchdogTerminationData(
                 applicationState: storedAppInformation.appState,
                 memoryWarnings: storedAppInformation.memoryWarnings)
-            PerformanceSuite.consumerQueue.async {
+            PerformanceMonitoring.consumerQueue.async {
                 #if DEBUG
                     if !self.enabledInDebug {
                         // In debug app might be just killed from the Xcode during the debug session

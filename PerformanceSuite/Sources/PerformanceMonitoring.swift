@@ -1,5 +1,5 @@
 //
-//  PerformanceSuite.swift
+//  PerformanceMonitoring.swift
 //  PerformanceSuite
 //
 //  Created by Gleb Tarasov on 05/07/2021.
@@ -13,7 +13,7 @@ public struct Experiments {
     public init() { }
 }
 
-public enum PerformanceSuite {
+public enum PerformanceMonitoring {
 
     private static var appReporters: [AppMetricsReporter] = []
     private static let lock = NSLock()
@@ -183,7 +183,7 @@ public enum PerformanceSuite {
 
             #if arch(arm64)
                 DispatchQueue.main.async {
-                    // if `PerformanceSuite.onMainStarted` wasn't called, save mach port at least here.
+                    // if `PerformanceMonitoring.onMainStarted` wasn't called, save mach port at least here.
                     MainThreadCallStack.storeMainThread()
                 }
             #endif
@@ -248,9 +248,9 @@ public enum PerformanceSuite {
     }
 
 
-    /// This method might be used in tests to replace `PerformanceSuite.queue` with the main queue and after the test revert it back.
-    /// It might be useful in tests, where you test methods which should be called from `PerformanceSuite.queue`.
-    /// - Parameter newQueue: new queue to set as `PerformanceSuite.queue`
+    /// This method might be used in tests to replace `PerformanceMonitoring.queue` with the main queue and after the test revert it back.
+    /// It might be useful in tests, where you test methods which should be called from `PerformanceMonitoring.queue`.
+    /// - Parameter newQueue: new queue to set as `PerformanceMonitoring.queue`
     /// - Returns:old queue, which was replaced
     @discardableResult
     static func changeQueueForTests(_ newQueue: DispatchQueue) -> DispatchQueue {

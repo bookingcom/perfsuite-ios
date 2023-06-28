@@ -22,7 +22,7 @@ class StartupTimeReporterTests: XCTestCase {
 
         reporter.onViewDidLoadOfTheFirstViewController()
         reporter.onViewDidAppearOfTheFirstViewController()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(receiver.data?.totalTime)
         XCTAssertNotNil(receiver.data?.totalBeforeViewControllerTime)
@@ -38,7 +38,7 @@ class StartupTimeReporterTests: XCTestCase {
         StartupTimeReporter.recordMainStarted()
         reporter.onViewDidLoadOfTheFirstViewController()
         reporter.onViewDidAppearOfTheFirstViewController()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(receiver.data?.totalTime)
         XCTAssertNotNil(receiver.data?.mainTime)
@@ -50,7 +50,7 @@ class StartupTimeReporterTests: XCTestCase {
         let receiver = StartupTimeReceiverStub()
         let reporter = StartupTimeReporter(receiver: receiver)
         let exp = expectation(description: "notified")
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             XCTAssertTrue(reporter.appIsStarting)
             reporter.notifyAfterAppStarted {
                 exp.fulfill()
@@ -61,7 +61,7 @@ class StartupTimeReporterTests: XCTestCase {
             reporter.onViewDidAppearOfTheFirstViewController()
         }
         waitForExpectations(timeout: 1)
-        PerformanceSuite.queue.sync {
+        PerformanceMonitoring.queue.sync {
             XCTAssertFalse(reporter.appIsStarting)
         }
     }
@@ -75,7 +75,7 @@ class StartupTimeReporterTests: XCTestCase {
 
         let exp = expectation(description: "notified")
 
-        PerformanceSuite.queue.sync {
+        PerformanceMonitoring.queue.sync {
             XCTAssertTrue(reporter.appIsStarting)
             reporter.notifyAfterAppStarted {
                 exp.fulfill()
@@ -87,7 +87,7 @@ class StartupTimeReporterTests: XCTestCase {
         window.makeKeyAndVisible()
 
         waitForExpectations(timeout: 1)
-        PerformanceSuite.queue.sync {
+        PerformanceMonitoring.queue.sync {
             XCTAssertFalse(reporter.appIsStarting)
         }
 

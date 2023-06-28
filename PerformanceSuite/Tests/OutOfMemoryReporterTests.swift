@@ -184,8 +184,8 @@ class WatchdogTerminationsReceiverStub: WatchdogTerminationsReceiver {
         let waiter = XCTWaiter()
         waiter.wait(for: [exp], timeout: 1)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
     }
 }
 

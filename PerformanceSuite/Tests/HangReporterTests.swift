@@ -50,7 +50,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -65,15 +65,15 @@ class HangReporterTests: XCTestCase {
         let exp = expectation(description: "wait background thread")
         DispatchQueue.global().async {
             Thread.sleep(forTimeInterval: self.sleepInterval / 2)
-            PerformanceSuite.queue.sync {}
-            PerformanceSuite.consumerQueue.sync {}
+            PerformanceMonitoring.queue.sync {}
+            PerformanceMonitoring.consumerQueue.sync {}
             // we should detect that hang started
             XCTAssertEqual(self.receiver.hangJustStarted, true)
             XCTAssertNotNil(self.receiver.hangInfo)
 
             Thread.sleep(forTimeInterval: self.sleepInterval)
-            PerformanceSuite.queue.sync {}
-            PerformanceSuite.consumerQueue.sync {}
+            PerformanceMonitoring.queue.sync {}
+            PerformanceMonitoring.consumerQueue.sync {}
 
             // hang finished
             XCTAssertEqual(self.receiver.hangJustStarted, nil)
@@ -91,7 +91,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -129,7 +129,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -178,7 +178,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -207,7 +207,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -240,7 +240,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -248,8 +248,8 @@ class HangReporterTests: XCTestCase {
         )
 
         // wait for all the queues
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(receiver.fatalHang, true)
         XCTAssertNotNil(receiver.hangInfo)
@@ -275,7 +275,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: AppStateProviderStub(),
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             didCrashPreviously: true,
@@ -308,7 +308,7 @@ class HangReporterTests: XCTestCase {
             storage: storage,
             startupProvider: startupProvider,
             appStateProvider: appStateProvider,
-            workingQueue: PerformanceSuite.queue,
+            workingQueue: PerformanceMonitoring.queue,
             detectionTimerInterval: detectionInterval,
             hangThreshold: hangThreshold,
             enabledInDebug: true,
@@ -362,8 +362,8 @@ class HangsReceiverStub: HangsReceiver {
 
     func wait() {
         // wait for all the queues
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // skip one run loop
         let exp = XCTestExpectation(description: "run loop")
@@ -376,8 +376,8 @@ class HangsReceiverStub: HangsReceiver {
         waiter.wait(for: [exp], timeout: 1)
 
         // and again wait for all the queues
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
     }
 }
 

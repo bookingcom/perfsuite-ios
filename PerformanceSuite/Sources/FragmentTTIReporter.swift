@@ -55,20 +55,20 @@ private class Trackable: FragmentTTITrackable {
 
     func fragmentIsRendered() {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.isRenderedTime = now
         }
     }
 
     func fragmentIsReady() {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.reportTTI(now: now)
         }
     }
 
     private func reportTTI(now: DispatchTime) {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         if ttiCalculated {
             // consecutive calls of `fragmentIsReady` shouldn't send anything
             return
@@ -98,7 +98,7 @@ private class Trackable: FragmentTTITrackable {
         }
 
         let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.metricsReceiver.fragmentTTIMetricsReceived(metrics: metrics, identifier: self.identifier)
         }
 

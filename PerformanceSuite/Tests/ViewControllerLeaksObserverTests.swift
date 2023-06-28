@@ -43,8 +43,8 @@ class ViewControllerLeaksObserverTests: XCTestCase {
             wait(for: [exp], timeout: 1)
         }
 
-        PerformanceSuite.queue.sync { }
-        PerformanceSuite.consumerQueue.sync { }
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
 
         wait(for: [receiver.expectation!], timeout: 1)
         if expectLeak {

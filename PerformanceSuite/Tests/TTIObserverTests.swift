@@ -16,15 +16,15 @@ class TTIObserverTests: XCTestCase {
     override func setUp() {
         super.setUp()
 
-        PerformanceSuite.queue.sync {}
-        self.previousQueue = PerformanceSuite.changeQueueForTests(DispatchQueue.main)
+        PerformanceMonitoring.queue.sync {}
+        self.previousQueue = PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
     }
     private var previousQueue: DispatchQueue?
 
     override func tearDown() {
         super.tearDown()
         if let previousQueue = previousQueue {
-            PerformanceSuite.changeQueueForTests(previousQueue)
+            PerformanceMonitoring.changeQueueForTests(previousQueue)
         }
     }
 
@@ -33,21 +33,21 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
         XCTAssertNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc1))
 
-        try PerformanceSuite.enable(config: [.screenLevelTTI(TTIMetricsReceiverStub())])
+        try PerformanceMonitoring.enable(config: [.screenLevelTTI(TTIMetricsReceiverStub())])
         let vc2 = UIViewController()
         waitForTheNextRunLoop()
         XCTAssertNotNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc2))
 
-        try PerformanceSuite.disable()
+        try PerformanceMonitoring.disable()
         let vc3 = UIViewController()
         waitForTheNextRunLoop()
         XCTAssertNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc3))
 
-        try PerformanceSuite.enable(config: [])
+        try PerformanceMonitoring.enable(config: [])
         let vc4 = UIViewController()
         waitForTheNextRunLoop()
         XCTAssertNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc4))
-        try PerformanceSuite.disable()
+        try PerformanceMonitoring.disable()
     }
 
     func testTTIMetricViewDidAppearBeforeScreenReady() throws {
@@ -78,7 +78,7 @@ class TTIObserverTests: XCTestCase {
         observer.screenIsReady()
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(152))
@@ -114,7 +114,7 @@ class TTIObserverTests: XCTestCase {
         observer.afterViewDidAppear(viewController: vc)
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .microseconds(10))
@@ -143,7 +143,7 @@ class TTIObserverTests: XCTestCase {
         timeProvider.time = time.advanced(by: .microseconds(10))
         observer.afterViewWillAppear(viewController: vc)
         observer.afterViewDidAppear(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // metrics were not calculated because app went to background
         XCTAssertNil(metricsReceiver.ttiMetrics)
@@ -175,7 +175,7 @@ class TTIObserverTests: XCTestCase {
         timeProvider.time = time.advanced(by: .milliseconds(330))
         observer.screenIsReady()
         waitForTheNextRunLoop()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(330))
@@ -211,7 +211,7 @@ class TTIObserverTests: XCTestCase {
         observer.screenIsReady()
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(130))
@@ -246,7 +246,7 @@ class TTIObserverTests: XCTestCase {
         observer.beforeViewWillDisappear(viewController: vc)
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(10))
@@ -281,7 +281,7 @@ class TTIObserverTests: XCTestCase {
         observer.screenIsReady()
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(300))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(30))
@@ -307,7 +307,7 @@ class TTIObserverTests: XCTestCase {
         observer2.screenIsReady()
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(380))
@@ -345,7 +345,7 @@ class TTIObserverTests: XCTestCase {
         observer.screenIsReady()
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(100))
@@ -389,7 +389,7 @@ class TTIObserverTests: XCTestCase {
         observer1.beforeViewWillDisappear(viewController: vc1)
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(400))  // between 500 and 900
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(100))  // between 500 and 600
@@ -407,7 +407,7 @@ class TTIObserverTests: XCTestCase {
         observer2.beforeViewWillDisappear(viewController: vc2)
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(700))  // between 1300 and 2000
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(200))  // between 1400 and 1600
@@ -446,7 +446,7 @@ class TTIObserverTests: XCTestCase {
         observer.beforeViewWillDisappear(viewController: vc)
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))  // between 100 and 900
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(300))  // between 100 and 400
@@ -491,7 +491,7 @@ class TTIObserverTests: XCTestCase {
         observer1.afterViewWillAppear(viewController: vc1)
         waitForTheNextRunLoop()
 
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))  // between 500 and 1300
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(100))  // between 500 and 600
@@ -505,7 +505,7 @@ class TTIObserverTests: XCTestCase {
 
         timeProvider.time = time.advanced(by: .milliseconds(15000))
         observer1.beforeViewWillDisappear(viewController: vc1)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // TTI shouldn't be sent
         XCTAssertNil(metricsReceiver.lastController)

@@ -38,7 +38,7 @@ class DefaultAppStateObserver: AppStateObserver {
         isInBackgroundStorage = true
         lock.unlock()
 
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.didChange()
         }
     }
@@ -48,7 +48,7 @@ class DefaultAppStateObserver: AppStateObserver {
         self.isInBackgroundStorage = false
         self.lock.unlock()
 
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.didChange()
         }
     }

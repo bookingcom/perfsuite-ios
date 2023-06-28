@@ -10,16 +10,16 @@ import UIKit
 
 public protocol HangsReceiver: AnyObject {
 
-    /// This method will be called on `PerformanceSuite.consumerQueue` just after the app launch for the fatal hangs,
+    /// This method will be called on `PerformanceMonitoring.consumerQueue` just after the app launch for the fatal hangs,
     /// in case during the previous launch app was terminated during the main thread hang.
     /// - Parameter info: info related to the hang
     func fatalHangReceived(info: HangInfo)
 
-    /// This method will be called on `PerformanceSuite.consumerQueue` after the main thread freeze resolved.
+    /// This method will be called on `PerformanceMonitoring.consumerQueue` after the main thread freeze resolved.
     /// - Parameter info: info related to the hang
     func nonFatalHangReceived(info: HangInfo)
 
-    /// This method will be called on `PerformanceSuite.consumerQueue` just after the main thread is detected to be frozen.
+    /// This method will be called on `PerformanceMonitoring.consumerQueue` just after the main thread is detected to be frozen.
     /// At this stage we do not know if this will be non-fatal or fatal hang. We just know, that some hang has started.
     ///
     /// We send `fatalHangReceived` events only after user re-launched the app after the fatal hang. 
@@ -77,7 +77,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         storage: Storage = UserDefaults.standard,
         startupProvider: StartupProvider,
         appStateProvider: AppStateProvider = UIApplication.shared,
-        workingQueue: DispatchQueue = PerformanceSuite.queue,
+        workingQueue: DispatchQueue = PerformanceMonitoring.queue,
         detectionTimerInterval: DispatchTimeInterval = .seconds(1),
         hangThreshold: DispatchTimeInterval = .seconds(2),
         didCrashPreviously: Bool = false,
@@ -119,7 +119,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         DispatchQueue.main.async {
             // we should call `UIApplication.shared.applicationState` on the main thread only
             let inBackground = self.appStateProvider.applicationState == .background
-            PerformanceSuite.queue.async {
+            PerformanceMonitoring.queue.async {
                 self.scheduleDetectionTimer(inBackground: inBackground)
                 self.subscribeToApplicationEvents()
             }
@@ -153,7 +153,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
             return
         }
 #endif
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver.fatalHangReceived(info: info)
         }
     }
@@ -221,7 +221,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
                     return
                 }
 #endif
-                PerformanceSuite.consumerQueue.async {
+                PerformanceMonitoring.consumerQueue.async {
                     // notify receiver, that hang has started
                     self.receiver.hangStarted(info: info)
                 }
@@ -242,7 +242,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
             clearHangInfo()
             // we update hang with the proper duration
             info.duration = currentHangInterval
-            PerformanceSuite.consumerQueue.async {
+            PerformanceMonitoring.consumerQueue.async {
 #if DEBUG
                 if !self.enabledInDebug {
                     // In debug we can just pause on the breakpoint and this might be considered as a hang,

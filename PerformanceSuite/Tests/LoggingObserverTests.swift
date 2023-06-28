@@ -21,42 +21,42 @@ final class LoggingObserverTests: XCTestCase {
         XCTAssertNil(stub.viewController)
 
         observer.beforeInit(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onInit")
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)
         stub.clear()
 
         observer.beforeViewDidLoad(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewDidLoad")
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)
         stub.clear()
 
         observer.afterViewWillAppear(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewWillAppear")
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)
         stub.clear()
 
         observer.afterViewDidAppear(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewDidAppear")
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)
         stub.clear()
 
         observer.beforeViewWillDisappear(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewWillDisappear")
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)
         stub.clear()
 
         observer.beforeViewDidDisappear(viewController: vc)
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewDidDisappear")
         XCTAssertEqual(stub.viewController, vc)
         XCTAssertEqual(stub.key, vc.description)

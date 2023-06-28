@@ -64,21 +64,21 @@ final class DefaultFramesMeter: FramesMeter {
     private let appStateObserver: AppStateObserver
 
     func subscribe(receiver: FramesMeterReceiver) {
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.receivers.add(receiver)
             self.updateState()
         }
     }
 
     func unsubscribe(receiver: FramesMeterReceiver) {
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.receivers.remove(receiver)
             self.updateState()
         }
     }
 
     private func updateState() {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
 
         // NSHashTable doesn't have `isEmpty`, ignore swiftlint
         // swiftlint:disable:next empty_count
@@ -104,7 +104,7 @@ final class DefaultFramesMeter: FramesMeter {
         let targetTimestamp = self.displayLink.targetTimestamp
         // ideal duration coming from display link is not always equal to `targetTimestamp - timestamp`
         let displayLinkDuration = self.displayLink.duration
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             if self.appStateObserver.isInBackground {
                 // in case app went to background during our `async` call, just do nothing
                 return

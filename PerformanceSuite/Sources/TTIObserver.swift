@@ -37,20 +37,20 @@ final class TTIObserver: ViewControllerObserver {
 
     static func startCustomCreationTime(timeProvider: TimeProvider = defaultTimeProvider) {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             upcomingCustomCreationTime = now
         }
     }
 
     static func clearCustomCreationTime() {
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             upcomingCustomCreationTime = nil
         }
     }
 
     func beforeInit(viewController: UIViewController) {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             self.sameRunLoopAsTheInit = true
             assert(!self.ttiCalculated)
             assert(self.viewController == nil)
@@ -60,7 +60,7 @@ final class TTIObserver: ViewControllerObserver {
 
             // set flag to false in the next main run loop. For that switch back to main queue, and again to our queue
             DispatchQueue.main.async {
-                PerformanceSuite.queue.async {
+                PerformanceMonitoring.queue.async {
                     self.sameRunLoopAsTheInit = false
                 }
             }
@@ -73,7 +73,7 @@ final class TTIObserver: ViewControllerObserver {
         // Ideally we should start before `loadView`, but it is impossible to swizzle `loadView` because usually nobody calls `super.loadView`
         // in their custom implementations. So we start at `viewDidLoad` as the nearest possible place to swizzle.
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             if !self.sameRunLoopAsTheInit {
                 assert(!self.ttiCalculated)
                 assert(viewController == self.viewController)
@@ -84,7 +84,7 @@ final class TTIObserver: ViewControllerObserver {
 
     func afterViewWillAppear(viewController: UIViewController) {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             assert(viewController == self.viewController)
 
             if self.viewWillAppearTime != nil && self.ttiCalculated == false {
@@ -111,7 +111,7 @@ final class TTIObserver: ViewControllerObserver {
 
     func afterViewDidAppear(viewController: UIViewController) {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             assert(viewController == self.viewController)
             if self.shouldReportTTI && self.viewDidAppearTime == nil {
                 self.viewDidAppearTime = now
@@ -122,7 +122,7 @@ final class TTIObserver: ViewControllerObserver {
 
     func beforeViewWillDisappear(viewController: UIViewController) {
         // if screenIsReady wasn't called until now, we consider that screen was ready in `viewDidAppear`.
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             if self.shouldReportTTI && self.screenIsReadyTime == nil {
                 self.screenIsReadyTime = self.viewDidAppearTime
                 self.reportTTIIfNeeded()
@@ -134,7 +134,7 @@ final class TTIObserver: ViewControllerObserver {
 
     func screenIsReady() {
         let now = timeProvider.now()
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             if self.shouldReportTTI && self.screenIsReadyTime == nil {
                 self.screenIsReadyTime = now
                 self.reportTTIIfNeeded()
@@ -143,7 +143,7 @@ final class TTIObserver: ViewControllerObserver {
     }
 
     private func reportTTIIfNeeded() {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
 
         guard shouldReportTTI,
             let viewCreatedTime = screenCreatedTime,
@@ -174,7 +174,7 @@ final class TTIObserver: ViewControllerObserver {
 
 
         let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.metricsReceiver.ttiMetricsReceived(metrics: metrics, viewController: viewController)
         }
 

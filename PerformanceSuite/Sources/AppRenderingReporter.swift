@@ -15,7 +15,7 @@ public protocol AppRenderingMetricsReceiver: AnyObject {
     ///
     /// `Config.appLevelRendering` should be enabled.
     ///
-    /// Method is called on a separate background queue `PerformanceSuite.consumerQueue`.
+    /// Method is called on a separate background queue `PerformanceMonitoring.consumerQueue`.
     ///
     /// It is called as soon as some frames were skipped during the rendering, but with some throttling,
     /// to avoid too often calls.
@@ -34,7 +34,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
         self.sendingThrottleInterval = sendingThrottleInterval
 
         // delay observing to skip dropped frames on launch
-        PerformanceSuite.queue.asyncAfter(deadline: .now() + sendingThrottleInterval) {
+        PerformanceMonitoring.queue.asyncAfter(deadline: .now() + sendingThrottleInterval) {
             framesMeter.subscribe(receiver: self)
         }
     }
@@ -46,7 +46,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     private let sendingThrottleInterval: TimeInterval
 
     func frameTicked(frameDuration: CFTimeInterval, refreshRateDuration: CFTimeInterval) {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let currentMetrics = RenderingMetrics.metrics(frameDuration: frameDuration, refreshRateDuration: refreshRateDuration)
         self.metrics = self.metrics + currentMetrics
         guard currentMetrics.droppedFrames > 0 else {
@@ -57,14 +57,14 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
             self?.reportMetrics()
         }
         scheduledSending = workItem
-        PerformanceSuite.queue.asyncAfter(deadline: .now() + .init(sendingThrottleInterval), execute: workItem)
+        PerformanceMonitoring.queue.asyncAfter(deadline: .now() + .init(sendingThrottleInterval), execute: workItem)
     }
 
     func reportMetrics() {
-        dispatchPrecondition(condition: .onQueue(PerformanceSuite.queue))
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let metrics = self.metrics
         self.metrics = .zero
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
         }
     }

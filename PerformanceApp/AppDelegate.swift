@@ -15,7 +15,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         do {
-            try PerformanceSuite.enable(config: .all(receiver: MetricsConsumerImpl()))
+            try PerformanceMonitoring.enable(config: .all(receiver: MetricsConsumerImpl()))
         } catch {
             preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
         }

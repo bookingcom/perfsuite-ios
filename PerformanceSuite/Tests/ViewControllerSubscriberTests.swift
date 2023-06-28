@@ -135,7 +135,7 @@ class ViewControllerSubscriberTests: XCTestCase {
     private func waitForMainQueueToExecute() {
         let e = expectation(description: "skip 1 run loop")
 
-        PerformanceSuite.queue.async {
+        PerformanceMonitoring.queue.async {
             DispatchQueue.main.async {
                 e.fulfill()
             }

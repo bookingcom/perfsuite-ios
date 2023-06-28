@@ -130,7 +130,7 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             return
         }
 
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.metricsReceiver.viewControllerLeakReceived(viewController: viewController)
         }
     }

@@ -52,7 +52,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard let key = self.receiver?.key(for: viewController) else {
             return
         }
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver?.onInit(viewControllerKey: key)
         }
     }
@@ -61,7 +61,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard let key = self.receiver?.key(for: viewController) else {
             return
         }
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver?.onViewDidLoad(viewControllerKey: key)
         }
     }
@@ -70,7 +70,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard let key = self.receiver?.key(for: viewController) else {
             return
         }
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver?.onViewWillAppear(viewControllerKey: key)
         }
     }
@@ -80,7 +80,7 @@ final class LoggingObserver: ViewControllerObserver {
             return
         }
         rememberOpenedScreenIfNeeded(viewController)
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver?.onViewDidAppear(viewControllerKey: key)
         }
     }
@@ -89,7 +89,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard let key = self.receiver?.key(for: viewController) else {
             return
         }
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver?.onViewWillDisappear(viewControllerKey: key)
         }
     }
@@ -98,7 +98,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard let key = self.receiver?.key(for: viewController) else {
             return
         }
-        PerformanceSuite.consumerQueue.async {
+        PerformanceMonitoring.consumerQueue.async {
             self.receiver?.onViewDidDisappear(viewControllerKey: key)
         }
     }

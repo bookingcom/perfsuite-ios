@@ -35,8 +35,8 @@ final class FragmentTTIReporterTests: XCTestCase {
         timeProvider.time = time.advanced(by: .seconds(10))
         trackable.fragmentIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.metrics)
         XCTAssertNotNil(metricsReceiver.identifier)
@@ -64,14 +64,14 @@ final class FragmentTTIReporterTests: XCTestCase {
         timeProvider.time = time.advanced(by: .seconds(10))
         trackable.fragmentIsRendered()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         timeProvider.time = time.advanced(by: .seconds(120))
         trackable.fragmentIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.metrics)
         XCTAssertNotNil(metricsReceiver.identifier)
@@ -99,8 +99,8 @@ final class FragmentTTIReporterTests: XCTestCase {
         timeProvider.time = time.advanced(by: .seconds(10))
         trackable.fragmentIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.metrics)
         XCTAssertNotNil(metricsReceiver.identifier)
@@ -109,8 +109,8 @@ final class FragmentTTIReporterTests: XCTestCase {
 
         trackable.fragmentIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNil(metricsReceiver.metrics)
         XCTAssertNil(metricsReceiver.identifier)
@@ -135,8 +135,8 @@ final class FragmentTTIReporterTests: XCTestCase {
         appStateObserver.wasInBackground = true
         trackable.fragmentIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNil(metricsReceiver.metrics)
         XCTAssertNil(metricsReceiver.identifier)
@@ -144,7 +144,7 @@ final class FragmentTTIReporterTests: XCTestCase {
 
     func testPerformanceSuiteIntegration() throws {
 
-        let fragment = PerformanceSuite.startFragmentTTI(identifier: "throws")
+        let fragment = PerformanceMonitoring.startFragmentTTI(identifier: "throws")
 
         // preconditionFailure should be raised, because we haven't registered FragmentTTIReceiver
         let exp1 = expectation(description: "preconditionFailure1")
@@ -171,9 +171,9 @@ final class FragmentTTIReporterTests: XCTestCase {
 
         let metricsReciever = FragmentTTIMetricsReceiverStub()
         let config = ConfigItem.fragmentTTI(metricsReciever)
-        try PerformanceSuite.enable(config: [config])
+        try PerformanceMonitoring.enable(config: [config])
 
-        let trackable = PerformanceSuite.startFragmentTTI(identifier: "new_identifier")
+        let trackable = PerformanceMonitoring.startFragmentTTI(identifier: "new_identifier")
         let exp = expectation(description: "wait")
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(3)) {
             trackable.fragmentIsReady()
@@ -181,35 +181,35 @@ final class FragmentTTIReporterTests: XCTestCase {
         }
         waitForExpectations(timeout: 1)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReciever.identifier, "new_identifier")
         let tti = try XCTUnwrap(metricsReciever.metrics?.tti.milliseconds)
         XCTAssertGreaterThanOrEqual(tti, 3)
 
-        try PerformanceSuite.disable()
+        try PerformanceMonitoring.disable()
     }
 
     func testFragmentTTIIsReportedWhenWasInBackgroundButNotNow() throws {
         let metricsReciever = FragmentTTIMetricsReceiverStub()
         let config = ConfigItem.fragmentTTI(metricsReciever)
-        try PerformanceSuite.enable(config: [config])
+        try PerformanceMonitoring.enable(config: [config])
 
-        let trackable1 = PerformanceSuite.startFragmentTTI(identifier: "in_background")
+        let trackable1 = PerformanceMonitoring.startFragmentTTI(identifier: "in_background")
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         trackable1.fragmentIsReady()
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // App was in background, no TTI generated
         XCTAssertNil(metricsReciever.identifier)
         XCTAssertNil(metricsReciever.identifier)
         XCTAssertNil(metricsReciever.metrics?.tti)
 
-        let trackable2 = PerformanceSuite.startFragmentTTI(identifier: "not_in_background")
+        let trackable2 = PerformanceMonitoring.startFragmentTTI(identifier: "not_in_background")
         let exp = expectation(description: "wait")
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(3)) {
             trackable2.fragmentIsReady()
@@ -217,15 +217,15 @@ final class FragmentTTIReporterTests: XCTestCase {
         }
         waitForExpectations(timeout: 1)
 
-        PerformanceSuite.queue.sync {}
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // App wasn't in background
         XCTAssertEqual(metricsReciever.identifier, "not_in_background")
         let tti = try XCTUnwrap(metricsReciever.metrics?.tti.milliseconds)
         XCTAssertGreaterThanOrEqual(tti, 3)
 
-        try PerformanceSuite.disable()
+        try PerformanceMonitoring.disable()
     }
 }
 

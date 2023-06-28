@@ -124,7 +124,7 @@ Performance monitoring should be initiated as early as possible in your app. For
 
 ```swift
 let metricsConsumer = MetricsConsumer()
-try PerformanceSuite.enable(config: .all(receiver: metricsConsumer))
+try PerformanceMonitoring.enable(config: .all(receiver: metricsConsumer))
 
 // or with more flexibility
 
@@ -135,7 +135,7 @@ let config: Config = [
     .appLevelRendering(metricsConsumer),
     .hangs(metricsConsumer),
 ]
-try PerformanceSuite.enable(
+try PerformanceMonitoring.enable(
     config: config,
     // you may pass your own key-value storage
     storage: KeyValueStorage.default,

@@ -14,15 +14,15 @@ class AppRenderingReceiverTests: XCTestCase {
     override func setUp() {
         super.setUp()
 
-        PerformanceSuite.queue.sync {}
-        self.previousQueue = PerformanceSuite.changeQueueForTests(DispatchQueue.main)
+        PerformanceMonitoring.queue.sync {}
+        self.previousQueue = PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
     }
     private var previousQueue: DispatchQueue?
 
     override func tearDown() {
         super.tearDown()
         if let previousQueue = previousQueue {
-            PerformanceSuite.changeQueueForTests(previousQueue)
+            PerformanceMonitoring.changeQueueForTests(previousQueue)
         }
     }
 
@@ -57,7 +57,7 @@ class AppRenderingReceiverTests: XCTestCase {
         XCTAssertNil(metricsReceiver.appRenderingMetrics)
 
         waitForThreshold()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.appRenderingMetrics)
         if let metrics = metricsReceiver.appRenderingMetrics {
@@ -81,7 +81,7 @@ class AppRenderingReceiverTests: XCTestCase {
 
         framesMeter.report(frameDuration: 0.1, refreshRateDuration: 0.016)
         waitForThreshold()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.appRenderingMetrics)
         if let metrics = metricsReceiver.appRenderingMetrics {
@@ -94,7 +94,7 @@ class AppRenderingReceiverTests: XCTestCase {
 
         framesMeter.report(frameDuration: 1.1, refreshRateDuration: 0.016)
         waitForThreshold()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.appRenderingMetrics)
         if let metrics = metricsReceiver.appRenderingMetrics {
@@ -147,7 +147,7 @@ class AppRenderingReceiverTests: XCTestCase {
         XCTAssertNil(metricsReceiver.appRenderingMetrics)
 
         waitForThreshold()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.appRenderingMetrics)
         if let metrics = metricsReceiver.appRenderingMetrics {
@@ -174,7 +174,7 @@ class AppRenderingReceiverTests: XCTestCase {
         framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
 
         waitForThreshold()
-        PerformanceSuite.consumerQueue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNil(metricsReceiver.appRenderingMetrics)
         _ = receiver

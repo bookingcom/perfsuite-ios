@@ -90,17 +90,18 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Switch to badges branch
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git checkout badges
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: badges
       - name: Download code_coverage.txt
         uses: actions/download-artifact@v3
         with:
           name: code_coverage.txt
       - name: Commit code_coverage.txt
         run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           if [[ `git status --porcelain` ]]; then
             git add code_coverage.txt
             git commit -m "Update code_coverage.txt"

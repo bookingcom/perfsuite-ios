@@ -26,18 +26,48 @@ jobs:
           xcodebuild build -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device"
       - name: Test PerformanceSuite
         env:
-          scheme: PerformanceSuite-Unit-Tests
+          scheme: PerformanceApp
           platform: iOS Simulator
           workspace: PerformanceApp.xcworkspace
         run: |
           device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device" -test-iterations 30 -run-tests-until-failure -enableCodeCoverage YES -resultBundlePath ResultBundle.xcresult
-          xcrun xccov view --report ResultBundle.xcresult | grep libPerformanceSuite.a | grep -o -E '[0-9\.]+%' | awk '{print $1}' > code_coverage.txt
-      - name: Upload code coverage
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device" -test-iterations 30 -run-tests-until-failure -enableCodeCoverage YES
+      - name: Slather
+        run: |
+          gem install slather
+          slather coverage --simple-output | grep -E '^Test Coverage|^Tested ' > code_coverage.txt
+          slather coverage --cobertura-xml
+
+      - name: Code coverage markdown report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage/cobertura.xml
+          badge: true
+          fail_below_min: true
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: true
+          output: both
+          thresholds: '80 85'
+
+      - name: Upload code_coverage.txt
         uses: actions/upload-artifact@v3
         with:
           name: code_coverage.txt
           path: code_coverage.txt
+
+      - name: Upload code-coverage-results.md
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-results.md
+          path: code-coverage-results.md
+
+      - name: Add Coverage PR Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          recreate: true
+          path: code-coverage-results.md
 
   coverage:
     if: github.ref == 'refs/heads/main'
@@ -51,7 +81,7 @@ jobs:
       - name: Load coverage data
         id: load-coverage
         run: |
-          echo "coverage=$(cat code_coverage.txt)" >> $GITHUB_OUTPUT
+          echo "coverage=$(cat code_coverage.txt | grep -o -E '[0-9\.]+%' | awk '{print $1}')" >> $GITHUB_OUTPUT
       - name: Make Coverage Badge
         uses: action-badges/core@0.2.2
         with:

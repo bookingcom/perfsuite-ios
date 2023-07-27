@@ -38,10 +38,30 @@ jobs:
           slather coverage --simple-output | grep -E '^Test Coverage|^Tested ' > code_coverage.txt
           slather coverage --cobertura-xml
 
+      - name: Upload code_coverage.txt
+        uses: actions/upload-artifact@v3
+        with:
+          name: code_coverage.txt
+          path: code_coverage.txt
+
+      - name: Upload cobertura.xml
+        uses: actions/upload-artifact@v3
+        with:
+          name: cobertura.xml
+          path: coverage/cobertura.xml
+
+  coverage-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download cobertura.xml
+        uses: actions/download-artifact@v3
+        with:
+          name: cobertura.xml
+
       - name: Code coverage markdown report
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          filename: coverage/cobertura.xml
+          filename: cobertura.xml
           badge: true
           fail_below_min: true
           format: markdown
@@ -50,18 +70,6 @@ jobs:
           output: both
           thresholds: '80 85'
 
-      - name: Upload code_coverage.txt
-        uses: actions/upload-artifact@v3
-        with:
-          name: code_coverage.txt
-          path: code_coverage.txt
-
-      - name: Upload code-coverage-results.md
-        uses: actions/upload-artifact@v3
-        with:
-          name: code-coverage-results.md
-          path: code-coverage-results.md
-
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
         if: github.event_name == 'pull_request'
@@ -69,7 +77,14 @@ jobs:
           recreate: true
           path: code-coverage-results.md
 
-  coverage:
+      - name: Upload code-coverage-results.md
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-results.md
+          path: code-coverage-results.md
+
+
+  coverage-badge:
     if: github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest

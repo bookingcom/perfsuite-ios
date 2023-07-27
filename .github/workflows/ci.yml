@@ -52,6 +52,7 @@ jobs:
 
   coverage-report:
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Download cobertura.xml
         uses: actions/download-artifact@v3

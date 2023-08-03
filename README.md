@@ -15,6 +15,8 @@ Compared to other solutions like MetricKit, Firebase Performance, Instabug, Sent
 
 This library is used in the [main Booking.com iOS app](https://apps.apple.com/app/booking-com-hotels-travel/id367003839) which is used by millions of users every day.
 
+We also opened the code for the similar [Android PerformanceSuite](https://github.com/bookingcom/perfsuite-android).
+
 ## Pros
 
 - Performance events are delivered in real-time directly to your code, allowing for comprehensive analysis.

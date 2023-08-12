@@ -10,7 +10,10 @@ import UIKit
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
-    public init() { }
+    public let checkPrewarmingInHangDetector: Bool
+    public init(checkPrewarmingInHangDetector: Bool = false) {
+        self.checkPrewarmingInHangDetector = checkPrewarmingInHangDetector
+    }
 }
 
 public enum PerformanceMonitoring {

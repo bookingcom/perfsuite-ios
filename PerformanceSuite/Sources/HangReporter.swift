@@ -22,8 +22,8 @@ public protocol HangsReceiver: AnyObject {
     /// This method will be called on `PerformanceMonitoring.consumerQueue` just after the main thread is detected to be frozen.
     /// At this stage we do not know if this will be non-fatal or fatal hang. We just know, that some hang has started.
     ///
-    /// We send `fatalHangReceived` events only after user re-launched the app after the fatal hang. 
-    /// If user has never launched the app after the hang, we won't receive such event. To track those 
+    /// We send `fatalHangReceived` events only after user re-launched the app after the fatal hang.
+    /// If user has never launched the app after the hang, we won't receive such event. To track those
     /// users, you can track them in this method.
     func hangStarted(info: HangInfo)
 }
@@ -117,8 +117,18 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private func start() {
         lastMainThreadDate = timeProvider.now()
         DispatchQueue.main.async {
-            // we should call `UIApplication.shared.applicationState` on the main thread only
-            let inBackground = self.appStateProvider.applicationState == .background
+            let inBackground: Bool
+            if PerformanceMonitoring.experiments.checkPrewarmingInHangDetector {
+                // when app started in background - we shouldn't start hang monitoring for sure
+                // but when app is started with prewarming, applicationState is still .active,
+                // so we are checking for 'appStartedWithPrewarming' flag here too.
+                // We assume here, that if app is prewarmed, HangReporter will be created during this prewarming process,
+                // because the whole PerformanceSuite should be started as early as possible.
+                inBackground = self.appStateProvider.applicationState == .background || AppInfoHolder.appStartInfo.appStartedWithPrewarming
+            } else {
+                // we should call `UIApplication.shared.applicationState` on the main thread only
+                inBackground = self.appStateProvider.applicationState == .background
+            }
             PerformanceMonitoring.queue.async {
                 self.scheduleDetectionTimer(inBackground: inBackground)
                 self.subscribeToApplicationEvents()

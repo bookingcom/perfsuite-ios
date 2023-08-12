@@ -291,7 +291,7 @@ class HangReporterTests: XCTestCase {
         XCTAssertNil(receiver.hangInfo)
     }
 
-    func testHangInBackgroundIsNotReported() {
+    func testHangReporterStartedInBackgroundIsNotReportingHangs() {
         XCTAssertNil(receiver.hangInfo)
         XCTAssertNil(receiver.fatalHang)
         let appStateProvider = AppStateProviderStub()
@@ -315,7 +315,176 @@ class HangReporterTests: XCTestCase {
             receiver: receiver
         )
 
+        wait(milliseconds: 50)
         Thread.sleep(forTimeInterval: sleepInterval)
+    }
+
+    func testHangInBackgroundIsNotReported() {
+        XCTAssertNil(receiver.hangInfo)
+        XCTAssertNil(receiver.fatalHang)
+        let appStateProvider = AppStateProviderStub()
+
+        let storage = StorageStubWithBlock(key: "hangInfo") { value in
+            if value != nil {
+                XCTFail("Hang shouldn't be detected when app is in background")
+            }
+        }
+
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: appStateProvider,
+            workingQueue: PerformanceMonitoring.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+
+        wait(milliseconds: 50)
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        wait(milliseconds: 50)
+        Thread.sleep(forTimeInterval: sleepInterval)
+    }
+
+    func testHangAfterDidBecomeActiveIsReported() {
+        XCTAssertNil(receiver.hangInfo)
+        XCTAssertNil(receiver.fatalHang)
+        let appStateProvider = AppStateProviderStub()
+
+        let exp = expectation(description: "storage fired")
+        var fullfilled = false
+        let storage = StorageStubWithBlock(key: "hangInfo") { value in
+            guard let value = value else {
+                return
+            }
+#if arch(arm64)
+            XCTAssertTrue(value.contains("XCTestCore"))
+#else
+            XCTAssertTrue(value.contains("\"callStack\":\"\""))
+#endif
+            if !fullfilled {
+                exp.fulfill()
+                fullfilled = true
+            }
+        }
+
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: appStateProvider,
+            workingQueue: PerformanceMonitoring.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+
+        wait(milliseconds: 50)
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        wait(milliseconds: 50)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        wait(milliseconds: 50)
+        Thread.sleep(forTimeInterval: sleepInterval)
+        wait(for: [exp], timeout: 1)
+    }
+
+
+    func testHangReporterIsNotStartedWhenAppPrewarmed() {
+        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInHangDetector: true)
+
+        XCTAssertNil(receiver.hangInfo)
+        XCTAssertNil(receiver.fatalHang)
+        let appStateProvider = AppStateProviderStub()
+
+        // emulate prewarming
+        setenv("ActivePrewarm", "1", 1)
+        AppInfoHolder.recordMainStarted()
+
+        let exp = expectation(description: "storage fired")
+        var fullfilled = false
+        let storage = StorageStubWithBlock(key: "hangInfo") { value in
+            guard let value = value else {
+                return
+            }
+#if arch(arm64)
+            XCTAssertTrue(value.contains("XCTestCore"))
+#else
+            XCTAssertTrue(value.contains("\"callStack\":\"\""))
+#endif
+            if !fullfilled {
+                exp.fulfill()
+                fullfilled = true
+            }
+        }
+
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: appStateProvider,
+            workingQueue: PerformanceMonitoring.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+
+        wait(milliseconds: 50)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+
+        Thread.sleep(forTimeInterval: sleepInterval)
+
+        wait(for: [exp], timeout: 1)
+
+        PerformanceMonitoring.experiments = Experiments()
+    }
+
+    func testHangReporterIsStartedWhenAppPrewarmedAfterDidBecomeActive() {
+        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInHangDetector: true)
+
+        XCTAssertNil(receiver.hangInfo)
+        XCTAssertNil(receiver.fatalHang)
+        let appStateProvider = AppStateProviderStub()
+
+        // emulate prewarming
+        setenv("ActivePrewarm", "1", 1)
+        AppInfoHolder.recordMainStarted()
+
+        let storage = StorageStubWithBlock(key: "hangInfo") { value in
+            if value != nil {
+                XCTFail("Hang shouldn't be detected when app is in background")
+            }
+        }
+
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: appStateProvider,
+            workingQueue: PerformanceMonitoring.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+
+        wait(milliseconds: 50)
+        Thread.sleep(forTimeInterval: sleepInterval)
+
+        PerformanceMonitoring.experiments = Experiments()
+    }
+
+    private func wait(milliseconds: Int) {
+        let exp = expectation(description: "wait")
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(milliseconds)) {
+            exp.fulfill()
+        }
+
+        wait(for: [exp], timeout: TimeInterval(milliseconds * 1000 + 1))
     }
 }
 

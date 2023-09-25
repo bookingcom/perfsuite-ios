@@ -12,10 +12,12 @@ final class PerformanceMonitoringTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        StartupTimeReporter.forgetMainStartedForTests()
     }
 
     override func tearDown() {
         super.tearDown()
+        StartupTimeReporter.forgetMainStartedForTests()
     }
 
     func testIntegration() throws {

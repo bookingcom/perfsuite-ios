@@ -1,2 +1,2 @@
-Tested 1975/2255 statements
-Test Coverage: 87.58%
+Tested 2134/2426 statements
+Test Coverage: 87.96%

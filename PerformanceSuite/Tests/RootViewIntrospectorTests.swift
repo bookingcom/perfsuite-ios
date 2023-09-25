@@ -13,6 +13,16 @@ import XCTest
 @available(iOS 14.0, *)
 class RootViewIntrospectionTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        PerformanceMonitoring.experiments = Experiments(collapseSwiftUIGenericsInDescription: true)
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        PerformanceMonitoring.experiments = Experiments()
+    }
+
     private let introspector = RootViewIntrospection()
 
     func testAnyView() {
@@ -80,13 +90,112 @@ class RootViewIntrospectionTests: XCTestCase {
     }
 
     private func makeComplexView() -> AnyView {
-        let view = AnyView(MyView())
-            .navigationViewStyle(.stack)
-            .navigationTitle(Text("Test"))
-            .frame(width: 200, height: 200, alignment: .center)
-            .onAppear {
-                debugPrint("test")
-            }
+        let view =
+        VStack {
+            AnyView(MyView())
+                .navigationViewStyle(.stack)
+                .navigationTitle(Text("Test"))
+                .frame(width: 200, height: 200, alignment: .center)
+                .onAppear {
+                    debugPrint("test")
+                }
+        }
         return AnyView(view)
+    }
+
+    func testDescriptionForUIViewController() {
+        let controller = UIViewController()
+        XCTAssertEqual("UIViewController", introspector.description(viewController: controller))
+
+        let myController = MyViewController()
+        XCTAssertEqual("MyViewController", introspector.description(viewController: myController))
+    }
+
+    func testDescriptionForSimpleView() {
+        let controller = UIHostingController(rootView: MyView())
+        XCTAssertEqual("MyView", introspector.description(viewController: controller))
+    }
+
+    func testDescriptionForComplexView() {
+        let controller = UIHostingController(rootView: makeComplexView())
+        XCTAssertEqual("MyView", introspector.description(viewController: controller))
+    }
+
+    func testDescriptionForVeryComplexView() {
+        let controller = UIHostingController(rootView: makeVeryComplexView())
+        XCTAssertEqual("CardContainer<InputText>, SearchDestinationList, ProgressView", introspector.description(viewController: controller))
+    }
+
+    @ViewBuilder private func makeVeryComplexView() -> some View {
+        LazyHStack {
+            EmptyView()
+            Button("my title", action: { })
+            VStack {
+                ZStack {
+                    CardContainer {
+                        HStack {
+                            Button("Button") {
+                                print("Button Tapped")
+                            }
+                            .padding()
+                            .background(Color.blue)
+                            .zIndex(1.0)
+
+                            InputText()
+                                .accessibility(identifier: "inputText")
+                                .font(.callout)
+                                .autocorrectionDisabled()
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(lineWidth: 2)
+                            .foregroundColor(.gray)
+                    )
+                    .padding()
+                    .padding()
+                    .zIndex(1.0)
+
+                    SearchDestinationList()
+
+                    VStack {
+                        ProgressView()
+                            .padding()
+                        Spacer()
+                    }
+                }
+                Spacer()
+                EmptyView()
+            }
+        }
+    }
+}
+
+private class MyViewController: UIViewController { }
+
+
+private struct InputText: View {
+    @State private var text: String = ""
+
+    var body: some View {
+        TextField("Enter text", text: $text)
+    }
+}
+
+private struct CardContainer<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+    }
+}
+
+private struct SearchDestinationList: View {
+    var body: some View {
+        Text("SearchDestinationList")
     }
 }

@@ -11,8 +11,10 @@ protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
     public let checkPrewarmingInHangDetector: Bool
-    public init(checkPrewarmingInHangDetector: Bool = false) {
+    public let collapseSwiftUIGenericsInDescription: Bool
+    public init(checkPrewarmingInHangDetector: Bool = false, collapseSwiftUIGenericsInDescription: Bool = false) {
         self.checkPrewarmingInHangDetector = checkPrewarmingInHangDetector
+        self.collapseSwiftUIGenericsInDescription = collapseSwiftUIGenericsInDescription
     }
 }
 

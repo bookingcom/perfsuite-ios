@@ -82,7 +82,7 @@ final class LoggingObserverTests: XCTestCase {
 
         XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [
             "MyViewForLoggingObserverTests",
-            "_TtC27PerformanceSuite_Unit_TestsP33_ACF6D520A1CF33499E18FE4EF54EC1EC17MyViewController1",
+            "MyViewController1",
             "MyView3",
         ])
     }

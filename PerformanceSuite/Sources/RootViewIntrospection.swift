@@ -28,6 +28,8 @@ extension UIHostingController: RootViewIntrospectable {
 final class RootViewIntrospection {
     static let shared = RootViewIntrospection()
 
+    private let parser = GenericTypeParser()
+
     func rootView(view: Any) -> Any {
         let mirror = Mirror(reflecting: view)
         if let mirrorChild = mirror.children.first(where: { possibleMirrorChildAttributeNames.contains($0.label) }) {
@@ -42,5 +44,33 @@ final class RootViewIntrospection {
         "storage",  // is used in AnyView
         "view",  // is used in AnyViewStorage
         "content",  // is used in ModifiedContent
+        "_tree", // is used in VStack/HStack
     ]
+
+    func description(viewController: UIViewController) -> String {
+        if let introspectable = viewController as? RootViewIntrospectable {
+            // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
+            // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
+            return description(introspectable.introspectRootView())
+        } else {
+            return description(viewController)
+        }
+    }
+
+    private func collapseSwiftUIGenerics(type: String) -> String {
+        if let parsed = try? parser.parseType(description: type) {
+            return parsed.description
+        } else {
+            return type
+        }
+    }
+
+    private func description(_ view: Any) -> String {
+        let type = String(describing: type(of: view))
+        if PerformanceMonitoring.experiments.collapseSwiftUIGenericsInDescription {
+            return collapseSwiftUIGenerics(type: type)
+        } else {
+            return type
+        }
+    }
 }

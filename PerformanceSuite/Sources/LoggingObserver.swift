@@ -109,14 +109,7 @@ final class LoggingObserver: ViewControllerObserver {
         guard isTopScreen(viewController) else {
             return
         }
-        let description: String
-        if let introspectable = viewController as? RootViewIntrospectable {
-            // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
-            // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
-            description = String(describing: type(of: introspectable.introspectRootView()))
-        } else {
-            description = type(of: viewController).description()
-        }
+        let description = RootViewIntrospection.shared.description(viewController: viewController)
         AppInfoHolder.screenOpened(description)
     }
 

@@ -16,6 +16,10 @@ private let skipName: Set<String> = [
     "HStack",
     "ZStack",
     "TupleView",
+    "Block",
+    "Tuple",
+    "UnaryElements",
+    "TypedUnaryViewGenerator",
 ]
 
 /// List of types we should skip in the description,
@@ -133,13 +137,23 @@ private enum Bracket: CaseIterable {
     }
 }
 
+private let blockReturnTypeString = " -> "
+private let blockReturnTypeSymbol = "}"
+private let tupleTypeName = "Tuple"
+private let blockTypeName = "Block"
+
+
 private enum ParsingError: Error {
     case emptyName
-    case noClosingBracketFound
     case noOpeningBracketFound
+    case noClosingBracketFound
     case closingBeforeOpening
     case unbalancedSimpleBrackets
     case unbalancedBrackets
+    case regularBracketNotFirst
+    case wrongReturnTypeString
+    case noOpeningRegularBracketFound
+    case noClosingRegularBracketFound
 }
 
 /// Class to parse generic SwiftUI types representation,
@@ -161,44 +175,107 @@ class GenericTypeParser {
 
     /// Parses the string representation of a generic type like `MyView<MyChild1, MyChild2>`
     /// into the structure TypeElement.
-    func parseType(description: String) throws -> TypeElement {
-        let startIndex = description.firstIndex(of: Bracket.angled.openSymbol)
-        let endIndex = description.lastIndex(of: Bracket.angled.closeSymbol)
+    func parseType(input: String) throws -> TypeElement {
+        let preparedInput = String(input.replacingOccurrences(of: blockReturnTypeString, with: blockReturnTypeSymbol))
+        return try parseTypeInternal(input: preparedInput)
+    }
+
+
+    private func parseTypeInternal(input: String) throws -> TypeElement {
+        guard let regularStartIndex = input.firstIndex(of: Bracket.regular.openSymbol) else {
+            return try parseClass(input: input)
+        }
+
+        guard let angledStartIndex = input.firstIndex(of: Bracket.angled.openSymbol) else {
+            return try parseTupleOrBlock(input: input)
+        }
+
+        if regularStartIndex < angledStartIndex {
+            // if regular bracket is earlier, than angled, it means this is either block (a, b) -> c, or tuple (a, b, c)
+            return try parseTupleOrBlock(input: input)
+        } else {
+            return try parseClass(input: input)
+        }
+    }
+
+    private func parseClass(input: String) throws -> TypeElement {
+        let startIndex = input.firstIndex(of: Bracket.angled.openSymbol)
+        let endIndex = input.lastIndex(of: Bracket.angled.closeSymbol)
 
         guard let startIndex = startIndex else {
             if endIndex != nil {
                 throw ParsingError.noOpeningBracketFound
             }
 
-            return TypeElement(name: description, children: [])
+            return TypeElement(name: input, children: [])
         }
 
         guard let endIndex = endIndex else {
             throw ParsingError.noClosingBracketFound
         }
-        let afterStartIndex = description.index(after: startIndex)
-        if endIndex <= afterStartIndex {
-            throw ParsingError.closingBeforeOpening
-        }
 
-        let name = String(description[..<startIndex])
+        let name = String(input[..<startIndex])
         if name.isEmpty {
             throw ParsingError.emptyName
         }
-        let childrenStr = String(description[afterStartIndex..<endIndex])
+        let children = try parseChildren(startIndex: startIndex, endIndex: endIndex, input: input)
+        return TypeElement(name: name, children: children)
+    }
+
+    private func parseTupleOrBlock(input: String) throws -> TypeElement {
+        guard let startIndex = input.firstIndex(of: Bracket.regular.openSymbol) else {
+            throw ParsingError.noOpeningRegularBracketFound
+        }
+        guard let endIndex = input.lastIndex(of: Bracket.regular.closeSymbol) else {
+            throw ParsingError.noClosingRegularBracketFound
+        }
+
+        let indexAfterEnd = input.index(after: endIndex)
+
+        if startIndex != input.startIndex {
+            throw ParsingError.regularBracketNotFirst
+        }
+
+        if indexAfterEnd == input.endIndex {
+            // this is a tuple
+            let children = try parseChildren(startIndex: startIndex, endIndex: endIndex, input: input)
+            return TypeElement(name: tupleTypeName, children: children)
+        }
+
+        let blockArguments = try parseChildren(startIndex: startIndex, endIndex: endIndex, input: input)
+
+        let remainingString = input[indexAfterEnd...]
+        if !remainingString.hasPrefix(blockReturnTypeSymbol) {
+            throw ParsingError.wrongReturnTypeString
+        }
+
+        let resultTypeString = String(remainingString.dropFirst(blockReturnTypeSymbol.count))
+        let blockResult = try parseTypeInternal(input: resultTypeString)
+
+        return TypeElement(name: blockTypeName, children: blockArguments + [blockResult])
+    }
+
+    private func parseChildren(startIndex: String.Index, endIndex: String.Index, input: String) throws -> [TypeElement] {
+        let indexAfterStart = input.index(after: startIndex)
+        if endIndex < indexAfterStart {
+            throw ParsingError.closingBeforeOpening
+        } else if endIndex == indexAfterStart {
+            return []
+        }
+
+        let childrenStr = String(input[indexAfterStart..<endIndex])
         let childrenStrs = try splitByComma(input: childrenStr)
         var children: [TypeElement] = []
         for ch in childrenStrs {
-            children.append(try parseType(description: ch))
+            children.append(try parseTypeInternal(input: ch))
         }
-
-        return TypeElement(name: name, children: children)
+        return children
     }
 
     // Split by comma, but taking brackets into consideration.
     // We split only by commas which are on the root level of brackets
     private func splitByComma(input: String) throws -> [String] {
-        let input =  try dropWrappingBrackets(input: input.trimmingCharacters(in: .whitespaces))
+        let input = input.trimmingCharacters(in: .whitespaces)
         var results: [String] = []
         var currentStr = ""
 
@@ -235,20 +312,5 @@ class GenericTypeParser {
         }
         appendResult()
         return results
-    }
-
-    private func dropWrappingBrackets(input: String) throws -> String {
-        if input.first == Bracket.regular.openSymbol && input.last == Bracket.regular.closeSymbol {
-            // Remove the brackets if both of them present
-            let startIndex = input.index(after: input.startIndex)
-            let endIndex = input.index(before: input.endIndex)
-            return String(input[startIndex..<endIndex])
-        } else if input.first == Bracket.regular.openSymbol || input.last == Bracket.regular.closeSymbol {
-            // Only one of the brackets is present
-            throw ParsingError.unbalancedSimpleBrackets
-        } else {
-            // No brackets, return the original string
-            return input
-        }
     }
 }

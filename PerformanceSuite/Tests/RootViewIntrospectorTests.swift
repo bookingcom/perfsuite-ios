@@ -123,7 +123,7 @@ class RootViewIntrospectionTests: XCTestCase {
 
     func testDescriptionForVeryComplexView() {
         let controller = UIHostingController(rootView: makeVeryComplexView())
-        XCTAssertEqual("CardContainer<InputText>, SearchDestinationList, ProgressView", introspector.description(viewController: controller))
+        XCTAssertEqual("InputText, SearchDestinationList, ProgressView", introspector.description(viewController: controller))
     }
 
     @ViewBuilder private func makeVeryComplexView() -> some View {
@@ -131,6 +131,7 @@ class RootViewIntrospectionTests: XCTestCase {
             EmptyView()
             Button("my title", action: { })
             VStack {
+                EmptyView()
                 ZStack {
                     CardContainer {
                         HStack {
@@ -156,7 +157,7 @@ class RootViewIntrospectionTests: XCTestCase {
                     .padding()
                     .zIndex(1.0)
 
-                    SearchDestinationList()
+                    AnyView(SearchDestinationList())
 
                     VStack {
                         ProgressView()
@@ -179,6 +180,12 @@ private struct InputText: View {
 
     var body: some View {
         TextField("Enter text", text: $text)
+    }
+}
+
+private struct ProgressView: View {
+    var body: some View {
+        SwiftUI.ProgressView()
     }
 }
 

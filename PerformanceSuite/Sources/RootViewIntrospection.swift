@@ -30,35 +30,85 @@ final class RootViewIntrospection {
 
     private let parser = GenericTypeParser()
 
+    /// Looking for the first meaningful SwiftUI view in the tree. We skip all the possible containers and modifiers.
+    /// - Parameter view: view hierarchy to look up in
+    /// - Returns: the same view if we couldn't parse it, or the internal view which we consider the first meaningful
     func rootView(view: Any) -> Any {
         let mirror = Mirror(reflecting: view)
-        if let mirrorChild = mirror.children.first(where: { possibleMirrorChildAttributeNames.contains($0.label) }) {
+        if let mirrorChild = mirror.children.first(where: { possibleRootChildAttributeNames.contains($0.label) }) {
             return rootView(view: mirrorChild.value)
         } else {
             return view
         }
     }
 
-    private let possibleMirrorChildAttributeNames: Set<String?> = [
+
+    /// Looking for all the meaningful views in the hierarchy.
+    /// Method similar to `rootView(view:)`, but it looks deeper into the hierarchy and looks not for the single child,
+    /// but for all possible meaningful views.
+    /// For example, it takes all the children of `VStack { ... }`, takes both values of `.if(...)`, etc.
+    /// - Parameter view: view hierarchy to look up in
+    /// - Returns: all children views we consider meaningful
+    func meaningfulViews(view: Any) -> [Any] {
+        let mirror = Mirror(reflecting: view)
+        var result: [Any] = []
+
+        var hadChild = false
+        for ch in mirror.children {
+            if possibleRootChildAttributeNames.contains(ch.label)
+                || possibleMeaningfulChildAttributeNames.contains(ch.label) {
+                result += meaningfulViews(view: ch.value)
+                hadChild = true
+            }
+        }
+
+        if hadChild {
+            return result
+        } else {
+            return [view]
+        }
+    }
+
+    private let possibleRootChildAttributeNames: Set<String?> = [
         "some",  // is used in Optional<SomeView>
         "storage",  // is used in AnyView
         "view",  // is used in AnyViewStorage
         "content",  // is used in ModifiedContent
+        "base", // is used in ModifiedElements
         "_tree", // is used in VStack/HStack
+        "tree", // is used in LazyVStack/LazyHStack
+        "value", // is used in TupleView
+        "custom", // is used in Base
+    ]
+
+    private let possibleMeaningfulChildAttributeNames: Set<String?> = [
+        "trueContent", // is used in `if ... else ...`
+        "falseContent", // is used in `if ... else ...`
+        ".0", ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", // are used in view builders with multiple children
+        "elements", // is used in _ViewList_View
     ]
 
     func description(viewController: UIViewController) -> String {
         if let introspectable = viewController as? RootViewIntrospectable {
             // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
             // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
-            return description(introspectable.introspectRootView())
+            let root = introspectable.introspectRootView()
+            if PerformanceMonitoring.experiments.collapseSwiftUIGenericsInDescription {
+                let meaningful = meaningfulViews(view: root)
+                return meaningful
+                    .map { description($0) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: ", ")
+            } else {
+                return description(root)
+            }
         } else {
             return description(viewController)
         }
     }
 
     private func collapseSwiftUIGenerics(type: String) -> String {
-        if let parsed = try? parser.parseType(description: type) {
+        if let parsed = try? parser.parseType(input: type) {
             return parsed.description
         } else {
             return type

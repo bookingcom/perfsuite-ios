@@ -20,6 +20,9 @@ private let skipName: Set<String> = [
     "Tuple",
     "UnaryElements",
     "TypedUnaryViewGenerator",
+    "ListContainer",
+    "ForEach",
+    "Array",
 ]
 
 /// List of types we should skip in the description,
@@ -27,16 +30,28 @@ private let skipName: Set<String> = [
 private let takeFirst: Set<String> = [
     "ModifiedContent",
     "Optional",
+    "Row",
+    "IDView",
+    "AnyPublisher",
+    "GeometryReader",
 ]
 
 /// List of types we should skip in the description completely.
 private let skipAll: Set<String> = [
     "Button",
     "Text",
+    "String",
+    "Bool",
+    "Int",
+    "Double",
+    "Range",
+    "Never",
     "Spacer",
+    "Divider",
     "EmptyView",
     "Color",
     "Font",
+    "SubscriptionView",
 ]
 
 /// Generic type structure

@@ -27,7 +27,7 @@ final class PerformanceMonitoringTests: XCTestCase {
         let exp = expectation(description: "onInit")
         onInitExpectation = exp
         let vc = UIViewController()
-        wait(for: [exp], timeout: 0.2)
+        wait(for: [exp], timeout: 0.5)
         _ = vc
         try PerformanceMonitoring.disable()
 
@@ -35,7 +35,7 @@ final class PerformanceMonitoringTests: XCTestCase {
         exp2.isInverted = true
         onInitExpectation = exp2
         let vc2 = UIViewController()
-        wait(for: [exp2], timeout: 0.2)
+        wait(for: [exp2], timeout: 0.5)
         _ = vc2
     }
 

@@ -20,6 +20,7 @@ class HangReporterTests: XCTestCase {
         #if arch(arm64)
             MainThreadCallStack.storeMainThread()
         #endif
+        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInHangDetector: true)
     }
 
     override func tearDown() {
@@ -31,6 +32,8 @@ class HangReporterTests: XCTestCase {
 
         receiver.fatalHang = nil
         receiver.hangInfo = nil
+        PerformanceMonitoring.experiments = Experiments()
+        AppInfoHolder.resetForTests()
     }
 
     private let storage = StorageStub()
@@ -262,6 +265,55 @@ class HangReporterTests: XCTestCase {
         #endif
     }
 
+    func testStartupFatalHangDetectedIfMainThreadIsBlockedImmediately() {
+        var hangInfo: HangInfo?
+        hangInfo = storage.readJSON(key: HangReporter.StorageKey.hangInfo)
+        XCTAssertNil(hangInfo)
+
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: AppStateProviderStub(),
+            workingQueue: PerformanceMonitoring.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+
+        Thread.sleep(forTimeInterval: sleepInterval)
+
+        hangInfo = storage.readJSON(key: HangReporter.StorageKey.hangInfo)
+        XCTAssertNotNil(hangInfo)
+        XCTAssertTrue(hangInfo!.duringStartup)
+    }
+
+    func testStartupFatalHangDetectedIfMainThreadIsBlockedAfterSomeTime() {
+        var hangInfo: HangInfo?
+        hangInfo = storage.readJSON(key: HangReporter.StorageKey.hangInfo)
+        XCTAssertNil(hangInfo)
+
+        reporter = HangReporter(
+            timeProvider: defaultTimeProvider,
+            storage: storage,
+            startupProvider: startupProvider,
+            appStateProvider: AppStateProviderStub(),
+            workingQueue: PerformanceMonitoring.queue,
+            detectionTimerInterval: detectionInterval,
+            hangThreshold: hangThreshold,
+            enabledInDebug: true,
+            receiver: receiver
+        )
+
+        wait(milliseconds: 30)
+        Thread.sleep(forTimeInterval: sleepInterval)
+
+        hangInfo = storage.readJSON(key: HangReporter.StorageKey.hangInfo)
+        XCTAssertNotNil(hangInfo)
+        XCTAssertTrue(hangInfo!.duringStartup)
+    }
+
     func testCrashIsNotReportedAsHang() {
         storage.writeJSON(
             key: HangReporter.StorageKey.hangInfo,
@@ -393,8 +445,6 @@ class HangReporterTests: XCTestCase {
 
 
     func testHangReporterIsNotStartedWhenAppPrewarmed() {
-        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInHangDetector: true)
-
         XCTAssertNil(receiver.hangInfo)
         XCTAssertNil(receiver.fatalHang)
         let appStateProvider = AppStateProviderStub()
@@ -439,13 +489,9 @@ class HangReporterTests: XCTestCase {
         Thread.sleep(forTimeInterval: sleepInterval)
 
         wait(for: [exp], timeout: 1)
-
-        PerformanceMonitoring.experiments = Experiments()
     }
 
     func testHangReporterIsStartedWhenAppPrewarmedAfterDidBecomeActive() {
-        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInHangDetector: true)
-
         XCTAssertNil(receiver.hangInfo)
         XCTAssertNil(receiver.fatalHang)
         let appStateProvider = AppStateProviderStub()
@@ -474,8 +520,6 @@ class HangReporterTests: XCTestCase {
 
         wait(milliseconds: 50)
         Thread.sleep(forTimeInterval: sleepInterval)
-
-        PerformanceMonitoring.experiments = Experiments()
     }
 
     private func wait(milliseconds: Int) {

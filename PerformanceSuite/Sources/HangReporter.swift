@@ -54,6 +54,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private let storage: Storage
     private let timeProvider: TimeProvider
     private let startupProvider: StartupProvider
+    // drop if checkPrewarmingInHangDetector experiment will be enabled
     private let appStateProvider: AppStateProvider
     private let workingQueue: DispatchQueue
     private let detectionTimer: DispatchSourceTimer
@@ -97,6 +98,23 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         self.lastMainThreadDate = timeProvider.now()
         self.detectionTimer = DispatchSource.makeTimerSource(flags: .strict, queue: workingQueue)
 
+        let inBackground: Bool
+        if PerformanceMonitoring.experiments.checkPrewarmingInHangDetector {
+            // when app started in background - we shouldn't start hang monitoring for sure
+            // but when app is started with prewarming, applicationState is still .active,
+            // so we are checking for 'appStartedWithPrewarming' flag here too.
+            // We assume here, that if app is prewarmed, HangReporter will be created during this prewarming process,
+            // because the whole PerformanceSuite should be started as early as possible.
+            let prewarming = AppInfoHolder.appStartInfo.appStartedWithPrewarming
+            if Thread.isMainThread {
+                inBackground = self.appStateProvider.applicationState == .background || prewarming
+            } else {
+                inBackground = DispatchQueue.main.sync { self.appStateProvider.applicationState } == .background || prewarming
+            }
+        } else {
+            inBackground = false
+        }
+
         self.workingQueue.async {
             // we check if last time app was killed during the hang
             self.notifyAboutFatalHangs()
@@ -110,28 +128,22 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
                 }
             }
 
-            self.start()
+            self.start(inBackground: inBackground)
         }
     }
 
-    private func start() {
+    private func start(inBackground: Bool) {
         lastMainThreadDate = timeProvider.now()
-        DispatchQueue.main.async {
-            let inBackground: Bool
-            if PerformanceMonitoring.experiments.checkPrewarmingInHangDetector {
-                // when app started in background - we shouldn't start hang monitoring for sure
-                // but when app is started with prewarming, applicationState is still .active,
-                // so we are checking for 'appStartedWithPrewarming' flag here too.
-                // We assume here, that if app is prewarmed, HangReporter will be created during this prewarming process,
-                // because the whole PerformanceSuite should be started as early as possible.
-                inBackground = self.appStateProvider.applicationState == .background || AppInfoHolder.appStartInfo.appStartedWithPrewarming
-            } else {
-                // we should call `UIApplication.shared.applicationState` on the main thread only
-                inBackground = self.appStateProvider.applicationState == .background
-            }
-            PerformanceMonitoring.queue.async {
-                self.scheduleDetectionTimer(inBackground: inBackground)
-                self.subscribeToApplicationEvents()
+        if PerformanceMonitoring.experiments.checkPrewarmingInHangDetector {
+            self.scheduleDetectionTimer(inBackground: inBackground)
+            self.subscribeToApplicationEvents()
+        } else {
+            DispatchQueue.main.async {
+                let inBackground = self.appStateProvider.applicationState == .background
+                PerformanceMonitoring.queue.async {
+                    self.scheduleDetectionTimer(inBackground: inBackground)
+                    self.subscribeToApplicationEvents()
+                }
             }
         }
     }

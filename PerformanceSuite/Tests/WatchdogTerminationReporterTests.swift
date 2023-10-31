@@ -36,8 +36,8 @@ class WatchdogTerminationReporterTests: XCTestCase {
 
     func testOOMDetection() {
         // first launch
-        var reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         startupProvider.appStarted()
+        var reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
         NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)

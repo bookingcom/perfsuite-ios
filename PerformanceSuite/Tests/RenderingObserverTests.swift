@@ -88,6 +88,10 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.renderingMetrics!.droppedFrames, expectedDroppedFrames)
         XCTAssertEqual(metricsReceiver.renderingMetrics!.freezeTime.milliseconds, expectedFreezeTime)
         XCTAssertEqual(metricsReceiver.renderingMetrics!.sessionDuration.milliseconds, expectedSessionDuration)
+
+        XCTAssertEqual(metricsReceiver.renderingMetrics!.slowFramesRatio, 1)
+        XCTAssertEqual(metricsReceiver.renderingMetrics!.frozenFramesRatio, 0.5)
+        XCTAssertEqual(metricsReceiver.renderingMetrics!.droppedFramesRatio, Decimal(expectedDroppedFrames) / 60)
     }
 
     func testRenderingObserverIsResetAfterViewDisappeared() {

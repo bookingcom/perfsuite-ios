@@ -216,6 +216,8 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(130))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(10))
+
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.description, "tti: 130 ms, ttfr: 10 ms")
     }
 
     func testTTIWithoutScreenIsReadyCall() {

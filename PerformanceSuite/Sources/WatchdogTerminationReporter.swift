@@ -89,20 +89,27 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         self.didCrashPreviously = didCrashPreviously
         self.didHangPreviouslyProvider = didHangPreviouslyProvider
         self.startupProvider = startupProvider
-        self.appStateProvider = appStateProvider
         self.enabledInDebug = enabledInDebug
         self.receiver = receiver
 
+        let appState: UIApplication.State
         if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
+            if Thread.isMainThread {
+                appState = appStateProvider.applicationState
+            } else {
+                appState = DispatchQueue.main.sync { appStateProvider.applicationState }
+            }
             PerformanceMonitoring.queue.async {
                 startupProvider.notifyAfterAppStarted { [weak self] in
                     self?.appStarted()
                 }
             }
+        } else {
+            appState = .active
         }
 
         subscribeToNotifications()
-        detectPreviousTermination()
+        detectPreviousTermination(applicationState: appState)
     }
 
 
@@ -110,7 +117,6 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     private let didCrashPreviously: Bool
     private let didHangPreviouslyProvider: DidHangPreviouslyProvider?
     private let startupProvider: StartupProvider
-    private let appStateProvider: AppStateProvider
     private let enabledInDebug: Bool
     private let receiver: WatchdogTerminationsReceiver
 
@@ -196,14 +202,23 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         self.storage.write(key: StorageKey.duringStartup, value: false)
     }
 
-    private func detectPreviousTermination() {
-        DispatchQueue.main.async {
-            let applicationState = self.appStateProvider.applicationState
+    private func detectPreviousTermination(applicationState: UIApplication.State) {
+        if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
             PerformanceMonitoring.queue.async {
                 let storedAppInformation = self.readStoredAppInformation()
                 let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
                 self.detectTermination(storedAppInformation: storedAppInformation, actualAppInformation: actualAppInformation)
                 self.storeAppInformation(actualAppInformation)
+            }
+        } else {
+            DispatchQueue.main.async {
+                let applicationState = UIApplication.shared.applicationState
+                PerformanceMonitoring.queue.async {
+                    let storedAppInformation = self.readStoredAppInformation()
+                    let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
+                    self.detectTermination(storedAppInformation: storedAppInformation, actualAppInformation: actualAppInformation)
+                    self.storeAppInformation(actualAppInformation)
+                }
             }
         }
     }

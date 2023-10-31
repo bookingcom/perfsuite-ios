@@ -489,6 +489,8 @@ class HangReporterTests: XCTestCase {
         Thread.sleep(forTimeInterval: sleepInterval)
 
         wait(for: [exp], timeout: 1)
+
+        setenv("ActivePrewarm", "", 1)
     }
 
     func testHangReporterIsStartedWhenAppPrewarmedAfterDidBecomeActive() {
@@ -520,6 +522,8 @@ class HangReporterTests: XCTestCase {
 
         wait(milliseconds: 50)
         Thread.sleep(forTimeInterval: sleepInterval)
+
+        setenv("ActivePrewarm", "", 1)
     }
 
     private func wait(milliseconds: Int) {

@@ -14,6 +14,7 @@ class WatchdogTerminationReporterTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        AppInfoHolder.resetForTests()
         PerformanceMonitoring.experiments = Experiments(checkPrewarmingInTerminations: true)
     }
 

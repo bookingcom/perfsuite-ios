@@ -10,10 +10,10 @@ import UIKit
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
-    public let checkPrewarmingInHangDetector: Bool
+    public let checkPrewarmingInTerminations: Bool
     public let collapseSwiftUIGenericsInDescription: Bool
-    public init(checkPrewarmingInHangDetector: Bool = false, collapseSwiftUIGenericsInDescription: Bool = false) {
-        self.checkPrewarmingInHangDetector = checkPrewarmingInHangDetector
+    public init(checkPrewarmingInTerminations: Bool = false, collapseSwiftUIGenericsInDescription: Bool = false) {
+        self.checkPrewarmingInTerminations = checkPrewarmingInTerminations
         self.collapseSwiftUIGenericsInDescription = collapseSwiftUIGenericsInDescription
     }
 }
@@ -159,31 +159,38 @@ public enum PerformanceMonitoring {
     }
 
     private static func appendWatchdogTerminationsObserver(
-        config: Config, storage: Storage, didCrashPreviously: Bool, didHangPreviouslyProvider: DidHangPreviouslyProvider?,
+        config: Config, dependencies: TerminationDependencies, didHangPreviouslyProvider: DidHangPreviouslyProvider?,
         appReporters: inout [AppMetricsReporter]
     ) {
         guard let watchdogTerminationsReceiver = config.watchdogTerminationsReceiver else {
             return
         }
-        let watchdogTerminationsReporter = WatchdogTerminationReporter(
-            storage: storage, didCrashPreviously: didCrashPreviously, didHangPreviouslyProvider: didHangPreviouslyProvider,
-            receiver: watchdogTerminationsReceiver)
-        appReporters.append(watchdogTerminationsReporter)
+
+        if let startupProvider = dependencies.startupProvider {
+            let watchdogTerminationsReporter = WatchdogTerminationReporter(storage: dependencies.storage,
+                                                                           didCrashPreviously: dependencies.didCrashPreviously,
+                                                                           didHangPreviouslyProvider: didHangPreviouslyProvider,
+                                                                           startupProvider: startupProvider,
+                                                                           receiver: watchdogTerminationsReceiver)
+            appReporters.append(watchdogTerminationsReporter)
+        } else {
+            fatalError("Startup time reporting is needed to enable watchdog terminations reporting. Please pass `.startupTime(_)` in the config.")
+        }
     }
 
     private static func appendHangObservers(
         config: Config,
-        startupProvider: StartupProvider?,
-        storage: Storage,
-        didCrashPreviously: Bool,
+        dependencies: TerminationDependencies,
         appReporters: inout [AppMetricsReporter]
     ) -> DidHangPreviouslyProvider? {
         guard let hangsReceiver = config.hangsReceiver else {
             return nil
         }
-        if let startupProvider = startupProvider {
-            let hangReporter = HangReporter(
-                storage: storage, startupProvider: startupProvider, didCrashPreviously: didCrashPreviously, receiver: hangsReceiver)
+        if let startupProvider = dependencies.startupProvider {
+            let hangReporter = HangReporter(storage: dependencies.storage,
+                                            startupProvider: startupProvider,
+                                            didCrashPreviously: dependencies.didCrashPreviously,
+                                            receiver: hangsReceiver)
             appReporters.append(hangReporter)
 
             #if arch(arm64)
@@ -231,17 +238,16 @@ public enum PerformanceMonitoring {
         appendTTIObservers(config: config, vcObservers: &vcObservers)
         appendRenderingObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
         let startupProvider = appendStartupObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
+        let deps = TerminationDependencies(startupProvider: startupProvider, storage: storage, didCrashPreviously: didCrashPreviously)
+
         let didHangPreviouslyProvider = appendHangObservers(
             config: config,
-            startupProvider: startupProvider,
-            storage: storage,
-            didCrashPreviously: didCrashPreviously,
+            dependencies: deps,
             appReporters: &appReporters
         )
         appendWatchdogTerminationsObserver(
             config: config,
-            storage: storage,
-            didCrashPreviously: didCrashPreviously,
+            dependencies: deps,
             didHangPreviouslyProvider: didHangPreviouslyProvider,
             appReporters: &appReporters
         )
@@ -270,4 +276,10 @@ public enum PerformanceMonitoring {
 
     /// This queue is used to send data to the consumer. It is background because we don't need to be fast there
     static let consumerQueue = DispatchQueue(label: "performance_suite_consumer_queue", qos: .background)
+}
+
+private struct TerminationDependencies {
+    let startupProvider: StartupProvider?
+    let storage: Storage
+    let didCrashPreviously: Bool
 }

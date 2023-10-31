@@ -80,7 +80,7 @@
 		E30A24682AC1E459009D4DD3 /* PerformanceMonitoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30A24672AC1E459009D4DD3 /* PerformanceMonitoringTests.swift */; };
 		E7CE1FD701FFF8BFF03A823CE692D432 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 73010CC983E3809BECEE5348DA1BB8C6 /* Foundation.framework */; };
 		ED7DD2F035C05955BDE82DC2325EE09D /* RenderingObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5CED8C08116EF7F988A6F56887B2F86 /* RenderingObserver.swift */; };
-		F5CA59CE0750F008B9E0E9370051B057 /* OutOfMemoryReporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B20C2574C41C6C504A53102D7E187C /* OutOfMemoryReporterTests.swift */; };
+		F5CA59CE0750F008B9E0E9370051B057 /* WatchdogTerminationReporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B20C2574C41C6C504A53102D7E187C /* WatchdogTerminationReporterTests.swift */; };
 		F68BDE26158327E2D70BCD0D60CCCF9D /* ViewControllerObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0858A024D21F7F186C2D3BF0B9ED0402 /* ViewControllerObserver.swift */; };
 		FCEBE7C6514F609C8FCD480EDB0DE283 /* AppRenderingReceiverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD39ADF5871A57348842712D8096FCD5 /* AppRenderingReceiverTests.swift */; };
 /* End PBXBuildFile section */
@@ -199,7 +199,7 @@
 		E893FBDE7E4743F60D7462AF30A6FE9C /* MainThreadCallStack.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainThreadCallStack.swift; sourceTree = "<group>"; };
 		F0FAB07B51B0F9295D437F2A065ED264 /* Pods-PerformanceApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = "Pods-PerformanceApp.debug.xcconfig"; sourceTree = "<group>"; };
 		F11BF40F04C8CD54D5FE13A93D4A9FD9 /* Pods-PerformanceApp-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "Pods-PerformanceApp-dummy.m"; sourceTree = "<group>"; };
-		F5B20C2574C41C6C504A53102D7E187C /* OutOfMemoryReporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OutOfMemoryReporterTests.swift; path = PerformanceSuite/Tests/OutOfMemoryReporterTests.swift; sourceTree = "<group>"; };
+		F5B20C2574C41C6C504A53102D7E187C /* WatchdogTerminationReporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchdogTerminationReporterTests.swift; path = PerformanceSuite/Tests/WatchdogTerminationReporterTests.swift; sourceTree = "<group>"; };
 		F9562FDEA5CC0533229AE8D98A1194F7 /* ViewControllerObserverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ViewControllerObserverTests.swift; path = PerformanceSuite/Tests/ViewControllerObserverTests.swift; sourceTree = "<group>"; };
 		F9A7F94BA528CAF2405A1A0C75A04A7B /* RenderingObserverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RenderingObserverTests.swift; path = PerformanceSuite/Tests/RenderingObserverTests.swift; sourceTree = "<group>"; };
 		FA93D8E3746C20871108ED584F18B31F /* Pods-PerformanceApp.modulemap */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.module; path = "Pods-PerformanceApp.modulemap"; sourceTree = "<group>"; };
@@ -438,7 +438,7 @@
 				D6413A11667DE93C288374372168A486 /* HangReporterTests.swift */,
 				D69E47E56C000E890BEA33E4DD5D3F01 /* LoggingObserverTests.swift */,
 				15973E3E321F5F5AB22289272EDCAE7F /* MainThreadCallStackTests.swift */,
-				F5B20C2574C41C6C504A53102D7E187C /* OutOfMemoryReporterTests.swift */,
+				F5B20C2574C41C6C504A53102D7E187C /* WatchdogTerminationReporterTests.swift */,
 				F9A7F94BA528CAF2405A1A0C75A04A7B /* RenderingObserverTests.swift */,
 				BDD424634E9C59F19B69E0BBF39BA486 /* RootViewIntrospectorTests.swift */,
 				6A7520471999DEAE2747FC308F84EE60 /* StartupTimeReporterTests.swift */,
@@ -714,7 +714,7 @@
 				1D2005EC5C10E33B8E01C1776C29F97A /* LoggingObserverTests.swift in Sources */,
 				D8F5EBAB1A111FAE4CCD96BEC4AFC335 /* MainThreadCallStackTests.swift in Sources */,
 				E30A24682AC1E459009D4DD3 /* PerformanceMonitoringTests.swift in Sources */,
-				F5CA59CE0750F008B9E0E9370051B057 /* OutOfMemoryReporterTests.swift in Sources */,
+				F5CA59CE0750F008B9E0E9370051B057 /* WatchdogTerminationReporterTests.swift in Sources */,
 				86A06AB78A1B52F9549799D209B29F5E /* RenderingObserverTests.swift in Sources */,
 				8DC3610B9C0AC5535829045A1AC00B45 /* RootViewIntrospectorTests.swift in Sources */,
 				B70A4350D30152CB86A740721626593D /* StartupTimeReporterTests.swift in Sources */,

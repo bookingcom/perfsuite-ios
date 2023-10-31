@@ -1,5 +1,5 @@
 //
-//  OutOfMemoryReporterTests.swift
+//  WatchdogTerminationReporterTests.swift
 //  PerformanceSuite-Tests
 //
 //  Created by Gleb Tarasov on 25/01/2022.
@@ -10,26 +10,34 @@ import XCTest
 @testable import PerformanceSuite
 
 // swiftlint:disable force_unwrapping
-class OutOfMemoryReporterTests: XCTestCase {
+class WatchdogTerminationReporterTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInTerminations: true)
+    }
 
     override func tearDown() {
         super.tearDown()
         storage.clear()
         receiver.oomData = nil
+        PerformanceMonitoring.experiments = Experiments()
     }
 
     private let storage = StorageStub()
     private let receiver = WatchdogTerminationsReceiverStub()
+    private let startupProvider = StartupProviderStub()
 
     func testTheFirstLaunch() {
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testOOMDetection() {
         // first launch
-        var reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        var reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
+        startupProvider.appStarted()
         receiver.wait()
         NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
         NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
@@ -39,67 +47,88 @@ class OutOfMemoryReporterTests: XCTestCase {
         _ = reporter
 
         // second launch, OOM should be detected
-        reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNotNil(receiver.oomData)
 
         XCTAssertEqual(receiver.oomData?.memoryWarnings, 2)
+        XCTAssertEqual(receiver.oomData?.duringStartup, false)
+        XCTAssertEqual(receiver.oomData?.appStartInfo?.appStartedWithPrewarming, false)
+    }
+
+    func testPrewarmingDuringStartup() {
+        setenv("ActivePrewarm", "1", 1)
+        AppInfoHolder.recordMainStarted()
+
+        // first launch
+        var reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
+        receiver.wait()
+        _ = reporter
+
+        // second launch, OOM should be detected
+        reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
+        receiver.wait()
+        XCTAssertNotNil(receiver.oomData)
+        XCTAssertEqual(receiver.oomData?.duringStartup, true)
+        XCTAssertEqual(receiver.oomData?.appStartInfo?.appStartedWithPrewarming, true)
+
+        setenv("ActivePrewarm", "", 1)
     }
 
     func testSystemRebooted() {
         // first launch
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch, but after system reboot
         let currentUptime = ProcessInfo.processInfo.systemUptime
         storage.write(key: WatchdogTerminationReporter.StorageKey.systemRebootTime, value: currentUptime - 1000)
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testLanguageChanged() {
         // first launch
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch with the changed app language, no OOM
         storage.write(key: WatchdogTerminationReporter.StorageKey.preferredLocalizations, value: "")
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // third launch with the changed system language, no OOM
         storage.write(key: WatchdogTerminationReporter.StorageKey.preferredLanguages, value: "")
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testAppCrashed() {
         // first launch
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch after the crash, no OOM
-        _ = WatchdogTerminationReporter(storage: storage, didCrashPreviously: true, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, didCrashPreviously: true, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testFatalHangHappened() {
         // first launch
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch after the crash, no OOM
         _ = WatchdogTerminationReporter(
-            storage: storage, didHangPreviouslyProvider: DidHangPreviouslyProviderStub(), enabledInDebug: true, receiver: receiver)
+            storage: storage, didHangPreviouslyProvider: DidHangPreviouslyProviderStub(), startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
@@ -112,7 +141,7 @@ class OutOfMemoryReporterTests: XCTestCase {
 
     func testAppWasTerminated() {
         // first launch
-        var reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        var reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         NotificationCenter.default.post(name: UIApplication.willTerminateNotification, object: nil)
         receiver.wait()
@@ -121,20 +150,20 @@ class OutOfMemoryReporterTests: XCTestCase {
         _ = reporter
 
         // second launch after app was terminated, no OOM
-        reporter = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        reporter = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
 
     func testAppUpdated() {
         // first launch
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch, but after app update, no OOM
         storage.write(key: WatchdogTerminationReporter.StorageKey.bundleVersion, value: "9.9.9")
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
     }
@@ -144,14 +173,14 @@ class OutOfMemoryReporterTests: XCTestCase {
 
         NSTimeZone.default = TimeZone(secondsFromGMT: 3600)!
         // first launch
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNil(receiver.oomData)
 
         // second launch, but after timezone changed,
         // OOM should be detected, since systemRebootTime hasn't changed, only timezone changed
         NSTimeZone.default = TimeZone(secondsFromGMT: -3600)!
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNotNil(receiver.oomData)
 
@@ -159,7 +188,7 @@ class OutOfMemoryReporterTests: XCTestCase {
         // OOM should be detected, since systemRebootTime hasn't changed, only timezone changed
         NSTimeZone.default = TimeZone(secondsFromGMT: 3600)!
 
-        _ = WatchdogTerminationReporter(storage: storage, enabledInDebug: true, receiver: receiver)
+        _ = WatchdogTerminationReporter(storage: storage, startupProvider: startupProvider, enabledInDebug: true, receiver: receiver)
         receiver.wait()
         XCTAssertNotNil(receiver.oomData)
 

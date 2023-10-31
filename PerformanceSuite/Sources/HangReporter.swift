@@ -54,7 +54,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private let storage: Storage
     private let timeProvider: TimeProvider
     private let startupProvider: StartupProvider
-    // drop if checkPrewarmingInHangDetector experiment will be enabled
+    // drop if checkPrewarmingInTerminations experiment will be enabled
     private let appStateProvider: AppStateProvider
     private let workingQueue: DispatchQueue
     private let detectionTimer: DispatchSourceTimer
@@ -99,7 +99,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         self.detectionTimer = DispatchSource.makeTimerSource(flags: .strict, queue: workingQueue)
 
         let inBackground: Bool
-        if PerformanceMonitoring.experiments.checkPrewarmingInHangDetector {
+        if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
             // when app started in background - we shouldn't start hang monitoring for sure
             // but when app is started with prewarming, applicationState is still .active,
             // so we are checking for 'appStartedWithPrewarming' flag here too.
@@ -134,7 +134,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
 
     private func start(inBackground: Bool) {
         lastMainThreadDate = timeProvider.now()
-        if PerformanceMonitoring.experiments.checkPrewarmingInHangDetector {
+        if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
             self.scheduleDetectionTimer(inBackground: inBackground)
             self.subscribeToApplicationEvents()
         } else {

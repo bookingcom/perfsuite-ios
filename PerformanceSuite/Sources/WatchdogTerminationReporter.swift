@@ -18,6 +18,14 @@ public struct WatchdogTerminationData {
     /// For example, fatal hang in background is detected as a background watchdog termination.
     public let applicationState: UIApplication.State?
 
+    /// Information about how app was started.
+    /// You may want to ignore startup watchdog terminations if app started after pre-warming.
+    public let appStartInfo: AppStartInfo?
+
+    /// Flag that termination happened during startup (before viewDidAppear of the first view controller).
+    /// You may want to ignore startup watchdog terminations after the pre-warming.
+    public let duringStartup: Bool?
+
     /// Number of memory warnings generated before termination. Can be useful to differ memory terminations from other types.
     public let memoryWarnings: Int?
 }
@@ -52,6 +60,8 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         var systemRebootTime: Date?
         var appState: UIApplication.State?
         var appTerminated: Bool?
+        var appStartInfo: AppStartInfo?
+        var duringStartup: Bool?
     }
 
     enum StorageKey: String {
@@ -63,17 +73,31 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         case systemRebootTime
         case appState
         case appTerminated
+        case appStartInfo
+        case duringStartup
     }
 
     init(
-        storage: Storage, didCrashPreviously: Bool = false, didHangPreviouslyProvider: DidHangPreviouslyProvider? = nil,
-        enabledInDebug: Bool = false, receiver: WatchdogTerminationsReceiver
+        storage: Storage, didCrashPreviously: Bool = false,
+        didHangPreviouslyProvider: DidHangPreviouslyProvider? = nil,
+        startupProvider: StartupProvider,
+        appStateProvider: AppStateProvider = UIApplication.shared,
+        enabledInDebug: Bool = false,
+        receiver: WatchdogTerminationsReceiver
     ) {
         self.storage = storage
         self.didCrashPreviously = didCrashPreviously
         self.didHangPreviouslyProvider = didHangPreviouslyProvider
+        self.startupProvider = startupProvider
+        self.appStateProvider = appStateProvider
         self.enabledInDebug = enabledInDebug
         self.receiver = receiver
+
+        if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
+            startupProvider.notifyAfterAppStarted { [weak self] in
+                self?.appStarted()
+            }
+        }
 
         subscribeToNotifications()
         detectPreviousTermination()
@@ -83,6 +107,8 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     private let storage: Storage
     private let didCrashPreviously: Bool
     private let didHangPreviouslyProvider: DidHangPreviouslyProvider?
+    private let startupProvider: StartupProvider
+    private let appStateProvider: AppStateProvider
     private let enabledInDebug: Bool
     private let receiver: WatchdogTerminationsReceiver
 
@@ -163,9 +189,15 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         }
     }
 
+    private func appStarted() {
+        PerformanceMonitoring.queue.async {
+            self.storage.write(key: StorageKey.duringStartup, value: false)
+        }
+    }
+
     private func detectPreviousTermination() {
         DispatchQueue.main.async {
-            let applicationState = UIApplication.shared.applicationState
+            let applicationState = self.appStateProvider.applicationState
             PerformanceMonitoring.queue.async {
                 let storedAppInformation = self.readStoredAppInformation()
                 let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
@@ -199,7 +231,10 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             // we don't know any more valid reason, consider this as a watchdog termination
             let data = WatchdogTerminationData(
                 applicationState: storedAppInformation.appState,
-                memoryWarnings: storedAppInformation.memoryWarnings)
+                appStartInfo: storedAppInformation.appStartInfo,
+                duringStartup: storedAppInformation.duringStartup,
+                memoryWarnings: storedAppInformation.memoryWarnings
+            )
             PerformanceMonitoring.consumerQueue.async {
                 #if DEBUG
                     if !self.enabledInDebug {
@@ -222,7 +257,9 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             memoryWarnings: storage.read(key: StorageKey.memoryWarnings),
             systemRebootTime: date(storage.read(key: StorageKey.systemRebootTime)),
             appState: appState(storage.read(key: StorageKey.appState)),
-            appTerminated: storage.read(key: StorageKey.appTerminated)
+            appTerminated: storage.read(key: StorageKey.appTerminated),
+            appStartInfo: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? storage.readJSON(key: StorageKey.appStartInfo) : nil,
+            duringStartup: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? storage.read(key: StorageKey.duringStartup) : nil
         )
     }
 
@@ -235,7 +272,9 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             memoryWarnings: 0,
             systemRebootTime: Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime),
             appState: applicationState,
-            appTerminated: false
+            appTerminated: false,
+            appStartInfo: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? AppInfoHolder.appStartInfo : nil,
+            duringStartup: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? startupProvider.appIsStarting : nil
         )
     }
 
@@ -248,6 +287,8 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         storage.write(key: StorageKey.systemRebootTime, value: timeInterval(appInformation.systemRebootTime))
         storage.write(key: StorageKey.appState, value: appInformation.appState?.rawValue)
         storage.write(key: StorageKey.appTerminated, value: appInformation.appTerminated)
+        storage.writeJSON(key: StorageKey.appStartInfo, value: appInformation.appStartInfo)
+        storage.write(key: StorageKey.duringStartup, value: appInformation.duringStartup)
     }
 
     private func date(_ timeInterval: TimeInterval?) -> Date? {

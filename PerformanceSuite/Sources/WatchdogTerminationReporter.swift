@@ -94,8 +94,10 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         self.receiver = receiver
 
         if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
-            startupProvider.notifyAfterAppStarted { [weak self] in
-                self?.appStarted()
+            PerformanceMonitoring.queue.async {
+                startupProvider.notifyAfterAppStarted { [weak self] in
+                    self?.appStarted()
+                }
             }
         }
 
@@ -190,9 +192,8 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     }
 
     private func appStarted() {
-        PerformanceMonitoring.queue.async {
-            self.storage.write(key: StorageKey.duringStartup, value: false)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        self.storage.write(key: StorageKey.duringStartup, value: false)
     }
 
     private func detectPreviousTermination() {

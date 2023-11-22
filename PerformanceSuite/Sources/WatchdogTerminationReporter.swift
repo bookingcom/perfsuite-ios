@@ -92,23 +92,14 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         self.enabledInDebug = enabledInDebug
         self.receiver = receiver
 
-        let appState: UIApplication.State
-        if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
-            if Thread.isMainThread {
-                appState = appStateProvider.applicationState
-            } else {
-                appState = DispatchQueue.main.sync { appStateProvider.applicationState }
+        PerformanceMonitoring.queue.async {
+            startupProvider.notifyAfterAppStarted { [weak self] in
+                self?.appStarted()
             }
-            PerformanceMonitoring.queue.async {
-                startupProvider.notifyAfterAppStarted { [weak self] in
-                    self?.appStarted()
-                }
-            }
-        } else {
-            appState = .active
         }
 
         subscribeToNotifications()
+        let appState = Thread.isMainThread ? appStateProvider.applicationState : DispatchQueue.main.sync { appStateProvider.applicationState }
         detectPreviousTermination(applicationState: appState)
     }
 
@@ -203,23 +194,11 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
     }
 
     private func detectPreviousTermination(applicationState: UIApplication.State) {
-        if PerformanceMonitoring.experiments.checkPrewarmingInTerminations {
-            PerformanceMonitoring.queue.async {
-                let storedAppInformation = self.readStoredAppInformation()
-                let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
-                self.detectTermination(storedAppInformation: storedAppInformation, actualAppInformation: actualAppInformation)
-                self.storeAppInformation(actualAppInformation)
-            }
-        } else {
-            DispatchQueue.main.async {
-                let applicationState = UIApplication.shared.applicationState
-                PerformanceMonitoring.queue.async {
-                    let storedAppInformation = self.readStoredAppInformation()
-                    let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
-                    self.detectTermination(storedAppInformation: storedAppInformation, actualAppInformation: actualAppInformation)
-                    self.storeAppInformation(actualAppInformation)
-                }
-            }
+        PerformanceMonitoring.queue.async {
+            let storedAppInformation = self.readStoredAppInformation()
+            let actualAppInformation = self.generateActualAppInformation(applicationState: applicationState)
+            self.detectTermination(storedAppInformation: storedAppInformation, actualAppInformation: actualAppInformation)
+            self.storeAppInformation(actualAppInformation)
         }
     }
 
@@ -274,8 +253,8 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             systemRebootTime: date(storage.read(key: StorageKey.systemRebootTime)),
             appState: appState(storage.read(key: StorageKey.appState)),
             appTerminated: storage.read(key: StorageKey.appTerminated),
-            appStartInfo: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? storage.readJSON(key: StorageKey.appStartInfo) : nil,
-            duringStartup: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? storage.read(key: StorageKey.duringStartup) : nil
+            appStartInfo: storage.readJSON(key: StorageKey.appStartInfo),
+            duringStartup: storage.read(key: StorageKey.duringStartup)
         )
     }
 
@@ -289,8 +268,8 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             systemRebootTime: Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime),
             appState: applicationState,
             appTerminated: false,
-            appStartInfo: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? AppInfoHolder.appStartInfo : nil,
-            duringStartup: PerformanceMonitoring.experiments.checkPrewarmingInTerminations ? startupProvider.appIsStarting : nil
+            appStartInfo: AppInfoHolder.appStartInfo,
+            duringStartup: startupProvider.appIsStarting
         )
     }
 

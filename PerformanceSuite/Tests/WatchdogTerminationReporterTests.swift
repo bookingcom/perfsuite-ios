@@ -15,14 +15,12 @@ class WatchdogTerminationReporterTests: XCTestCase {
     override func setUp() {
         super.setUp()
         AppInfoHolder.resetForTests()
-        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInTerminations: true)
     }
 
     override func tearDown() {
         super.tearDown()
         storage.clear()
         receiver.oomData = nil
-        PerformanceMonitoring.experiments = Experiments()
     }
 
     private let storage = StorageStub()

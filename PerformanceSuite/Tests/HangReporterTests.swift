@@ -20,7 +20,6 @@ class HangReporterTests: XCTestCase {
         #if arch(arm64)
             MainThreadCallStack.storeMainThread()
         #endif
-        PerformanceMonitoring.experiments = Experiments(checkPrewarmingInTerminations: true)
     }
 
     override func tearDown() {
@@ -32,7 +31,6 @@ class HangReporterTests: XCTestCase {
 
         receiver.fatalHang = nil
         receiver.hangInfo = nil
-        PerformanceMonitoring.experiments = Experiments()
         AppInfoHolder.resetForTests()
     }
 

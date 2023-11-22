@@ -93,15 +93,12 @@ final class RootViewIntrospection {
             // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
             // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
             let root = introspectable.introspectRootView()
-            if PerformanceMonitoring.experiments.collapseSwiftUIGenericsInDescription {
-                let meaningful = meaningfulViews(view: root)
-                return meaningful
-                    .map { description($0) }
-                    .filter { !$0.isEmpty }
-                    .joined(separator: ", ")
-            } else {
-                return description(root)
-            }
+            let meaningful = meaningfulViews(view: root)
+            return meaningful
+                .map { description($0) }
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+
         } else {
             return description(viewController)
         }
@@ -117,10 +114,6 @@ final class RootViewIntrospection {
 
     private func description(_ view: Any) -> String {
         let type = String(describing: type(of: view))
-        if PerformanceMonitoring.experiments.collapseSwiftUIGenericsInDescription {
-            return collapseSwiftUIGenerics(type: type)
-        } else {
-            return type
-        }
+        return collapseSwiftUIGenerics(type: type)
     }
 }

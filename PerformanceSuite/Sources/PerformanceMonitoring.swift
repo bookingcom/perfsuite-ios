@@ -10,12 +10,7 @@ import UIKit
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
-    public let checkPrewarmingInTerminations: Bool
-    public let collapseSwiftUIGenericsInDescription: Bool
-    public init(checkPrewarmingInTerminations: Bool = false, collapseSwiftUIGenericsInDescription: Bool = false) {
-        self.checkPrewarmingInTerminations = checkPrewarmingInTerminations
-        self.collapseSwiftUIGenericsInDescription = collapseSwiftUIGenericsInDescription
-    }
+    public init() { }
 }
 
 public enum PerformanceMonitoring {

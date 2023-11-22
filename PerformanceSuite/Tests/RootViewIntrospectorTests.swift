@@ -13,16 +13,6 @@ import XCTest
 @available(iOS 14.0, *)
 class RootViewIntrospectionTests: XCTestCase {
 
-    override func setUp() {
-        super.setUp()
-        PerformanceMonitoring.experiments = Experiments(collapseSwiftUIGenericsInDescription: true)
-    }
-
-    override func tearDown() {
-        super.tearDown()
-        PerformanceMonitoring.experiments = Experiments()
-    }
-
     private let introspector = RootViewIntrospection()
 
     func testAnyView() {

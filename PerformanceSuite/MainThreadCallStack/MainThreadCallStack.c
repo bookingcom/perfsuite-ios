@@ -99,6 +99,8 @@ thread_state_result read_thread_state(mach_port_t main_thread_mach_port) {
     return (thread_state_result){ result_length, result };
 }
 
+#endif
+
 extern const char *macho_arch_name_for_mach_header_reexported(void) __API_AVAILABLE(ios(16.0)) {
     // if we call macho_arch_name_for_mach_header_reexported(NULL), it will return arm64 even for devices with arm64e,
     // because the main binary is compiled for arm64. But to symbolicate stack traces with the system frameworks,
@@ -107,5 +109,3 @@ extern const char *macho_arch_name_for_mach_header_reexported(void) __API_AVAILA
     const struct mach_header *mh = _dyld_get_image_header(0);
     return macho_arch_name_for_mach_header(mh);
 }
-
-#endif

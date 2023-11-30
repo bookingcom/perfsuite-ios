@@ -38,7 +38,7 @@ jobs:
       - name: Push Changes
         run: |
           VERSION_NAME="${{ github.event.inputs.version }}"
-          git add PerformanceSuite.podspec
+          git add -u
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git commit -m "Update version to $VERSION_NAME"

@@ -11,6 +11,10 @@ jobs:
   swiftpm-build:
     runs-on: macos-latest
     steps:
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest
       # to compile swift package we should remove workspace and xcodeproj
       # otherwise xcodebuild takes schemes from them
       - name: Remove workspace
@@ -28,6 +32,10 @@ jobs:
   test:
     runs-on: macos-latest
     steps:
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest
       - name: Checkout
         uses: actions/checkout@v3
       - name: SwiftLint

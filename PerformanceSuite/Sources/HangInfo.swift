@@ -67,7 +67,7 @@ public struct HangInfo: Codable {
     public static func with(callStack: String, duringStartup: Bool, duration: DispatchTimeInterval) -> HangInfo {
         return HangInfo(
             callStack: callStack,
-            architecture: currentArchitecture,
+            architecture: currentArchitecture ?? unknownKeyword,
             iOSVersion: currentIOSVersion,
             appStartInfo: AppInfoHolder.appStartInfo,
             appRuntimeInfo: AppInfoHolder.appRuntimeInfo,
@@ -75,14 +75,23 @@ public struct HangInfo: Codable {
             duration: duration)
     }
 
-    private static var currentArchitecture: String {
-        let info = NXGetLocalArchInfo()
-        if let name = info?.pointee.name {
-            return String(cString: name)
+
+    /// This is the architecture for system libraries, not for the main binary,
+    /// because main binaries currently can have only arm64.
+    /// System binaries can be arm64 or arm64e.
+    private static let currentArchitecture: String? = {
+        if #available(iOS 16, *) {
+            if let archName = macho_arch_name_for_mach_header_reexported() {
+                return String(cString: archName)
+            }
         } else {
-            return unknownKeyword
+            let info = NXGetLocalArchInfo()
+            if let name = info?.pointee.name {
+                return String(cString: name)
+            }
         }
-    }
+        return nil
+    }()
 
     private static var currentIOSVersion: String {
         return UIDevice.current.systemVersion

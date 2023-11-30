@@ -1,7 +1,7 @@
 PODS:
   - PerformanceSuite (1.2.4)
   - PerformanceSuite/Tests (1.2.4)
-  - SwiftLint (0.52.2)
+  - SwiftLint (0.54.0)
 
 DEPENDENCIES:
   - PerformanceSuite (from `.`)
@@ -18,8 +18,8 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   PerformanceSuite: e0e958cbf1f79a5a6b35aa7c6e99c63ab4caf54d
-  SwiftLint: 1ac76dac888ca05cb0cf24d0c85887ec1209961d
+  SwiftLint: c1de071d9d08c8aba837545f6254315bc900e211
 
-PODFILE CHECKSUM: 09828089cb4c670de1bb403b7ccc4385b4fb1109
+PODFILE CHECKSUM: 98dc7996ef84930ef4994060dcee6c4c2271f067
 
 COCOAPODS: 1.13.0

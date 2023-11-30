@@ -21,6 +21,7 @@ jobs:
         run: |
           rm -rf PerformanceApp.xcodeproj
           rm -rf PerformanceApp.xcworkspace
+          ls -Al
       - name: Compile
         run: |
           xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'

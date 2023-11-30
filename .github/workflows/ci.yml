@@ -8,6 +8,23 @@ on:
     branches: 
       - '*'
 jobs:
+  swiftpm-build:
+    runs-on: macos-latest
+    steps:
+      # to compile swift package we should remove workspace and xcodeproj
+      # otherwise xcodebuild takes schemes from them
+      - name: Remove workspace
+        run: |
+          rm -rf PerformanceApp.xcodeproj
+          rm -rf PerformanceApp.xcworkspace
+      - name: Compile
+        run: |
+          xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'
+      # restore removed files just in case it is needed for the further steps    
+      - name: Restore workspace
+        run: |
+          git checkout -- PerformanceApp.xcodeproj
+          git checkout -- PerformanceApp.xcworkspace
   test:
     runs-on: macos-latest
     steps:

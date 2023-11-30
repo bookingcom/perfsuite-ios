@@ -6,6 +6,7 @@ xcuserdata/
 
 ## SwiftPM
 .swiftpm
+.build
 
 *.xcresult
 /code_coverage.txt

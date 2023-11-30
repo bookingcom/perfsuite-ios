@@ -9,6 +9,13 @@ import Foundation
 import MachO
 import UIKit
 
+// In SwiftPM we create a sub-package,
+// in CocoaPods we compile everything in one single target.
+// This is to use macho_arch_name_for_mach_header_reexported function.
+#if canImport(MainThreadCallStack)
+import MainThreadCallStack
+#endif
+
 /// Structure contains call stack text and all the info which is needed to symbolicate this stack.
 public struct HangInfo: Codable {
 

@@ -80,6 +80,7 @@ public struct HangInfo: Codable {
     /// because main binaries currently can have only arm64.
     /// System binaries can be arm64 or arm64e.
     private static let currentArchitecture: String? = {
+        #if swift(>=5.9)
         if #available(iOS 16, *) {
             if let archName = macho_arch_name_for_mach_header_reexported() {
                 return String(cString: archName)
@@ -90,6 +91,12 @@ public struct HangInfo: Codable {
                 return String(cString: name)
             }
         }
+        #else
+        let info = NXGetLocalArchInfo()
+        if let name = info?.pointee.name {
+            return String(cString: name)
+        }
+        #endif
         return nil
     }()
 

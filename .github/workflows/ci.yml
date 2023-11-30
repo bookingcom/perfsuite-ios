@@ -15,13 +15,14 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest
+      - name: Checkout
+        uses: actions/checkout@v3
       # to compile swift package we should remove workspace and xcodeproj
       # otherwise xcodebuild takes schemes from them
       - name: Remove workspace
         run: |
           rm -rf PerformanceApp.xcodeproj
           rm -rf PerformanceApp.xcworkspace
-          ls -Al
       - name: Compile
         run: |
           xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'

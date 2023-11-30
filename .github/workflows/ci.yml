@@ -49,16 +49,14 @@ jobs:
           platform: iOS Simulator
           workspace: PerformanceApp.xcworkspace
         run: |
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          xcodebuild build -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device"
+          xcodebuild build -scheme "$scheme" -workspace "$workspace" -destination "platform=iOS Simulator,name=iPhone 15 Pro"
       - name: Test PerformanceSuite
         env:
           scheme: PerformanceApp
           platform: iOS Simulator
           workspace: PerformanceApp.xcworkspace
         run: |
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=$platform,name=$device" -test-iterations 30 -run-tests-until-failure -enableCodeCoverage YES
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=iOS Simulator,name=iPhone 15 Pro" -test-iterations 30 -run-tests-until-failure -enableCodeCoverage YES
       - name: Slather
         run: |
           gem install slather

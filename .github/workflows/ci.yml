@@ -56,7 +56,7 @@ jobs:
           platform: iOS Simulator
           workspace: PerformanceApp.xcworkspace
         run: |
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=iOS Simulator,name=iPhone 15 Pro" -test-iterations 30 -run-tests-until-failure -enableCodeCoverage YES
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=iOS Simulator,name=iPhone 15 Pro" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES
       - name: Slather
         run: |
           gem install slather

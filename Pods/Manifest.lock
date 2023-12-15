@@ -1,6 +1,6 @@
 PODS:
-  - PerformanceSuite (1.2.4)
-  - PerformanceSuite/Tests (1.2.4)
+  - PerformanceSuite (1.2.5)
+  - PerformanceSuite/Tests (1.2.5)
   - SwiftLint (0.54.0)
 
 DEPENDENCIES:
@@ -17,9 +17,9 @@ EXTERNAL SOURCES:
     :path: "."
 
 SPEC CHECKSUMS:
-  PerformanceSuite: e0e958cbf1f79a5a6b35aa7c6e99c63ab4caf54d
+  PerformanceSuite: 24121f7cba718110b893e75810b3cac947178009
   SwiftLint: c1de071d9d08c8aba837545f6254315bc900e211
 
 PODFILE CHECKSUM: d54cb8583ad3e094d9a45f32556997beed39bf1f
 
-COCOAPODS: 1.13.0
+COCOAPODS: 1.14.3

@@ -1,6 +1,6 @@
 {
   "name": "PerformanceSuite",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "summary": "Performance monitoring library for iOS",
   "homepage": "https://github.com/bookingcom/perfsuite-ios",
   "license": {
@@ -12,7 +12,7 @@
   },
   "source": {
     "git": "https://github.com/bookingcom/perfsuite-ios.git",
-    "tag": "1.2.4"
+    "tag": "1.2.5"
   },
   "source_files": [
     "PerformanceSuite/Sources/**/*.swift",

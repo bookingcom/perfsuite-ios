@@ -1,6 +1,0 @@
-module Pods_PerformanceApp {
-  umbrella header "Pods-PerformanceApp-umbrella.h"
-
-  export *
-  module * { export * }
-}

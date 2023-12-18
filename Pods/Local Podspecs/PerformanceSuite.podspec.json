@@ -29,6 +29,24 @@
       "test_type": "unit",
       "requires_app_host": true,
       "source_files": "PerformanceSuite/Tests/*.swift"
+    },
+    {
+      "name": "UITests",
+      "test_type": "ui",
+      "requires_app_host": true,
+      "source_files": "PerformanceSuite/UITests/*.swift",
+      "app_host_name": "PerformanceSuite/PerformanceApp",
+      "dependencies": {
+        "PerformanceSuite/PerformanceApp": [
+
+        ]
+      }
+    }
+  ],
+  "appspecs": [
+    {
+      "name": "PerformanceApp",
+      "source_files": "PerformanceSuite/PerformanceApp/*.swift"
     }
   ],
   "swift_version": "5.7.1"

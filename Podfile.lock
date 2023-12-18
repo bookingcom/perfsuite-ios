@@ -1,11 +1,16 @@
 PODS:
   - PerformanceSuite (1.2.5)
+  - PerformanceSuite/PerformanceApp (1.2.5)
   - PerformanceSuite/Tests (1.2.5)
+  - PerformanceSuite/UITests (1.2.5):
+    - PerformanceSuite/PerformanceApp
   - SwiftLint (0.54.0)
 
 DEPENDENCIES:
   - PerformanceSuite (from `.`)
+  - PerformanceSuite/PerformanceApp (from `.`)
   - PerformanceSuite/Tests (from `.`)
+  - PerformanceSuite/UITests (from `.`)
   - SwiftLint
 
 SPEC REPOS:
@@ -17,9 +22,9 @@ EXTERNAL SOURCES:
     :path: "."
 
 SPEC CHECKSUMS:
-  PerformanceSuite: 24121f7cba718110b893e75810b3cac947178009
+  PerformanceSuite: 19472790a8dd6c86572228ea9de375dc04c4a37d
   SwiftLint: c1de071d9d08c8aba837545f6254315bc900e211
 
-PODFILE CHECKSUM: d54cb8583ad3e094d9a45f32556997beed39bf1f
+PODFILE CHECKSUM: 70b22e33cd26cc774ccfd25e004d7203ce7f2e6d
 
 COCOAPODS: 1.14.3

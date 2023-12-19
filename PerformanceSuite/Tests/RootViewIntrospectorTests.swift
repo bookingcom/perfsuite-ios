@@ -15,6 +15,12 @@ class RootViewIntrospectionTests: XCTestCase {
 
     private let introspector = RootViewIntrospection()
 
+    func testMyView() {
+        let view = MyView()
+        let rootView = introspector.rootView(view: view)
+        XCTAssert(rootView is MyView)
+    }
+
     func testAnyView() {
         let view = AnyView(MyView())
         let rootView = introspector.rootView(view: view)
@@ -67,7 +73,47 @@ class RootViewIntrospectionTests: XCTestCase {
         }
     }
 
+    func testIfViewTrue() {
+        condition = true
+        let controller = UIHostingController(rootView: ifView)
+        let root = controller.introspectRootView()
+        XCTAssert(root is MyFirstView)
+    }
+
+    func testIfViewFalse() {
+        condition = false
+        let controller = UIHostingController(rootView: ifView)
+        let root = controller.introspectRootView()
+        XCTAssert(root is MySecondView)
+    }
+
+    var condition: Bool = false
+
+    @ViewBuilder var ifView: some View {
+        if condition {
+            MyFirstView()
+        } else {
+            MySecondView()
+        }
+    }
+
+    private struct MyFirstView: View {
+        var body: some View {
+            Text("first")
+        }
+    }
+
+    private struct MySecondView: View {
+        var body: some View {
+            Text("second")
+        }
+    }
+
     private struct MyView: View {
+        // adding some props to make sure Mirror.children are not empty
+        let prop1 = "my_prop1"
+        var prop2 = 2
+
         var body: some View {
             Text("blablabla")
                 .frame(width: 10, height: 20, alignment: .center)
@@ -101,8 +147,23 @@ class RootViewIntrospectionTests: XCTestCase {
         XCTAssertEqual("MyViewController", introspector.description(viewController: myController))
     }
 
+    func testDescriptionForText() {
+        let controller = UIHostingController(rootView: Text("my text"))
+        XCTAssertEqual("LocalizedTextStorage", introspector.description(viewController: controller))
+    }
+
+    func testDescriptionForTextWithModifier() {
+        let controller = UIHostingController(rootView: Text("my text").onAppear { })
+        XCTAssertEqual("LocalizedTextStorage", introspector.description(viewController: controller))
+    }
+
     func testDescriptionForSimpleView() {
         let controller = UIHostingController(rootView: MyView())
+        XCTAssertEqual("MyView", introspector.description(viewController: controller))
+    }
+
+    func testDescriptionForSimpleViewWithModifiers() {
+        let controller = UIHostingController(rootView: MyView().onAppear { }.onDisappear { }.onTapGesture { })
         XCTAssertEqual("MyView", introspector.description(viewController: controller))
     }
 
@@ -114,6 +175,18 @@ class RootViewIntrospectionTests: XCTestCase {
     func testDescriptionForVeryComplexView() {
         let controller = UIHostingController(rootView: makeVeryComplexView())
         XCTAssertEqual("InputText, SearchDestinationList, ProgressView", introspector.description(viewController: controller))
+    }
+
+    func testDescriptionForVeryComplexViewWithConditionsTrue() {
+        condition = true
+        let controller = UIHostingController(rootView: makeComplexViewWithConditions())
+        XCTAssertEqual("InputText", introspector.description(viewController: controller))
+    }
+
+    func testDescriptionForVeryComplexViewWithConditionsFalse() {
+        condition = false
+        let controller = UIHostingController(rootView: makeComplexViewWithConditions())
+        XCTAssertEqual("SearchDestinationList, ProgressView", introspector.description(viewController: controller))
     }
 
     @ViewBuilder private func makeVeryComplexView() -> some View {
@@ -153,6 +226,57 @@ class RootViewIntrospectionTests: XCTestCase {
                         ProgressView()
                             .padding()
                         Spacer()
+                    }
+                }
+                Spacer()
+                EmptyView()
+            }
+        }
+    }
+
+    @ViewBuilder private func makeComplexViewWithConditions() -> some View {
+        LazyHStack {
+            EmptyView()
+            Button("my title", action: { })
+            VStack {
+                EmptyView()
+                ZStack {
+                    if condition {
+                        CardContainer {
+                            HStack {
+                                Button("Button") {
+                                    print("Button Tapped")
+                                }
+                                .padding()
+                                .background(Color.blue)
+                                .zIndex(1.0)
+                                if !condition {
+                                    AnyView(SearchDestinationList())
+                                }
+                                InputText()
+                                    .accessibility(identifier: "inputText")
+                                    .font(.callout)
+                                    .autocorrectionDisabled()
+                            }
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(lineWidth: 2)
+                                .foregroundColor(.gray)
+                        )
+                        .padding()
+                        .padding()
+                        .zIndex(1.0)
+                    } else {
+                        if !condition {
+                            AnyView(SearchDestinationList())
+                        }
+
+                        VStack {
+                            ProgressView()
+                                .padding()
+                            Spacer()
+                        }
                     }
                 }
                 Spacer()

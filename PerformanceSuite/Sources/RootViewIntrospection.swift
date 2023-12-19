@@ -46,7 +46,7 @@ final class RootViewIntrospection {
     /// Looking for all the meaningful views in the hierarchy.
     /// Method similar to `rootView(view:)`, but it looks deeper into the hierarchy and looks not for the single child,
     /// but for all possible meaningful views.
-    /// For example, it takes all the children of `VStack { ... }`, takes both values of `.if(...)`, etc.
+    /// For example, it takes all the children of `VStack { ... }`, `HStack { ... }`, etc.
     /// - Parameter view: view hierarchy to look up in
     /// - Returns: all children views we consider meaningful
     func meaningfulViews(view: Any) -> [Any] {
@@ -64,14 +64,19 @@ final class RootViewIntrospection {
 
         if hadChild {
             return result
+        } else if mirror.displayStyle == .optional && mirror.children.isEmpty {
+            // this is an optional value with nil inside, return nothing
+            return []
         } else {
+            // no children found, returning view itself
             return [view]
         }
     }
 
     private let possibleRootChildAttributeNames: Set<String?> = [
         "some",  // is used in Optional<SomeView>
-        "storage",  // is used in AnyView
+        "storage",  // is used in AnyView, Text
+        "anyTextStorage", // is used in Text
         "view",  // is used in AnyViewStorage
         "content",  // is used in ModifiedContent
         "base", // is used in ModifiedElements
@@ -79,11 +84,11 @@ final class RootViewIntrospection {
         "tree", // is used in LazyVStack/LazyHStack
         "value", // is used in TupleView
         "custom", // is used in Base
+        "trueContent", // is used in `if ... else ...`
+        "falseContent", // is used in `if ... else ...`
     ]
 
     private let possibleMeaningfulChildAttributeNames: Set<String?> = [
-        "trueContent", // is used in `if ... else ...`
-        "falseContent", // is used in `if ... else ...`
         ".0", ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", // are used in view builders with multiple children
         "elements", // is used in _ViewList_View
     ]

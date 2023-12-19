@@ -13,6 +13,8 @@ import GCDWebServer
 public let inTestsKey = "UI_TESTS"
 public let clearStorageKey = "CLEAR_STORAGE"
 
+
+/// Message which is sent from the app to UI tests target
 public enum Message: Codable, Equatable {
     case startupTime(duration: Int)
     case appFreezeTime(duration: Int)
@@ -100,6 +102,10 @@ public enum UITestsInterop {
     /// Class is used to communicate between App target and UI Tests target.
     /// This part is a server part, which works in App target.
     /// We start server when app is started and send data to the open connection when needed.
+    ///
+    /// We start server in the app, not in the UI tests target, because this way it will work on the device.
+    /// The opposite way won't work on the real device. I will re-think if this is needed or not.
+    /// If not, I will switch server and client back.
     public final class Server {
         public init() {
             server = GCDWebServer()

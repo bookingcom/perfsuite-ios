@@ -71,7 +71,7 @@ jobs:
         run: |
           gem install slather
           slather coverage --simple-output --workspace $workspace --scheme $scheme --binary-file "$binary_file" --build-directory $build_directory $project | grep -E '^Test Coverage|^Tested ' > code_coverage.txt
-          slather coverage --cobertura-xml --workspace $workspace --scheme $scheme --binary-file "$binary_file" --build-directory $build_directory $project
+          slather coverage --cobertura-xml --workspace $workspace --scheme $scheme --binary-file "$binary_file" --build-directory $build_directory --output-directory coverage $project
 
       - name: Upload code_coverage.txt
         uses: actions/upload-artifact@v3

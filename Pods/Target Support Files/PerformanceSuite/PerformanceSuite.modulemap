@@ -1,6 +1,0 @@
-framework module PerformanceSuite {
-  umbrella header "PerformanceSuite-umbrella.h"
-
-  export *
-  module * { export * }
-}

@@ -1,8 +1,0 @@
-workspace: Project.xcworkspace
-xcodeproj: Project.xcodeproj
-scheme: PerformanceSuite-Unit-Tests
-configuration: Debug
-ignore:
-  - PerformanceSuite/PerformanceApp/*
-  - PerformanceSuite/Tests/*
-output_directory: coverage

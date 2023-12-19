@@ -3,14 +3,14 @@ xcuserdata/
 *.swp
 *.swo
 *.swn
+DerivedData
 
 ## SwiftPM
 .swiftpm
 .build
 
 ## CocoaPods
-Pods/GCDWebServer
-Pods/SwiftLint
+Pods
 
 *.xcresult
 /code_coverage.txt

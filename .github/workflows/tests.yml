@@ -55,17 +55,22 @@ jobs:
 
       - name: Run Unit Tests
         env:
-          scheme: PerformanceSuite-Unit-Tests
+          scheme: UnitTests
           destination: platform=iOS Simulator,name=iPhone 14 Pro
           workspace: Project.xcworkspace
         run: |
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES -derivedDataPath DerivedData
       
       - name: Slather
+        env:
+          scheme: UnitTests
+          workspace: Project.xcworkspace
+          project: Project.xcodeproj
+          binary_file: DerivedData/Build/Products/Debug-iphonesimulator/PerformanceSuite/PerformanceSuite.framework/PerformanceSuite
         run: |
           gem install slather
-          slather coverage --simple-output | grep -E '^Test Coverage|^Tested ' > code_coverage.txt
-          slather coverage --cobertura-xml
+          slather coverage --simple-output --workspace $workspace --scheme $scheme --binary-file "$binary_file" $project | grep -E '^Test Coverage|^Tested ' > code_coverage.txt
+          slather coverage --cobertura-xml --workspace $workspace --scheme $scheme --binary-file "$binary_file" $project
 
       - name: Upload code_coverage.txt
         uses: actions/upload-artifact@v3
@@ -96,7 +101,7 @@ jobs:
           
       - name: Run UI Tests
         env:
-          scheme: PerformanceSuite-UI-UITests
+          scheme: UITests
           destination: platform=iOS Simulator,name=iPhone 14 Pro
           workspace: Project.xcworkspace
         run: |

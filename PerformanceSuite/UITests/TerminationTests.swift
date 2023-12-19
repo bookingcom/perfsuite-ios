@@ -7,11 +7,19 @@
 
 import XCTest
 
+
+/// **NB!**: Termination observers do not start in DEBUG by default.
+/// These tests will work only in Release.
+/// You can run those tests from `PerformanceSuite-UI-UITests` scheme for that.
 final class TerminationTests: XCTestCase {
 
-    private let client = UITestsInterop.Client()
+    private var client: UITestsInterop.Client!
     private let app = XCUIApplication()
 
+    override func setUp() {
+        super.setUp()
+        client = UITestsInterop.Client()
+    }
     override func tearDown() {
         super.tearDown()
         waitingTimer?.invalidate()
@@ -34,7 +42,7 @@ final class TerminationTests: XCTestCase {
         XCTAssertFalse(client.messages.contains { $0 == .fatalHang })
 
         app.staticTexts["Fatal hang"].tap()
-        waitForTimeout(3)
+        waitForTimeout(5)
 
         // app won't die by itself, relaunch the app
         app.terminate()
@@ -47,7 +55,7 @@ final class TerminationTests: XCTestCase {
         performFirstLaunch()
         XCTAssertFalse(client.messages.contains { $0 == .nonFatalHang })
         app.staticTexts["Non-fatal hang"].tap()
-        waitForTimeout(3)
+        waitForTimeout(4)
         waitForMessage { $0 == .nonFatalHang }
     }
 
@@ -70,11 +78,11 @@ final class TerminationTests: XCTestCase {
     }
     private var waitingTimer: Timer?
 
-    private func waitForTimeout(_ timeout: TimeInterval) {
+    private func waitForTimeout(_ seconds: Int) {
         let exp = expectation(description: "wait for timeout")
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds)) {
             exp.fulfill()
         }
-        wait(for: [exp], timeout: timeout + 1)
+        wait(for: [exp], timeout: Double(seconds + 1))
     }
 }

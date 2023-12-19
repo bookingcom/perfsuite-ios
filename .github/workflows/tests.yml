@@ -17,21 +17,25 @@ jobs:
           xcode-version: latest
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: SwiftLint
+        run:
+          Pods/SwiftLint/swiftlint
       # to compile swift package we should remove workspace and xcodeproj
       # otherwise xcodebuild takes schemes from them
       - name: Remove workspace
         run: |
-          rm -rf PerformanceApp.xcodeproj
-          rm -rf PerformanceApp.xcworkspace
+          rm -rf Project.xcodeproj
+          rm -rf Project.xcworkspace
       - name: Compile
         run: |
           xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'
       # restore removed files just in case it is needed for the further steps    
       - name: Restore workspace
         run: |
-          git checkout -- PerformanceApp.xcodeproj
-          git checkout -- PerformanceApp.xcworkspace
-  test:
+          git checkout -- Project.xcodeproj
+          git checkout -- Project.xcworkspace
+  unit-tests:
     runs-on: macos-latest
     steps:
       - name: Set Xcode version
@@ -40,23 +44,15 @@ jobs:
           xcode-version: latest
       - name: Checkout
         uses: actions/checkout@v3
-      - name: SwiftLint
-        run:
-          Pods/SwiftLint/swiftlint
-      - name: Build PerformanceApp
+
+      - name: Run Unit Tests
         env:
-          scheme: PerformanceApp
-          platform: iOS Simulator
-          workspace: PerformanceApp.xcworkspace
+          scheme: PerformanceSuite-Unit-Tests
+          destination: platform=iOS Simulator,name=iPhone 14 Pro
+          workspace: Project.xcworkspace
         run: |
-          xcodebuild build -scheme "$scheme" -workspace "$workspace" -destination "platform=iOS Simulator,name=iPhone 14 Pro"
-      - name: Test PerformanceSuite
-        env:
-          scheme: PerformanceApp
-          platform: iOS Simulator
-          workspace: PerformanceApp.xcworkspace
-        run: |
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "platform=iOS Simulator,name=iPhone 14 Pro" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES
+      
       - name: Slather
         run: |
           gem install slather
@@ -75,9 +71,26 @@ jobs:
           name: cobertura.xml
           path: coverage/cobertura.xml
 
+  ui-tests:
+    runs-on: macos-latest
+    steps:
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run UI Tests
+        env:
+          scheme: PerformanceSuite-UI-UITests
+          destination: platform=iOS Simulator,name=iPhone 14 Pro
+          workspace: Project.xcworkspace
+        run: |
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination"
+
   coverage-report:
     runs-on: ubuntu-latest
-    needs: test
+    needs: unit-tests
     steps:
       - name: Download cobertura.xml
         uses: actions/download-artifact@v3
@@ -112,7 +125,7 @@ jobs:
 
   coverage-badge:
     if: github.ref == 'refs/heads/main'
-    needs: test
+    needs: unit-tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

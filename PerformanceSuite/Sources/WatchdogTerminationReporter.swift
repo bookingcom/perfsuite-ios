@@ -82,7 +82,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         didHangPreviouslyProvider: DidHangPreviouslyProvider? = nil,
         startupProvider: StartupProvider,
         appStateProvider: AppStateProvider = UIApplication.shared,
-        enabledInDebug: Bool = true,
+        enabledInDebug: Bool = false,
         receiver: WatchdogTerminationsReceiver
     ) {
         self.storage = storage

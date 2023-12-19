@@ -35,6 +35,7 @@ public enum UITestsInterop {
     public class Client {
 
         public init() {
+            print("Client.init")
             timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 self?.makeRequest()
             }
@@ -47,23 +48,51 @@ public enum UITestsInterop {
         private let decoder = JSONDecoder()
         private let session = URLSession(configuration: .default)
         private var timer: Timer?
+        private var task: URLSessionDataTask?
 
-        public var messages: [Message] = []
+        public var messages: [Message] {
+            return messagesLock.withLock {
+                messagesStorage
+            }
+        }
+
+        private var messagesStorage: [Message] = []
+        private let messagesLock = NSLock()
 
         private func makeRequest() {
-            let task = session.dataTask(with: url) { data, response, error in
+            self.task?.cancel()
+
+            print("Client.makeRequest")
+            self.task = session.dataTask(with: url) { data, _, _ in
                 guard let data = data else {
-                    // no data found
+                    print("No data found")
                     return
                 }
-                let messages = try! self.decoder.decode([Message].self, from: data)
-                self.messages.append(contentsOf: messages)
+                do {
+                    let messages = try self.decoder.decode([Message].self, from: data)
+                    self.messagesLock.withLock {
+                        self.messagesStorage.append(contentsOf: messages)
+                    }
+                    if messages.isEmpty {
+                        print("No new messages")
+                    } else {
+                        print("Messages received:\n--------------\n\(messages)\n--------------\n")
+                    }
+                } catch {
+                    let str = String(data: data, encoding: .utf8)
+                    fatalError("Couldn't decode messages from \(str ?? "empty")")
+                }
+
+                self.task = nil
             }
-            task.resume()
+            self.task?.resume()
         }
 
         public func reset() {
-            messages = []
+            messagesLock.withLock {
+                messagesStorage.removeAll()
+            }
+            timer?.invalidate()
         }
     }
 
@@ -74,20 +103,35 @@ public enum UITestsInterop {
     public final class Server {
         public init() {
             server = GCDWebServer()
-            server.addDefaultHandler(forMethod: "GET", request: GCDWebServerRequest.self) { request in
-                let messagesToSend = self.messages
-                let data = try! self.encoder.encode(messagesToSend)
-                self.messages = []
-                return GCDWebServerDataResponse(data: data, contentType: "application/json")
+            server.addDefaultHandler(forMethod: "GET", request: GCDWebServerRequest.self) { _ in
+                let messagesToSend = self.messagesLock.withLock {
+                    let result = self.messages
+                    self.messages.removeAll()
+                    return result
+                }
+                do {
+                    let data = try self.encoder.encode(messagesToSend)
+                    return GCDWebServerDataResponse(data: data, contentType: "application/json")
+                } catch {
+                    fatalError("Couldn't encode messages \(messagesToSend)")
+                }
             }
-            try! server.start(options: [GCDWebServerOption_BindToLocalhost: true, GCDWebServerOption_Port: Client.port])
+            do {
+                try server.start(options: [GCDWebServerOption_BindToLocalhost: true, GCDWebServerOption_Port: Client.port])
+            } catch {
+                fatalError("Couldn't start GCDWebServer: \(error)")
+            }
         }
         private let server: GCDWebServer
         private let encoder = JSONEncoder()
+
         private var messages: [Message] = []
+        private let messagesLock = NSLock()
 
         public func send(message: Message) {
-            messages.append(message)
+            messagesLock.withLock {
+                self.messages.append(message)
+            }
         }
     }
 

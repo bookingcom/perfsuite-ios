@@ -10,6 +10,9 @@ import Network
 import UIKit
 import GCDWebServer
 
+public let inTestsKey = "UI_TESTS"
+public let clearStorageKey = "CLEAR_STORAGE"
+
 public enum Message: Codable, Equatable {
     case startupTime(duration: Int)
     case appFreezeTime(duration: Int)
@@ -32,12 +35,10 @@ public enum UITestsInterop {
     public class Client {
 
         public init() {
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 self?.makeRequest()
             }
         }
-
-
 
         static let host: String = "localhost"
         static let port: UInt16 = 50001
@@ -48,12 +49,8 @@ public enum UITestsInterop {
         private var timer: Timer?
 
         public var messages: [Message] = []
-        private var isStarted = false
 
         private func makeRequest() {
-            guard isStarted else {
-                return
-            }
             let task = session.dataTask(with: url) { data, response, error in
                 guard let data = data else {
                     // no data found
@@ -63,6 +60,10 @@ public enum UITestsInterop {
                 self.messages.append(contentsOf: messages)
             }
             task.resume()
+        }
+
+        public func reset() {
+            messages = []
         }
     }
 

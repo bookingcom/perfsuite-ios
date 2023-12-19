@@ -9,16 +9,16 @@ import Foundation
 
 class IssuesSimulator {
     static func simulateNonFatalHang() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-            Thread.sleep(forTimeInterval: 3)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+            Thread.sleep(forTimeInterval: 4)
         }
     }
 
     static func simulateFatalHang() {
         let lock = NSLock()
-        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(500)) {
             lock.lock()
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(700)) {
                 lock.lock()
             }
         }

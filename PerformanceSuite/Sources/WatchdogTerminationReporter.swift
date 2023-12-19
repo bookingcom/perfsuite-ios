@@ -82,7 +82,7 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
         didHangPreviouslyProvider: DidHangPreviouslyProvider? = nil,
         startupProvider: StartupProvider,
         appStateProvider: AppStateProvider = UIApplication.shared,
-        enabledInDebug: Bool = false,
+        enabledInDebug: Bool = true,
         receiver: WatchdogTerminationsReceiver
     ) {
         self.storage = storage
@@ -98,9 +98,9 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             }
         }
 
-        subscribeToNotifications()
         let appState = Thread.isMainThread ? appStateProvider.applicationState : DispatchQueue.main.sync { appStateProvider.applicationState }
         detectPreviousTermination(applicationState: appState)
+        subscribeToNotifications()
     }
 
 

@@ -18,6 +18,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         let didCrash = CrashesInterceptor.didCrashDuringPreviousLaunch()
         CrashesInterceptor.interceptCrashes()
 
+        UITestsHelper.prepareForTestsIfNeeded()
+
         do {
             try PerformanceMonitoring.enable(config: .all(receiver: MetricsConsumer()), didCrashPreviously: didCrash)
         } catch {

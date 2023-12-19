@@ -15,6 +15,7 @@
 			dependencies = (
 			);
 			name = SwiftLint;
+			productName = SwiftLint;
 		};
 /* End PBXAggregateTarget section */
 
@@ -120,6 +121,7 @@
 		DBD61AEA7CA05AE50F4A910639A199C6 /* RootViewIntrospectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C9D1E4BF20238B182CA197B1479602 /* RootViewIntrospectorTests.swift */; };
 		DF5F9701CDCD4A324FF9D942B5BB2E14 /* GCDWebServer-dummy.m in Sources */ = {isa = PBXBuildFile; fileRef = F79BCFD335A9817EC0540C378E86B065 /* GCDWebServer-dummy.m */; };
 		E2A5945C301CED9EC96251FE1CC2543B /* FragmentTTIReporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06227D6F51E0CE057D5EB6EB16E4BACD /* FragmentTTIReporterTests.swift */; };
+		E391D11D2B31ADDE00A394FC /* UITestsHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E391D11C2B31ADDE00A394FC /* UITestsHelper.swift */; };
 		EDB6B271916EAE00F34A6545B2FFF61D /* AppStateObserverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B576BAAFCA1D4ECA0B9E7226EEA549 /* AppStateObserverTests.swift */; };
 		EDCF6A7B9AF8D6663E6CC11AB61A24A1 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7AD210561E5EB6E0EF29007A69CB494B /* Foundation.framework */; };
 		EEB8A26BEEE93CBE55C87C8D2F610BB7 /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD46C3085FD53414EE223FE0EC59AE13 /* ConfigTests.swift */; };
@@ -194,7 +196,7 @@
 		10F6058461BB2E1FEE15755E93B6051B /* GCDWebServer-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "GCDWebServer-Info.plist"; sourceTree = "<group>"; };
 		113862494D4FDA23779D871A56A7815C /* IssuesSimulator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IssuesSimulator.swift; path = PerformanceSuite/PerformanceApp/IssuesSimulator.swift; sourceTree = "<group>"; };
 		127600B4BED6EE5BD3139B4E3309F105 /* RenderingObserverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RenderingObserverTests.swift; path = PerformanceSuite/Tests/RenderingObserverTests.swift; sourceTree = "<group>"; };
-		177EC0E12659494E487A0C2097C73101 /* LICENSE */ = {isa = PBXFileReference; includeInIndex = 1; path = LICENSE; sourceTree = "<group>"; };
+		177EC0E12659494E487A0C2097C73101 /* LICENSE */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		17CA1AC30DA15861ADAA15B9426A6434 /* MainThreadCallStack.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MainThreadCallStack.h; sourceTree = "<group>"; };
 		18CA062415A7F29608F9F4F6C4E92677 /* PerformanceScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PerformanceScreen.swift; path = PerformanceSuite/PerformanceApp/PerformanceScreen.swift; sourceTree = "<group>"; };
 		18F8C2703634E91933651154CAD319AA /* MainThreadCallStackTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MainThreadCallStackTests.swift; path = PerformanceSuite/Tests/MainThreadCallStackTests.swift; sourceTree = "<group>"; };
@@ -207,7 +209,7 @@
 		318EB575242DF24941E6B9DA38CEBB84 /* PerformanceSuite.performanceapp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = PerformanceSuite.performanceapp.debug.xcconfig; sourceTree = "<group>"; };
 		332647111B3346ED5D771A8E5ACF79F0 /* DispatchTimeIntervalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DispatchTimeIntervalTests.swift; path = PerformanceSuite/Tests/DispatchTimeIntervalTests.swift; sourceTree = "<group>"; };
 		3B634A074D14F2F3E4CACD5B093E2B97 /* PerformanceSuite-PerformanceApp-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "PerformanceSuite-PerformanceApp-Info.plist"; path = "Pods/PerformanceApp/PerformanceSuite-PerformanceApp-Info.plist"; sourceTree = "<group>"; };
-		3B822F07DF0B8D5C43B7CAD1B51EBDC3 /* MainThreadCallStack.c */ = {isa = PBXFileReference; includeInIndex = 1; path = MainThreadCallStack.c; sourceTree = "<group>"; };
+		3B822F07DF0B8D5C43B7CAD1B51EBDC3 /* MainThreadCallStack.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; path = MainThreadCallStack.c; sourceTree = "<group>"; };
 		3E37D065B74287B2C50F37119D7D02FB /* PerformanceSuite */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = PerformanceSuite; path = PerformanceSuite.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		41E44028170F09D5AB1AF0F0AA26A1C5 /* RootViewIntrospection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootViewIntrospection.swift; sourceTree = "<group>"; };
 		4587C3D6CE4839D15D1106BA7D94609E /* GCDWebServerFunctions.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = GCDWebServerFunctions.m; path = GCDWebServer/Core/GCDWebServerFunctions.m; sourceTree = "<group>"; };
@@ -253,7 +255,7 @@
 		82E992C2C5E214D633CE4CC79C7B4E18 /* GCDWebServerFileRequest.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = GCDWebServerFileRequest.h; path = GCDWebServer/Requests/GCDWebServerFileRequest.h; sourceTree = "<group>"; };
 		85E6ED0771B0D53EF66E5B69CC39A835 /* MetricsConsumer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MetricsConsumer.swift; path = PerformanceSuite/PerformanceApp/MetricsConsumer.swift; sourceTree = "<group>"; };
 		8820D6DA7CC6C2E799FBC4A0355DDEF3 /* PerformanceSuite-PerformanceApp-frameworks.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; path = "PerformanceSuite-PerformanceApp-frameworks.sh"; sourceTree = "<group>"; };
-		88A0E9FAB65D9C2155CF0EF1F40690CB /* PerformanceSuite.podspec */ = {isa = PBXFileReference; explicitFileType = text.script.ruby; includeInIndex = 1; indentWidth = 2; lastKnownFileType = text; path = PerformanceSuite.podspec; sourceTree = "<group>"; tabWidth = 2; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
+		88A0E9FAB65D9C2155CF0EF1F40690CB /* PerformanceSuite.podspec */ = {isa = PBXFileReference; explicitFileType = text.script.ruby; includeInIndex = 1; indentWidth = 2; path = PerformanceSuite.podspec; sourceTree = "<group>"; tabWidth = 2; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		8F9B4AC7FC028C06859CC48F43C4C89A /* TimeProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimeProvider.swift; sourceTree = "<group>"; };
 		8FEDE003404930F527C28DF4E3C4975C /* PerformanceSuite-UI-UITests-prefix.pch */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "PerformanceSuite-UI-UITests-prefix.pch"; sourceTree = "<group>"; };
 		922BEDC9D163194E654C79965CAB406E /* GCDWebServer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = GCDWebServer.h; path = GCDWebServer/Core/GCDWebServer.h; sourceTree = "<group>"; };
@@ -263,7 +265,7 @@
 		9A545933175106BD4B33109605BCDE05 /* PerformanceSuite-dummy.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "PerformanceSuite-dummy.m"; sourceTree = "<group>"; };
 		9CBA18AFE771842917797F885B3C6F2E /* DispatchTimeInterval+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DispatchTimeInterval+Helpers.swift"; sourceTree = "<group>"; };
 		9CE712873BA9C893C464B9C76B10C05F /* FragmentTTIReporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FragmentTTIReporter.swift; sourceTree = "<group>"; };
-		9D940727FF8FB9C785EB98E56350EF41 /* Podfile */ = {isa = PBXFileReference; explicitFileType = text.script.ruby; includeInIndex = 1; indentWidth = 2; lastKnownFileType = text; name = Podfile; path = ../Podfile; sourceTree = SOURCE_ROOT; tabWidth = 2; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
+		9D940727FF8FB9C785EB98E56350EF41 /* Podfile */ = {isa = PBXFileReference; explicitFileType = text.script.ruby; includeInIndex = 1; indentWidth = 2; name = Podfile; path = ../Podfile; sourceTree = SOURCE_ROOT; tabWidth = 2; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		9F74422943F90F047AE3B5A546ABF934 /* TTIMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TTIMetrics.swift; sourceTree = "<group>"; };
 		A121DF8E23240C6D7AAAACAD46DC728A /* PerformanceSuite-Unit-Tests-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "PerformanceSuite-Unit-Tests-Info.plist"; sourceTree = "<group>"; };
 		A12C47E805FE9263644E25277E6F4E8E /* StartupTimeReporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StartupTimeReporterTests.swift; path = PerformanceSuite/Tests/StartupTimeReporterTests.swift; sourceTree = "<group>"; };
@@ -306,8 +308,9 @@
 		D72E16E50EF8085B25ED23602056644B /* ControllerIntrospectionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ControllerIntrospectionView.swift; sourceTree = "<group>"; };
 		D8F4A443624A6E690455F57A8387833F /* StartupTimeReporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StartupTimeReporter.swift; sourceTree = "<group>"; };
 		D9ADD7559CB359E7A0FD0CE0B30B825E /* PerformanceSuite.unit-tests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = "PerformanceSuite.unit-tests.debug.xcconfig"; sourceTree = "<group>"; };
-		DA7CD4E80F5008A69F9627084A12FB3F /* README.md */ = {isa = PBXFileReference; includeInIndex = 1; path = README.md; sourceTree = "<group>"; };
+		DA7CD4E80F5008A69F9627084A12FB3F /* README.md */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DE23BD87EEB9B811574DE759DFC4A4A2 /* PerformanceMonitoringTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PerformanceMonitoringTests.swift; path = PerformanceSuite/Tests/PerformanceMonitoringTests.swift; sourceTree = "<group>"; };
+		E391D11C2B31ADDE00A394FC /* UITestsHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = UITestsHelper.swift; path = PerformanceSuite/PerformanceApp/UITestsHelper.swift; sourceTree = "<group>"; };
 		E58AC63D6DBB32FBD42E1CB031E4B423 /* GCDWebServerDataRequest.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = GCDWebServerDataRequest.m; path = GCDWebServer/Requests/GCDWebServerDataRequest.m; sourceTree = "<group>"; };
 		E5F49B0294A002038397938F3149465B /* ViewControllerLeaksObserverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ViewControllerLeaksObserverTests.swift; path = PerformanceSuite/Tests/ViewControllerLeaksObserverTests.swift; sourceTree = "<group>"; };
 		E81CE7CF23AF551B1EA81326CFED2046 /* ViewControllerLeaksObserver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ViewControllerLeaksObserver.swift; sourceTree = "<group>"; };
@@ -417,7 +420,6 @@
 				60ABA2863D6E36EB2CB42584E30EA7C5 /* Core */,
 				CF50948BD9AD31473B5998AF290E8C3F /* Support Files */,
 			);
-			name = GCDWebServer;
 			path = GCDWebServer;
 			sourceTree = "<group>";
 		};
@@ -483,6 +485,7 @@
 				3B634A074D14F2F3E4CACD5B093E2B97 /* PerformanceSuite-PerformanceApp-Info.plist */,
 				AA1F3135497E889564D47A67A8B21434 /* RenderingUseCasesView.swift */,
 				ECBAC226489FAD1E2FB133117FABC763 /* RootController.swift */,
+				E391D11C2B31ADDE00A394FC /* UITestsHelper.swift */,
 			);
 			name = PerformanceApp;
 			sourceTree = "<group>";
@@ -633,7 +636,6 @@
 			children = (
 				17CA1AC30DA15861ADAA15B9426A6434 /* MainThreadCallStack.h */,
 			);
-			name = include;
 			path = include;
 			sourceTree = "<group>";
 		};
@@ -716,7 +718,6 @@
 			children = (
 				9880F7DDC5F569777618223D08A2C084 /* Support Files */,
 			);
-			name = SwiftLint;
 			path = SwiftLint;
 			sourceTree = "<group>";
 		};
@@ -1037,6 +1038,7 @@
 				FC8CA642583954C692ECB53ABFAC1443 /* RenderingUseCasesView.swift in Sources */,
 				A1270F611817A966BA6E355448209CC2 /* RootController.swift in Sources */,
 				118F46D57143D96FA6FAF672AC06744B /* UITestsInterop.swift in Sources */,
+				E391D11D2B31ADDE00A394FC /* UITestsHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1281,8 +1283,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRIP_INSTALLED_PRODUCT = NO;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
 				SWIFT_VERSION = 5.0;
 				SYMROOT = "${SRCROOT}/../build";
 			};

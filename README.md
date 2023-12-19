@@ -1,4 +1,4 @@
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/bookingcom/perfsuite-ios/ci.yml)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/bookingcom/perfsuite-ios/tests.yml)
  ![Cocoapods](https://img.shields.io/cocoapods/l/PerformanceSuite)
  ![Cocoapods](https://img.shields.io/cocoapods/v/PerformanceSuite)
  ![Cocoapods platforms](https://img.shields.io/cocoapods/p/PerformanceSuite)

@@ -8,5 +8,8 @@ xcuserdata/
 .swiftpm
 .build
 
+## CocoaPods
+Pods
+
 *.xcresult
 /code_coverage.txt

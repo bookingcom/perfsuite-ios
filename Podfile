@@ -17,7 +17,7 @@ post_install do |installer|
             end
         end
 
-        if target.name.start_with? "GCDWebServer"
+        if target.name == 'GCDWebServer' then
             target.build_configurations.each do |config|
                 config.build_settings['CLANG_WARN_STRICT_PROTOTYPES'] = 'NO' 
             end

@@ -34,10 +34,16 @@
       "name": "UITests",
       "test_type": "ui",
       "requires_app_host": true,
-      "source_files": "PerformanceSuite/UITests/*.swift",
+      "source_files": [
+        "PerformanceSuite/UITests/*.swift",
+        "PerformanceSuite/PerformanceApp/UITestsInterop.swift"
+      ],
       "app_host_name": "PerformanceSuite/PerformanceApp",
       "dependencies": {
         "PerformanceSuite/PerformanceApp": [
+
+        ],
+        "GCDWebServer": [
 
         ]
       }
@@ -46,7 +52,12 @@
   "appspecs": [
     {
       "name": "PerformanceApp",
-      "source_files": "PerformanceSuite/PerformanceApp/*.swift"
+      "source_files": "PerformanceSuite/PerformanceApp/*.swift",
+      "dependencies": {
+        "GCDWebServer": [
+
+        ]
+      }
     }
   ],
   "swift_version": "5.7.1"

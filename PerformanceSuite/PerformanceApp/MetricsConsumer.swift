@@ -18,8 +18,11 @@ extension UIHostingController: PerformanceTrackable {
 
 class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
+    let interop = UITestsInterop.Server()
+
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         log("App RenderingMetrics \(metrics)")
+        interop.send(message: Message.appFreezeTime(duration: metrics.freezeTime.milliseconds ?? -1))
     }
 
     func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) {
@@ -28,6 +31,7 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
         }
 
         log("TTIMetrics \(screen) \(metrics)")
+        interop.send(message: Message.tti(duration: metrics.tti.milliseconds ?? -1, screen: screen))
     }
 
     func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController) {
@@ -35,6 +39,7 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
             fatalError("unknown screen")
         }
         log("RenderingMetrics \(screen) \(metrics)")
+        interop.send(message: Message.freezeTime(duration: metrics.freezeTime.milliseconds ?? -1, screen: screen))
     }
 
     func shouldTrack(viewController: UIViewController) -> Bool {
@@ -43,38 +48,32 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
     func watchdogTerminationReceived(_ data: WatchdogTerminationData) {
         log("WatchdogTermination reported")
-    }
-
-    func fatalHangReceived() {
-        log("Fatal hang reported")
-    }
-
-    func nonFatalHangReceived(duration: DispatchTimeInterval) {
-        log("Non-fatal hang reported with duration \(duration.seconds ?? 0)")
-    }
-
-    func startupFatalHangReceived() {
-        log("Startup fatal hang reported")
+        interop.send(message: Message.watchdogTermination)
     }
 
     func viewControllerLeakReceived(viewController: UIViewController) {
         log("View controller leak \(viewController)")
+        interop.send(message: Message.memoryLeak)
     }
 
     func startupTimeReceived(_ data: StartupTimeData) {
         log("Startup time received \(data.totalTime.milliseconds ?? 0) ms")
+        interop.send(message: Message.startupTime(duration: data.totalTime.milliseconds ?? -1))
     }
 
     func fragmentTTIMetricsReceived(metrics: TTIMetrics, identifier: String) {
         log("fragmentTTIMetricsReceived \(identifier) \(metrics)")
+        interop.send(message: Message.fragmentTTI(duration: metrics.tti.milliseconds ?? -1, fragment: identifier))
     }
 
     func fatalHangReceived(info: HangInfo) {
         log("fatalHangReceived \(info)")
+        interop.send(message: Message.fatalHang)
     }
 
     func nonFatalHangReceived(info: HangInfo) {
         log("nonFatalHangReceived \(info)")
+        interop.send(message: Message.nonFatalHang)
     }
 
     func hangStarted(info: HangInfo) {

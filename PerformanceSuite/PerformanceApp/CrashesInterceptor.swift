@@ -14,7 +14,7 @@ class CrashesInterceptor {
     static func interceptCrashes() {
         UserDefaults.standard.removeObject(forKey: key)
 
-        signal(SIGABRT) { s in
+        signal(SIGTRAP) { s in
             debugPrint("Crash intercepted")
             UserDefaults.standard.set(true, forKey: key)
             UserDefaults.standard.synchronize()

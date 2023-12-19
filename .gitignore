@@ -3,10 +3,15 @@ xcuserdata/
 *.swp
 *.swo
 *.swn
+DerivedData
 
 ## SwiftPM
 .swiftpm
 .build
 
+## CocoaPods
+Pods
+
 *.xcresult
 /code_coverage.txt
+/cobertura.xml

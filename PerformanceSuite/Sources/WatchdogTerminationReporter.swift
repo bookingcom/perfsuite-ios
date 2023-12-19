@@ -98,9 +98,9 @@ final class WatchdogTerminationReporter: AppMetricsReporter {
             }
         }
 
-        subscribeToNotifications()
         let appState = Thread.isMainThread ? appStateProvider.applicationState : DispatchQueue.main.sync { appStateProvider.applicationState }
         detectPreviousTermination(applicationState: appState)
+        subscribeToNotifications()
     }
 
 

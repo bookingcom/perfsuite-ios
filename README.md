@@ -218,5 +218,15 @@ class MetricsConsumer: TTIMetricsReceiver {
 
 ```
 
+## Development
+
+To launch project locally:
+- install CocoaPods with `gem install cocoapods`
+- generate `Pods` folder with `pod install`
+- open `Project.xcworkspace` to launch sample `PerformanceApp` or run tests
+- Use `PerformanceApp` scheme to launch the app
+- Use `UnitTests` to launch unit tests
+- Use `UITests` to launch integration UI tests. Note, that this scheme is compiling in Release mode.
+
 # ACKNOWLEDGMENT
 This software was originally developed at Booking.com. With approval from Booking.com, this software was released as open source, for which the authors would like to express their gratitude.

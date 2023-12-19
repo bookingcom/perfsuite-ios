@@ -9,7 +9,8 @@ xcuserdata/
 .build
 
 ## CocoaPods
-Pods
+Pods/GCDWebServer
+Pods/SwiftLint
 
 *.xcresult
 /code_coverage.txt

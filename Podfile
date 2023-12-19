@@ -1,7 +1,7 @@
 workspace 'Project'
 project 'Project'
 deployment_target = '14.0'
-install! 'cocoapods', integrate_targets: false
+install! 'cocoapods', integrate_targets: false, share_schemes_for_development_pods: true
 
 platform :ios, deployment_target
 use_frameworks!

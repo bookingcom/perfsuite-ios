@@ -21,10 +21,36 @@ public enum Message: Codable, Equatable {
     case freezeTime(duration: Int, screen: String)
     case tti(duration: Int, screen: String)
     case fragmentTTI(duration: Int, fragment: String)
+    case hangStarted
     case fatalHang
     case nonFatalHang
     case watchdogTermination
     case memoryLeak
+    case crash
+
+    public static func ==(lhs: Message, rhs: Message) -> Bool {
+        switch (lhs, rhs) {
+        case (.startupTime, .startupTime),
+            (.appFreezeTime, .appFreezeTime),
+            (.hangStarted, .hangStarted),
+            (.fatalHang, .fatalHang),
+            (.nonFatalHang, .nonFatalHang),
+            (.watchdogTermination, .watchdogTermination),
+            (.memoryLeak, .memoryLeak),
+            (.crash, .crash):
+            return true
+            
+        case let (.freezeTime(_, screenA), .freezeTime(_, screenB)),
+            let (.tti(_, screenA), .tti(_, screenB)):
+            return screenA == screenB
+            
+        case let (.fragmentTTI(_, fragmentA), .fragmentTTI(_, fragmentB)):
+            return fragmentA == fragmentB
+            
+        default:
+            return false
+        }
+    }
 }
 
 /// This is a namespace to access Client and Server classes

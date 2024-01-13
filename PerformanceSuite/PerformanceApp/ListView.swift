@@ -15,6 +15,8 @@ struct ListMode: Hashable {
     let appendSleep: TimeInterval
     let delayInterval: TimeInterval
     let laggyLoadingAnimation: Bool
+    let scrollOnAppear: Bool
+    let popOnAppear: Bool
 
     init(
         _ title: String,
@@ -22,7 +24,9 @@ struct ListMode: Hashable {
         initSleep: TimeInterval = 0,
         appendSleep: TimeInterval = 0,
         delayInterval: TimeInterval = 0,
-        laggyLoadingAnimation: Bool = false
+        laggyLoadingAnimation: Bool = false,
+        scrollOnAppear: Bool = false,
+        popOnAppear: Bool = false
     ) {
         self.title = title
         self.cellSleep = cellSleep
@@ -30,6 +34,8 @@ struct ListMode: Hashable {
         self.appendSleep = appendSleep
         self.delayInterval = delayInterval
         self.laggyLoadingAnimation = laggyLoadingAnimation
+        self.scrollOnAppear = scrollOnAppear
+        self.popOnAppear = popOnAppear
     }
 
     static var allCases: [ListMode] {
@@ -89,10 +95,15 @@ class ListViewModel: ObservableObject {
     let mode: ListMode
     var numberOfItems = 100
 
-    func onAppear() {
+    func onAppear(presentationMode: Binding<PresentationMode>) {
         Thread.sleep(forTimeInterval: mode.initSleep)
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(Int(mode.delayInterval))) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimeInterval(mode.delayInterval)) {
             self.isLoading = false
+            if self.mode.popOnAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimeInterval(self.mode.delayInterval)) {
+                    presentationMode.wrappedValue.dismiss()
+                }
+            }
         }
     }
 
@@ -118,10 +129,12 @@ struct ListView: View {
     }
     @ObservedObject private var viewModel: ListViewModel
 
+    @Environment(\.presentationMode) var presentationMode
+
     var body: some View {
         content
             .onAppear {
-                viewModel.onAppear()
+                viewModel.onAppear(presentationMode: presentationMode)
             }
             .onDisappear {
                 viewModel.onDisappear()
@@ -133,19 +146,32 @@ struct ListView: View {
             LaggyProgressView(laggy: self.viewModel.mode.laggyLoadingAnimation)
                 .frame(alignment: .center)
         } else {
-            List {
-                ForEach(0..<viewModel.numberOfItems, id: \.self) { _ in
-                    Cell(mode: viewModel.mode)
-                }
-                if #available(iOS 14.0, *) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .frame(alignment: .center)
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-                                self.viewModel.nextPage()
+            ScrollViewReader { proxy in
+                List {
+                    ForEach(0..<viewModel.numberOfItems, id: \.self) { index in
+                        Cell(mode: viewModel.mode).id(index)
+                    }
+                    .screenIsReadyOnAppear()
+
+                    if #available(iOS 14.0, *) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .frame(alignment: .center)
+                            .onAppear {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
+                                    self.viewModel.nextPage()
+                                }
+                            }
+                    }
+                }.onAppear() {
+                    if viewModel.mode.scrollOnAppear {
+                        DispatchQueue.main.async {
+                            withAnimation {
+                                proxy.scrollTo(viewModel.numberOfItems - 1, anchor: .top)
                             }
                         }
+
+                    }
                 }
             }
         }

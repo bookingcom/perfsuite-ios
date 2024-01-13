@@ -22,6 +22,10 @@ class MemoryLeakViewController: UIViewController {
         super.viewDidAppear(animated)
         // create retain cycle
         ref.viewController = self
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
+            self.navigationController?.popViewController(animated: true)
+        }
     }
 }
 

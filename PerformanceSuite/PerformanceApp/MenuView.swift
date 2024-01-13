@@ -26,6 +26,10 @@ struct MenuView: View {
                 Text("Crash").onTapGesture {
                     IssuesSimulator.simulateCrash()
                 }
+
+                NavigationLink(destination: MemoryLeakView()) {
+                    Text("Memory Leak")
+                }
             }
 
             Section(header: Text("Performance metrics")) {

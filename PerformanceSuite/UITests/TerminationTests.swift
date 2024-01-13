@@ -63,4 +63,11 @@ final class TerminationTests: BaseTests {
 
         assertNoMessages(.hangStarted, .nonFatalHang, .fatalHang, .watchdogTermination)
     }
+
+    func testMemoryLeak() throws {
+        performFirstLaunch()
+        assertNoMessages(.memoryLeak)
+        app.staticTexts["Memory Leak"].tap()
+        waitForMessage { $0 == .memoryLeak }
+    }
 }

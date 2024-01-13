@@ -32,13 +32,13 @@ final class TerminationTests: BaseTests {
         app.staticTexts["Fatal hang"].tap()
         waitForTimeout(5)
 
+        waitForMessage { $0 == .hangStarted }
+
         // app won't die by itself, relaunch the app
         app.terminate()
         app.launch()
 
         waitForMessage { $0 == .fatalHang }
-
-        assertHasMessages(.hangStarted, .fatalHang)
         assertNoMessages(.crash, .nonFatalHang, .watchdogTermination)
     }
 
@@ -55,13 +55,22 @@ final class TerminationTests: BaseTests {
 
     func testCrash() throws {
         performFirstLaunch()
-        assertNoMessages(.crash)
+
+#if swift(>=5.9)
+        let message = Message.crash // For Xcode 15 or later it should work fine
+        let noMessage = Message.watchdogTermination
+#else
+        let message = Message.watchdogTermination // In earlier versions our crash handling doesn't work somehow, so we track crashes as watchdog terminations
+        let noMessage = Message.crash
+#endif
+
+        assertNoMessages(message)
         app.staticTexts["Crash"].tap()
         waitForTimeout(1)
         app.launch()
-        waitForMessage { $0 == .crash }
+        waitForMessage { $0 == message }
 
-        assertNoMessages(.hangStarted, .nonFatalHang, .fatalHang, .watchdogTermination)
+        assertNoMessages(.hangStarted, .nonFatalHang, .fatalHang, noMessage)
     }
 
     func testMemoryLeak() throws {

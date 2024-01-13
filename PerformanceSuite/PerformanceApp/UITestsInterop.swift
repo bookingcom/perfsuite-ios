@@ -21,10 +21,12 @@ public enum Message: Codable, Equatable {
     case freezeTime(duration: Int, screen: String)
     case tti(duration: Int, screen: String)
     case fragmentTTI(duration: Int, fragment: String)
+    case hangStarted
     case fatalHang
     case nonFatalHang
     case watchdogTermination
     case memoryLeak
+    case crash
 }
 
 /// This is a namespace to access Client and Server classes

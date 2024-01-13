@@ -20,10 +20,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         UITestsHelper.prepareForTestsIfNeeded()
 
+        let metricsConsumer = MetricsConsumer()
         do {
-            try PerformanceMonitoring.enable(config: .all(receiver: MetricsConsumer()), didCrashPreviously: didCrash)
+            try PerformanceMonitoring.enable(config: .all(receiver: metricsConsumer), didCrashPreviously: didCrash)
         } catch {
             preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
+        }
+
+        if didCrash {
+            metricsConsumer.interop?.send(message: .crash)
         }
 
         let tc = UITabBarController()

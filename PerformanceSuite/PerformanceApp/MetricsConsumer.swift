@@ -78,6 +78,7 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
     func hangStarted(info: HangInfo) {
         log("hangStarted \(info)")
+        interop?.send(message: Message.hangStarted)
     }
 
     private func log(_ message: String) {

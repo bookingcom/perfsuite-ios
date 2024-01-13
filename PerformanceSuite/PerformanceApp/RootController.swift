@@ -10,9 +10,10 @@ import SwiftUI
 class RootController: UIHostingController<MenuView> {
     init() {
         super.init(rootView: MenuView())
+        self.title = "Metrics"
+
         // simulate long startup time
         Thread.sleep(forTimeInterval: 2)
-        self.title = "Performance App"
     }
 
     @MainActor @objc required dynamic init?(coder aDecoder: NSCoder) {

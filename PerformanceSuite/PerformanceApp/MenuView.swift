@@ -10,20 +10,34 @@ import SwiftUI
 struct MenuView: View {
     var body: some View {
         List {
-            Text("Non-fatal hang").onTapGesture {
-                IssuesSimulator.simulateNonFatalHang()
+            Section(header: Text("Issues")) {
+                Text("Non-fatal hang").onTapGesture {
+                    IssuesSimulator.simulateNonFatalHang()
+                }
+
+                Text("Fatal hang").onTapGesture {
+                    IssuesSimulator.simulateFatalHang()
+                }
+
+                Text("Watchdog termination").onTapGesture {
+                    IssuesSimulator.simulateWatchdogTermination()
+                }
+
+                Text("Crash").onTapGesture {
+                    IssuesSimulator.simulateCrash()
+                }
             }
 
-            Text("Fatal hang").onTapGesture {
-                IssuesSimulator.simulateFatalHang()
-            }
+            Section(header: Text("Performance metrics")) {
+                let ttiMode = ListMode("1", delayInterval: 1, popOnAppear: true)
+                NavigationLink(destination: ListView(mode: ttiMode)) {
+                    Text("TTI")
+                }
 
-            Text("Watchdog termination").onTapGesture {
-                IssuesSimulator.simulateWatchdogTermination()
-            }
-
-            Text("Crash").onTapGesture {
-                IssuesSimulator.simulateCrash()
+                let renderingMode = ListMode("2", cellSleep: 0.060, delayInterval: 1, scrollOnAppear: true, popOnAppear: true)
+                NavigationLink(destination: ListView(mode: renderingMode)) {
+                    Text("Freeze Time")
+                }
             }
         }
     }

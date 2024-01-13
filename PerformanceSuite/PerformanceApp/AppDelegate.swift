@@ -32,7 +32,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
 
         let tc = UITabBarController()
-        tc.viewControllers = [makeMenuController()] + makeTabs()
+        tc.viewControllers = [makeMenuController(), makeRenderingController()] + makeTabs()
 
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = tc
@@ -44,8 +44,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     func makeMenuController() -> UIViewController {
         let menu = UINavigationController(rootViewController: RootController())
-        menu.tabBarItem = UITabBarItem(title: "Menu", image: nil, tag: 0)
         return menu
+    }
+
+    func makeRenderingController() -> UIViewController {
+        let view = RenderingUseCasesView()
+        let hc = UIHostingController(rootView: view)
+        hc.title = "Rendering"
+        let nc = UINavigationController(rootViewController: hc)
+        return nc
     }
 
     func makeTabs() -> [UIViewController] {

@@ -11,25 +11,11 @@ import XCTest
 /// **NB!**: Termination observers do not start in DEBUG by default.
 /// These tests will work only in Release.
 /// You can run those tests from `UITests` scheme for that.
-final class TerminationTests: XCTestCase {
-
-    private var client: UITestsInterop.Client!
-    private let app = XCUIApplication()
-
-    override func setUp() {
-        super.setUp()
-        client = UITestsInterop.Client()
-    }
-    override func tearDown() {
-        super.tearDown()
-        waitingTimer?.invalidate()
-        client.reset()
-    }
+final class TerminationTests: BaseTests {
 
     func testWatchdogTermination() throws {
         performFirstLaunch()
-
-        XCTAssertFalse(client.messages.contains { $0 == .watchdogTermination })
+        assertNoMessages(.watchdogTermination)
 
         app.staticTexts["Watchdog termination"].tap()
         app.launch()
@@ -41,9 +27,7 @@ final class TerminationTests: XCTestCase {
 
     func testFatalHang() throws {
         performFirstLaunch()
-
-        XCTAssertFalse(client.messages.contains { $0 == .hangStarted })
-        XCTAssertFalse(client.messages.contains { $0 == .fatalHang })
+        assertNoMessages(.hangStarted, .fatalHang)
 
         app.staticTexts["Fatal hang"].tap()
         waitForTimeout(5)
@@ -60,8 +44,7 @@ final class TerminationTests: XCTestCase {
 
     func testNonFatalHang() throws {
         performFirstLaunch()
-        XCTAssertFalse(client.messages.contains { $0 == .hangStarted })
-        XCTAssertFalse(client.messages.contains { $0 == .nonFatalHang })
+        assertNoMessages(.hangStarted, .nonFatalHang)
         app.staticTexts["Non-fatal hang"].tap()
         waitForTimeout(4)
         waitForMessage { $0 == .nonFatalHang }
@@ -72,53 +55,12 @@ final class TerminationTests: XCTestCase {
 
     func testCrash() throws {
         performFirstLaunch()
-        XCTAssertFalse(client.messages.contains { $0 == .crash })
+        assertNoMessages(.crash)
         app.staticTexts["Crash"].tap()
         waitForTimeout(1)
         app.launch()
         waitForMessage { $0 == .crash }
 
         assertNoMessages(.hangStarted, .nonFatalHang, .fatalHang, .watchdogTermination)
-    }
-
-    private func assertNoMessages(file: StaticString = #file, line: UInt = #line, _ messages: Message...) {
-        for m in messages {
-            XCTAssertFalse(client.messages.contains { $0 == m }, file: file, line: line)
-        }
-    }
-
-    private func assertHasMessages(file: StaticString = #file, line: UInt = #line, _ messages: Message...) {
-        for m in messages {
-            XCTAssertTrue(client.messages.contains { $0 == m }, file: file, line: line)
-        }
-    }
-
-    private func performFirstLaunch() {
-        app.launchEnvironment = [inTestsKey: "1", clearStorageKey: "1"]
-        app.launch()
-        app.launchEnvironment = [inTestsKey: "1"]
-    }
-
-    private func waitForMessage(_ checker: @escaping (Message) -> Bool) {
-        let exp = expectation(description: "wait for message")
-        var fired = false
-        waitingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, !fired else { return }
-            if self.client.messages.contains(where: checker) {
-                exp.fulfill()
-                fired = true
-            }
-        }
-
-        wait(for: [exp], timeout: 10)
-    }
-    private var waitingTimer: Timer?
-
-    private func waitForTimeout(_ seconds: Int) {
-        let exp = expectation(description: "wait for timeout")
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds)) {
-            exp.fulfill()
-        }
-        wait(for: [exp], timeout: Double(seconds + 1))
     }
 }

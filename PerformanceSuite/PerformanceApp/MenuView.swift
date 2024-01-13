@@ -38,6 +38,10 @@ struct MenuView: View {
                     Text("TTI")
                 }
 
+                NavigationLink(destination: FragmentTTIView()) {
+                    Text("Fragment TTI")
+                }
+
                 let renderingMode = ListMode("2", cellSleep: 0.060, delayInterval: 1, scrollOnAppear: true, popOnAppear: true)
                 NavigationLink(destination: ListView(mode: renderingMode)) {
                     Text("Freeze Time")

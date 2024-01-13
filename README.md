@@ -218,6 +218,18 @@ class MetricsConsumer: TTIMetricsReceiver {
 
 ```
 
+## How to reproduce metrics?
+
+In the repository we have the sample app `PerformanceApp`, on the first screen there are options to generate all the possible metrics:
+
+<img width="513" alt="menu" src="https://github.com/bookingcom/perfsuite-ios/assets/983021/268375e2-5b2d-433b-9741-dad5091f9698">
+
+- Startup time is generated on a `PerformanceApp` launch
+- Freeze time and App Freeze time will be generated after you open *Freeze time* screen
+- For other metrics select corresponding menu option
+
+We use this `PerformanceApp` in the integration UI tests, to verify all the metrics are properly generated.
+
 ## Development
 
 To launch project locally:

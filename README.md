@@ -13,7 +13,7 @@ PerformanceSuite is an iOS Swift library designed to measure and collect perform
 
 Compared to other solutions like MetricKit, Firebase Performance, Instabug, Sentry, etc., it offers additional flexibility. However, it focuses on the native part of performance monitoring. For storing and visualizing your metrics, building monitoring graphs, and setting up alerts, you will need to have your own backend.
 
-This library is used in the [main Booking.com iOS app](https://apps.apple.com/app/booking-com-hotels-travel/id367003839) which is used by millions of users every day.
+This library is used in the [main Booking.com iOS app](https://apps.apple.com/app/booking-com-hotels-travel/id367003839) which is used by millions of users every day. We've described how we measure performance at Booking.com in [this article](https://medium.com/booking-com-development/measuring-mobile-apps-performance-in-production-726e7e84072f).
 
 We've also opened the code for the similar [Android PerformanceSuite](https://github.com/bookingcom/perfsuite-android).
 

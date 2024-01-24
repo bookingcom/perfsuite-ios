@@ -103,6 +103,12 @@ public enum PerformanceMonitoring {
         }
     }
 
+
+    /// The information about the recent app start
+    public static var appStartInfo: AppStartInfo {
+        return AppInfoHolder.appStartInfo
+    }
+
     private static func appendTTIObservers(config: Config, vcObservers: inout [ViewControllerObserver]) {
         guard let screenTTIReceiver = config.screenTTIReceiver else {
             return

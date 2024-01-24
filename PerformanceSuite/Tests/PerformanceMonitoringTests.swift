@@ -37,6 +37,20 @@ final class PerformanceMonitoringTests: XCTestCase {
         let vc2 = UIViewController()
         wait(for: [exp2], timeout: 0.5)
         _ = vc2
+
+        let appStartInfo = PerformanceMonitoring.appStartInfo
+        XCTAssertFalse(appStartInfo.appStartedWithPrewarming)
+    }
+
+    func testPrewarming() throws {
+        setenv("ActivePrewarm", "1", 1)
+        PerformanceMonitoring.onMainStarted()
+        try PerformanceMonitoring.enable(config: .all(receiver: self))
+
+        XCTAssertTrue(PerformanceMonitoring.appStartInfo.appStartedWithPrewarming)
+
+        try PerformanceMonitoring.disable()
+        setenv("ActivePrewarm", "", 1)
     }
 
     private var onInitExpectation: XCTestExpectation?

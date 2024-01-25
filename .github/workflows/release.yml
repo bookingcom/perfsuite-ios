@@ -54,9 +54,3 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-
-      - name: Push to CocoaPods
-        env:
-          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
-        run: |
-          pod trunk push PerformanceSuite.podspec

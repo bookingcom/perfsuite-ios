@@ -188,8 +188,13 @@ public enum PerformanceMonitoring {
             return nil
         }
         if let startupProvider = dependencies.startupProvider {
+            precondition(hangsReceiver.hangThreshold > 0)
+            let hangTreshold = DispatchTimeInterval.timeInterval(hangsReceiver.hangThreshold)
+            let detectionTimerInterval = DispatchTimeInterval.timeInterval(hangsReceiver.hangThreshold / 2)
             let hangReporter = HangReporter(storage: dependencies.storage,
                                             startupProvider: startupProvider,
+                                            detectionTimerInterval: detectionTimerInterval,
+                                            hangThreshold: hangTreshold,
                                             didCrashPreviously: dependencies.didCrashPreviously,
                                             receiver: hangsReceiver)
             appReporters.append(hangReporter)

@@ -56,7 +56,7 @@ jobs:
       - name: Run Unit Tests
         env:
           scheme: UnitTests
-          destination: platform=iOS Simulator,name=iPhone 14 Pro
+          destination: platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5
           workspace: Project.xcworkspace
         run: |
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES -derivedDataPath DerivedData
@@ -91,7 +91,7 @@ jobs:
       - name: Set Xcode version
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest
+          xcode-version: 15.4
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
       - name: Run UI Tests
         env:
           scheme: UITests
-          destination: platform=iOS Simulator,name=iPhone 14 Pro
+          destination: platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5
           workspace: Project.xcworkspace
         run: |
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination"

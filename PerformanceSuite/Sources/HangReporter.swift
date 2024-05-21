@@ -38,7 +38,7 @@ public protocol HangsReceiver: AnyObject {
     var hangThreshold: TimeInterval { get }
 }
 
-extension HangsReceiver {
+public extension HangsReceiver {
     var hangThreshold: TimeInterval {
         return 2
     }

@@ -16,7 +16,7 @@ jobs:
         with:
           xcode-version: latest
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install CocoaPods
         run: |
@@ -47,7 +47,7 @@ jobs:
         with:
           xcode-version: latest
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install CocoaPods
         run: |
@@ -74,13 +74,13 @@ jobs:
           slather coverage --cobertura-xml --workspace $workspace --scheme $scheme --binary-file "$binary_file" --build-directory $build_directory $project
 
       - name: Upload code_coverage.txt
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code_coverage.txt
           path: code_coverage.txt
 
       - name: Upload cobertura.xml
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cobertura.xml
           path: cobertura.xml
@@ -94,7 +94,7 @@ jobs:
           xcode-version: latest
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install CocoaPods
         run: |
@@ -113,7 +113,7 @@ jobs:
     needs: unit-tests
     steps:
       - name: Download cobertura.xml
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cobertura.xml
 
@@ -137,7 +137,7 @@ jobs:
           path: code-coverage-results.md
 
       - name: Upload code-coverage-results.md
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage-results.md
           path: code-coverage-results.md
@@ -149,11 +149,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: badges
       - name: Download code_coverage.txt
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: code_coverage.txt
       - name: Commit code_coverage.txt
@@ -172,7 +172,7 @@ jobs:
         run: |
           echo "coverage=$(cat code_coverage.txt | grep -o -E '[0-9\.]+%' | awk '{print $1}')" >> $GITHUB_OUTPUT
       - name: Make Coverage Badge
-        uses: action-badges/core@0.2.2
+        uses: action-badges/core@0.3.1
         with:
           label: coverage
           message: "${{ steps.load-coverage.outputs.coverage }}"

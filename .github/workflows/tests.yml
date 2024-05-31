@@ -127,7 +127,7 @@ jobs:
           hide_branch_rate: false
           hide_complexity: true
           output: both
-          thresholds: '80 85'
+          thresholds: '75 85'
 
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2

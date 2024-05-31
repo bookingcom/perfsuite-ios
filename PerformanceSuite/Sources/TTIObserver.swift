@@ -8,21 +8,24 @@
 import UIKit
 
 /// Observer that calculates `TTIMetrics` during view controller lifetime.
-final class TTIObserver: ViewControllerObserver {
+final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIsReadyProvider {
 
-    init(
-        metricsReceiver: TTIMetricsReceiver, timeProvider: TimeProvider = defaultTimeProvider,
-        appStateObserver: AppStateObserver = DefaultAppStateObserver()
+    init(screen: T.ScreenIdentifier,
+         metricsReceiver: T,
+         timeProvider: TimeProvider = defaultTimeProvider,
+         appStateObserver: AppStateObserver = DefaultAppStateObserver()
     ) {
+        self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.timeProvider = timeProvider
         self.appStateObserver = appStateObserver
     }
 
-    private let metricsReceiver: TTIMetricsReceiver
+    private let screen: T.ScreenIdentifier
+    private let metricsReceiver: T
     private let timeProvider: TimeProvider
     private let appStateObserver: AppStateObserver
-    private weak var viewController: UIViewController?
+
 
     private var screenCreatedTime: DispatchTime?
     private var viewDidAppearTime: DispatchTime?
@@ -32,30 +35,14 @@ final class TTIObserver: ViewControllerObserver {
     private var sameRunLoopAsTheInit = false
     private var ignoreThisScreen = false
 
-    private static var upcomingCustomCreationTime: DispatchTime?
     private var customCreationTime: DispatchTime?
-
-    static func startCustomCreationTime(timeProvider: TimeProvider = defaultTimeProvider) {
-        let now = timeProvider.now()
-        PerformanceMonitoring.queue.async {
-            upcomingCustomCreationTime = now
-        }
-    }
-
-    static func clearCustomCreationTime() {
-        PerformanceMonitoring.queue.async {
-            upcomingCustomCreationTime = nil
-        }
-    }
 
     func beforeInit(viewController: UIViewController) {
         let now = timeProvider.now()
         PerformanceMonitoring.queue.async {
             self.sameRunLoopAsTheInit = true
             assert(!self.ttiCalculated)
-            assert(self.viewController == nil)
             assert(self.screenCreatedTime == nil)
-            self.viewController = viewController
             self.screenCreatedTime = now
 
             // set flag to false in the next main run loop. For that switch back to main queue, and again to our queue
@@ -76,7 +63,6 @@ final class TTIObserver: ViewControllerObserver {
         PerformanceMonitoring.queue.async {
             if !self.sameRunLoopAsTheInit {
                 assert(!self.ttiCalculated)
-                assert(viewController == self.viewController)
                 self.screenCreatedTime = now
             }
         }
@@ -85,8 +71,6 @@ final class TTIObserver: ViewControllerObserver {
     func afterViewWillAppear(viewController: UIViewController) {
         let now = timeProvider.now()
         PerformanceMonitoring.queue.async {
-            assert(viewController == self.viewController)
-
             if self.viewWillAppearTime != nil && self.ttiCalculated == false {
                 // viewWillAppear might be called twice before viewDidAppear
                 // One example: when we show view controller in UINavigationController
@@ -101,8 +85,8 @@ final class TTIObserver: ViewControllerObserver {
             }
 
             if self.shouldReportTTI && self.viewWillAppearTime == nil {
-                self.customCreationTime = Self.upcomingCustomCreationTime
-                Self.upcomingCustomCreationTime = nil
+                self.customCreationTime = TTIObserverHelper.upcomingCustomCreationTime
+                TTIObserverHelper.upcomingCustomCreationTime = nil
 
                 self.viewWillAppearTime = now
             }
@@ -112,7 +96,6 @@ final class TTIObserver: ViewControllerObserver {
     func afterViewDidAppear(viewController: UIViewController) {
         let now = timeProvider.now()
         PerformanceMonitoring.queue.async {
-            assert(viewController == self.viewController)
             if self.shouldReportTTI && self.viewDidAppearTime == nil {
                 self.viewDidAppearTime = now
                 self.reportTTIIfNeeded()
@@ -132,6 +115,10 @@ final class TTIObserver: ViewControllerObserver {
 
     func beforeViewDidDisappear(viewController: UIViewController) {}
 
+    static var identifier: AnyObject {
+        return TTIObserverHelper.identifier
+    }
+
     func screenIsReady() {
         let now = timeProvider.now()
         PerformanceMonitoring.queue.async {
@@ -146,36 +133,35 @@ final class TTIObserver: ViewControllerObserver {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
 
         guard shouldReportTTI,
-            let viewCreatedTime = screenCreatedTime,
-            let viewWillAppearTime = viewWillAppearTime,
-            let viewDidAppearTime = viewDidAppearTime,
-            let screenIsReadyTime = screenIsReadyTime,
-            let viewController = viewController
+            let screenCreatedTime,
+            let viewWillAppearTime,
+            let viewDidAppearTime,
+            let screenIsReadyTime
         else {
             return
         }
 
-        let ttiStartTime = customCreationTime ?? viewCreatedTime
+        let ttiStartTime = customCreationTime ?? screenCreatedTime
         let ttiEndTime = max(screenIsReadyTime, viewDidAppearTime)
         let tti = ttiStartTime.distance(to: ttiEndTime)
         if tti < .zero {
-            assertionFailure("We received negative TTI  for \(viewController). That should never happen")
+            assertionFailure("We received negative TTI  for \(screen). That should never happen")
             return
         }
 
         // TTFR should be measuring time only when controller is already alive, so we ignore `customCreationTime` if it happened before `init`.
-        let ttfrStartTime = max(viewCreatedTime, ttiStartTime)
+        let ttfrStartTime = max(screenCreatedTime, ttiStartTime)
         let ttfrEndTime = viewWillAppearTime
         let ttfr = ttfrStartTime.distance(to: ttfrEndTime)
         if ttfr < .zero {
-            assertionFailure("We received negative TTFR  for \(viewController). That should never happen")
+            assertionFailure("We received negative TTFR  for \(screen). That should never happen")
             return
         }
 
 
         let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
         PerformanceMonitoring.consumerQueue.async {
-            self.metricsReceiver.ttiMetricsReceived(metrics: metrics, viewController: viewController)
+            self.metricsReceiver.ttiMetricsReceived(metrics: metrics, screen: self.screen)
         }
 
         self.ttiCalculated = true
@@ -184,4 +170,27 @@ final class TTIObserver: ViewControllerObserver {
     private var shouldReportTTI: Bool {
         return !ttiCalculated && !appStateObserver.wasInBackground && !ignoreThisScreen
     }
+}
+
+/// Non-generic helper for generic `TTIObserver`. To put all the static methods and vars there.
+final class TTIObserverHelper {
+    static var upcomingCustomCreationTime: DispatchTime?
+    static func startCustomCreationTime(timeProvider: TimeProvider = defaultTimeProvider) {
+        let now = timeProvider.now()
+        PerformanceMonitoring.queue.async {
+            upcomingCustomCreationTime = now
+        }
+    }
+
+    static func clearCustomCreationTime() {
+        PerformanceMonitoring.queue.async {
+            upcomingCustomCreationTime = nil
+        }
+    }
+
+    static let identifier: AnyObject = NSObject()
+}
+
+protocol ScreenIsReadyProvider {
+    func screenIsReady()
 }

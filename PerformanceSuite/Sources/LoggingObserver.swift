@@ -13,94 +13,79 @@ import SwiftUI
 /// it is not intended to be used for some business-logic.
 ///
 /// If you execute something heavy, offload it to some other background thread.
-public protocol ViewControllerLoggingReceiver: AnyObject {
-
-    /// Getting the string key for a view controller which later will be passed to other methods.
-    /// Method is executed on the main thread, should be as performant as possible.
-    func key(for viewController: UIViewController) -> String
+public protocol ViewControllerLoggingReceiver: ScreenMetricsReceiver {
 
     /// Method is called during view controller's initialization
-    func onInit(viewControllerKey: String)
+    func onInit(screen: ScreenIdentifier)
 
     /// Method is called during view controller's `viewDidLoad`
-    func onViewDidLoad(viewControllerKey: String)
+    func onViewDidLoad(screen: ScreenIdentifier)
 
     /// Method is called during view controller's `viewWillAppear`
-    func onViewWillAppear(viewControllerKey: String)
+    func onViewWillAppear(screen: ScreenIdentifier)
 
     /// Method is called during view controller's `viewDidAppear`
-    func onViewDidAppear(viewControllerKey: String)
+    func onViewDidAppear(screen: ScreenIdentifier)
 
     /// Method is called during view controller's `viewWillDisappear`
-    func onViewWillDisappear(viewControllerKey: String)
+    func onViewWillDisappear(screen: ScreenIdentifier)
 
     /// Method is called during view controller's `viewDidDisappear`
-    func onViewDidDisappear(viewControllerKey: String)
+    func onViewDidDisappear(screen: ScreenIdentifier)
 }
 
 
 /// Observer which forward all delegate methods to its receiver for logging purposes
-final class LoggingObserver: ViewControllerObserver {
+final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerObserver {
 
-    init(receiver: ViewControllerLoggingReceiver) {
+    init(screen: V.ScreenIdentifier, receiver: V) {
+        self.screen = screen
         self.receiver = receiver
     }
 
-    private var receiver: ViewControllerLoggingReceiver?
+    private let screen: V.ScreenIdentifier
+    private let receiver: V
+
 
     func beforeInit(viewController: UIViewController) {
-        guard let key = self.receiver?.key(for: viewController) else {
-            return
-        }
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver?.onInit(viewControllerKey: key)
+            self.receiver.onInit(screen: self.screen)
         }
     }
 
     func beforeViewDidLoad(viewController: UIViewController) {
-        guard let key = self.receiver?.key(for: viewController) else {
-            return
-        }
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver?.onViewDidLoad(viewControllerKey: key)
+            self.receiver.onViewDidLoad(screen: self.screen)
         }
     }
 
     func afterViewWillAppear(viewController: UIViewController) {
-        guard let key = self.receiver?.key(for: viewController) else {
-            return
-        }
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver?.onViewWillAppear(viewControllerKey: key)
+            self.receiver.onViewWillAppear(screen: self.screen)
         }
     }
 
     func afterViewDidAppear(viewController: UIViewController) {
-        guard let key = self.receiver?.key(for: viewController) else {
-            return
-        }
         rememberOpenedScreenIfNeeded(viewController)
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver?.onViewDidAppear(viewControllerKey: key)
+            self.receiver.onViewDidAppear(screen: self.screen)
         }
     }
 
     func beforeViewWillDisappear(viewController: UIViewController) {
-        guard let key = self.receiver?.key(for: viewController) else {
-            return
-        }
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver?.onViewWillDisappear(viewControllerKey: key)
+            self.receiver.onViewWillDisappear(screen: self.screen)
         }
     }
 
     func beforeViewDidDisappear(viewController: UIViewController) {
-        guard let key = self.receiver?.key(for: viewController) else {
-            return
-        }
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver?.onViewDidDisappear(viewControllerKey: key)
+            self.receiver.onViewDidDisappear(screen: self.screen)
         }
+    }
+
+    static var identifier: AnyObject {
+        return loggingObserverIdentifier
     }
 
     // MARK: - Top screen detection
@@ -196,6 +181,8 @@ final class LoggingObserver: ViewControllerObserver {
     ]
 
 }
+
+private let loggingObserverIdentifier = NSObject()
 
 // We cannot check `viewController is UIHostingController` because of generics,
 // so we use helper protocol here

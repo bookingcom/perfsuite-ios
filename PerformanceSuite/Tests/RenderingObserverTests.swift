@@ -31,7 +31,7 @@ class RenderingObserverTests: XCTestCase {
     func testRenderingObserver() {
         let metricsReceiver = RenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
-        let observer = RenderingObserver(metricsReceiver: metricsReceiver, framesMeter: framesMeter)
+        let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
 
         let vc = UIViewController()
 
@@ -97,7 +97,7 @@ class RenderingObserverTests: XCTestCase {
     func testRenderingObserverIsResetAfterViewDisappeared() {
         let metricsReceiver = RenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
-        let observer = RenderingObserver(metricsReceiver: metricsReceiver, framesMeter: framesMeter)
+        let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
 
         let vc = UIViewController()
 
@@ -174,18 +174,18 @@ class FramesMeterStub: FramesMeter {
 
 class RenderingMetricsReceiverStub: RenderingMetricsReceiver {
 
-    func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController) {
+    func renderingMetricsReceived(metrics: RenderingMetrics, screen viewController: UIViewController) {
         renderingCallback(metrics, viewController)
         renderingMetrics = metrics
         lastController = viewController
     }
 
-    func shouldTrack(viewController: UIViewController) -> Bool {
+    func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
         if viewController is UINavigationController
             || viewController is UITabBarController {
-            return false
+            return nil
         }
-        return true
+        return viewController
     }
 
     var renderingCallback: (RenderingMetrics, UIViewController) -> Void = { (_, _) in }

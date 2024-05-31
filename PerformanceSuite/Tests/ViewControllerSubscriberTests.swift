@@ -234,6 +234,8 @@ class Observer: ViewControllerObserver {
         lastTime = DispatchTime.now()
     }
 
+    static let identifier: AnyObject = NSObject()
+
     func clear() {
         viewController = nil
         lastMethod = nil

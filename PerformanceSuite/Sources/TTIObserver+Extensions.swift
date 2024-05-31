@@ -29,7 +29,7 @@ public extension UIViewController {
     /// }
     /// ```
     @objc func screenIsReady() {
-        let observer = ViewControllerObserverFactory<TTIObserver>.existingObserver(for: self)
+        let observer = ViewControllerObserverFactoryHelper.existingObserver(for: self, identifier: TTIObserverHelper.identifier) as? ScreenIsReadyProvider
         observer?.screenIsReady()
     }
 
@@ -45,14 +45,14 @@ public extension UIViewController {
     /// For example, when you create UIViewController and cache it in some property earlier then showing it.
     /// Then you call this method before actually showing this controller.
     @objc static func screenIsBeingCreated() {
-        TTIObserver.startCustomCreationTime()
+        TTIObserverHelper.startCustomCreationTime()
     }
 
 
     /// Call this method in case you called `screenIsBeingCreated`, but screen won't be created.
     /// For example network request failed, or user tapped `cancel` or so on.
     @objc static func screenCreationCancelled() {
-        TTIObserver.clearCustomCreationTime()
+        TTIObserverHelper.clearCustomCreationTime()
     }
 }
 

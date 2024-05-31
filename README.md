@@ -62,15 +62,15 @@ func appRenderingMetricsReceived(metrics: RenderingMetrics) { ... }
 
 ```
 
-For screen-level metrics you should return `true` or `false` if we should monitor this exact view controller object
+For screen-level metrics you should return `ScreenIdentifier` from `screenIdentifier(for:)` or nil if this view controller shouldn't be tracked. Check [Screen identifiers] for the example.
 
 ```swift
 
-func shouldTrack(viewController: UIViewController) -> Bool { ... }
+func screenIdentifier(for viewController: UIViewController) -> ScreenIdentifier? { ... }
 
-func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) { ... }
+func ttiMetricsReceived(metrics: TTIMetrics, screen: ScreenIdentifier) { ... }
 
-func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController) { ... }
+func renderingMetricsReceived(metrics: RenderingMetrics, screen: ScreenIdentifier) { ... }
 
 ```
 
@@ -149,7 +149,7 @@ try PerformanceMonitoring.enable(
 
 ### Screen identifiers
 
-All screen-level metrics are coming from PerformanceSuite to your code with the `UIViewController` object. To convert view controller object to a string identifier you may use such approach:
+All screen-level metrics are coming from PerformanceSuite to your code with the `UIViewController` object. To convert view controller object to a `ScreenIdentifier` you may use such approach:
 
 - Define `PerformanceScreen` enum with screen identifiers for all your screens
 - Define protocol `PerformanceTrackableScreen` where every screen should return this enum
@@ -201,16 +201,11 @@ extension UIHostingController: PerformanceTrackableScreen {
 // In our metrics consumer we will receive UIViewController 
 // and should determine which screen is this.
 class MetricsConsumer: TTIMetricsReceiver {
-    func shouldTrack(viewController: UIViewController) -> Bool {
-        (viewController as? PerformanceTrackableScreen)?.performanceScreen != nil
+    func screenIdentifier(for viewController: UIViewController) -> PerformanceScreen? {
+        (viewController as? PerformanceTrackableScreen)?.performanceScreen
     }
 
-    func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) {
-        // find identifier for UIViewController
-        guard let performanceScreen = (viewController as? PerformanceTrackableScreen)?.performanceScreen else {
-            return
-        }
-
+    func ttiMetricsReceived(metrics: TTIMetrics, screen: PerformanceScreen) {
         // send the event to your backend with this identifier
         send(metric: "tti", value: metrics.tti.seconds, screen: performanceScreen.rawValue)
     }

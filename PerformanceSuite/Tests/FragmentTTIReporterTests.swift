@@ -230,7 +230,7 @@ final class FragmentTTIReporterTests: XCTestCase {
 }
 
 private class FragmentTTIMetricsReceiverStub: FragmentTTIMetricsReceiver {
-    func fragmentTTIMetricsReceived(metrics: TTIMetrics, identifier: String) {
+    func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment identifier: String) {
         self.identifier = identifier
         self.metrics = metrics
     }

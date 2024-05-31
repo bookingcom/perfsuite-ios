@@ -91,12 +91,12 @@ public enum PerformanceMonitoring {
     /// This method will start TTI measurement from the moment of the call.
     /// - Parameter identifier: string identifier of your fragment.
     /// - Returns: trackable fragment object, you will need to call `fragmentIsReady` on this object to finish TTI tracking.
-    public static func startFragmentTTI(identifier: String) -> FragmentTTITrackable {
+    public static func startFragmentTTI<FragmentIdentifier>(identifier: FragmentIdentifier) -> FragmentTTITrackable {
         lock.lock()
         defer {
             lock.unlock()
         }
-        if let reporter = appReporters.compactMap({ $0 as? FragmentTTIReporter }).first {
+        if let reporter = appReporters.compactMap({ $0 as? AnyFragmentTTIReporter }).first {
             return reporter.start(identifier: identifier)
         } else {
             return EmptyFragmentTTITrackable()
@@ -109,14 +109,24 @@ public enum PerformanceMonitoring {
         return AppInfoHolder.appStartInfo
     }
 
+    private static func makeTTIObserverFactory<T: TTIMetricsReceiver>(metricsReceiver: T) -> any ViewControllerObserver {
+        return ViewControllerObserverFactory<TTIObserver, T>(metricsReceiver: metricsReceiver) { screen in
+            TTIObserver(screen: screen, metricsReceiver: metricsReceiver)
+        }
+    }
+
     private static func appendTTIObservers(config: Config, vcObservers: inout [ViewControllerObserver]) {
         guard let screenTTIReceiver = config.screenTTIReceiver else {
             return
         }
-        let ttiFactory = ViewControllerObserverFactory<TTIObserver>(metricsReceiver: screenTTIReceiver) {
-            TTIObserver(metricsReceiver: screenTTIReceiver)
-        }
+        let ttiFactory = makeTTIObserverFactory(metricsReceiver: screenTTIReceiver)
         vcObservers.append(ttiFactory)
+    }
+
+    private static func makeRenderingObserverFactory<R: RenderingMetricsReceiver>(metricsReceiver: R, framesMeter: FramesMeter) -> any ViewControllerObserver {
+        return ViewControllerObserverFactory<RenderingObserver, R>(metricsReceiver: metricsReceiver) { screen in
+            RenderingObserver(screen: screen, metricsReceiver: metricsReceiver, framesMeter: framesMeter)
+        }
     }
 
     private static func appendRenderingObservers(
@@ -128,9 +138,7 @@ public enum PerformanceMonitoring {
         let framesMeter = DefaultFramesMeter()
 
         if let screenRenderingReceiver = config.screenRenderingReceiver {
-            let renderingFactory = ViewControllerObserverFactory<RenderingObserver>(metricsReceiver: screenRenderingReceiver) {
-                RenderingObserver(metricsReceiver: screenRenderingReceiver, framesMeter: framesMeter)
-            }
+            let renderingFactory = makeRenderingObserverFactory(metricsReceiver: screenRenderingReceiver, framesMeter: framesMeter)
             vcObservers.append(renderingFactory)
         }
 
@@ -219,19 +227,29 @@ public enum PerformanceMonitoring {
         vcObservers.append(leaksObserver)
     }
 
+    private static func makeLoggingObserverFactory<V: ViewControllerLoggingReceiver>(metricsReceiver: V) -> any ViewControllerObserver {
+        return ViewControllerObserverFactory<LoggingObserver, V>(metricsReceiver: metricsReceiver) { screen in
+            LoggingObserver(screen: screen, receiver: metricsReceiver)
+        }
+    }
+
     private static func appendLoggingObservers(config: Config, vcObservers: inout [ViewControllerObserver]) {
         guard let loggingReceiver = config.loggingReceiver else {
             return
         }
-        let loggingObserver = LoggingObserver(receiver: loggingReceiver)
-        vcObservers.append(loggingObserver)
+        let loggingFactory = makeLoggingObserverFactory(metricsReceiver: loggingReceiver)
+        vcObservers.append(loggingFactory)
     }
 
-    private static func appendFragmentTTIRepoter(config: Config, appReporters: inout [AppMetricsReporter]) {
+    private static func makeFragmentTTIReporter<F: FragmentTTIMetricsReceiver>(metricsReceiver: F) -> AppMetricsReporter {
+        return AnyFragmentTTIReporter(reporter: FragmentTTIReporter(metricsReceiver: metricsReceiver))
+    }
+
+    private static func appendFragmentTTIReporter(config: Config, appReporters: inout [AppMetricsReporter]) {
         guard let fragmentTTIReceiver = config.fragmentTTIReceiver else {
             return
         }
-        let fragmentTTIReporter = FragmentTTIReporter(metricsReceiver: fragmentTTIReceiver)
+        let fragmentTTIReporter = makeFragmentTTIReporter(metricsReceiver: fragmentTTIReceiver)
         appReporters.append(fragmentTTIReporter)
     }
 
@@ -259,7 +277,7 @@ public enum PerformanceMonitoring {
         )
         appendLeaksObservers(config: config, vcObservers: &vcObservers)
         appendLoggingObservers(config: config, vcObservers: &vcObservers)
-        appendFragmentTTIRepoter(config: config, appReporters: &appReporters)
+        appendFragmentTTIReporter(config: config, appReporters: &appReporters)
 
         return (vcObservers, appReporters)
     }

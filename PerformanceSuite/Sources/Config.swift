@@ -8,15 +8,15 @@
 import Foundation
 
 public enum ConfigItem {
-    case screenLevelTTI(TTIMetricsReceiver)
-    case screenLevelRendering(RenderingMetricsReceiver)
+    case screenLevelTTI(any TTIMetricsReceiver)
+    case screenLevelRendering(any RenderingMetricsReceiver)
     case appLevelRendering(AppRenderingMetricsReceiver)
     case startupTime(StartupTimeReceiver)
     case watchdogTerminations(WatchdogTerminationsReceiver)
     case hangs(HangsReceiver)
     case viewControllerLeaks(ViewControllerLeaksReceiver)
-    case logging(ViewControllerLoggingReceiver)
-    case fragmentTTI(FragmentTTIMetricsReceiver)
+    case logging(any ViewControllerLoggingReceiver)
+    case fragmentTTI(any FragmentTTIMetricsReceiver)
 }
 
 public typealias Config = [ConfigItem]
@@ -56,7 +56,7 @@ extension Config {
         return result
     }
 
-    var screenTTIReceiver: TTIMetricsReceiver? {
+    var screenTTIReceiver: (any TTIMetricsReceiver)? {
         findReceiver(title: "screenLevelTTI") { item in
             if case .screenLevelTTI(let result) = item {
                 return result
@@ -66,7 +66,7 @@ extension Config {
         }
     }
 
-    var screenRenderingReceiver: RenderingMetricsReceiver? {
+    var screenRenderingReceiver: (any RenderingMetricsReceiver)? {
         findReceiver(title: "screenLevelRendering") { item in
             if case .screenLevelRendering(let result) = item {
                 return result
@@ -126,7 +126,7 @@ extension Config {
         }
     }
 
-    var loggingReceiver: ViewControllerLoggingReceiver? {
+    var loggingReceiver: (any ViewControllerLoggingReceiver)? {
         findReceiver(title: "logging") { item in
             if case .logging(let result) = item {
                 return result
@@ -136,7 +136,7 @@ extension Config {
         }
     }
 
-    var fragmentTTIReceiver: FragmentTTIMetricsReceiver? {
+    var fragmentTTIReceiver: (any FragmentTTIMetricsReceiver)? {
         findReceiver(title: "fragmentTTI") { item in
             if case .fragmentTTI(let result) = item {
                 return result
@@ -146,7 +146,7 @@ extension Config {
         }
     }
 
-    public static func all(receiver: PerformanceSuiteMetricsReceiver) -> Self {
+    public static func all(receiver: any PerformanceSuiteMetricsReceiver) -> Self {
         [
             .screenLevelTTI(receiver),
             .screenLevelRendering(receiver),

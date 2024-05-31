@@ -21,17 +21,35 @@ public protocol FragmentTTITrackable: AnyObject {
     func fragmentIsReady()
 }
 
+
+/// Implement this protocol if you want to receive events about Fragment TTI
 public protocol FragmentTTIMetricsReceiver: AnyObject {
-    func fragmentTTIMetricsReceived(metrics: TTIMetrics, identifier: String)
+    /// This can be String, or enum or any other identifier
+    associatedtype FragmentIdentifier
+
+
+    /// Method is called when TTI metrics are calculated for some fragment.
+    ///
+    /// `Config.fragmentTTI` should be enabled.
+    ///
+    /// Method is called on a separate background queue `PerformanceMonitoring.consumerQueue`.
+    ///
+    /// It is called after `fragmentIsReady` is executed on `FragmentTTITrackable` object,
+    /// which is returned from `PerformanceMonitoring.startFragmentTTI`.
+    ///
+    /// - Parameters:
+    ///   - metrics: TTI metric for the fragment
+    ///   - fragment: fragment identifier for which we received the metrics
+    func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment: FragmentIdentifier)
 }
 
-private class Trackable: FragmentTTITrackable {
+private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
 
-    private let identifier: String
+    private let identifier: F.FragmentIdentifier
     private let timeProvider: TimeProvider
-    private let metricsReceiver: FragmentTTIMetricsReceiver
+    private let metricsReceiver: F
     private let appStateObserver: AppStateObserver
-    private weak var reporter: FragmentTTIReporter?
+    private weak var reporter: FragmentTTIReporter<F>?
 
     private let createdTime: DispatchTime
     private var isRenderedTime: DispatchTime?
@@ -39,11 +57,11 @@ private class Trackable: FragmentTTITrackable {
 
 
     init(
-        identifier: String,
+        identifier: F.FragmentIdentifier,
         timeProvider: TimeProvider,
-        metricsReceiver: FragmentTTIMetricsReceiver,
+        metricsReceiver: F,
         appStateObserver: AppStateObserver,
-        reporter: FragmentTTIReporter
+        reporter: FragmentTTIReporter<F>
     ) {
         self.identifier = identifier
         self.timeProvider = timeProvider
@@ -99,17 +117,17 @@ private class Trackable: FragmentTTITrackable {
 
         let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
         PerformanceMonitoring.consumerQueue.async {
-            self.metricsReceiver.fragmentTTIMetricsReceived(metrics: metrics, identifier: self.identifier)
+            self.metricsReceiver.fragmentTTIMetricsReceived(metrics: metrics, fragment: self.identifier)
         }
 
         ttiCalculated = true
     }
 }
 
-class FragmentTTIReporter: AppMetricsReporter {
+class FragmentTTIReporter<F: FragmentTTIMetricsReceiver>: AppMetricsReporter {
 
     init(
-        metricsReceiver: FragmentTTIMetricsReceiver, timeProvider: TimeProvider = defaultTimeProvider,
+        metricsReceiver: F, timeProvider: TimeProvider = defaultTimeProvider,
         appStateObserverFactory: @escaping () -> AppStateObserver = { DefaultAppStateObserver() }
     ) {
         self.metricsReceiver = metricsReceiver
@@ -117,12 +135,12 @@ class FragmentTTIReporter: AppMetricsReporter {
         self.appStateObserverFactory = appStateObserverFactory
     }
 
-    private let metricsReceiver: FragmentTTIMetricsReceiver
+    private let metricsReceiver: F
     private let timeProvider: TimeProvider
     private let appStateObserverFactory: () -> AppStateObserver
 
-    func start(identifier: String) -> FragmentTTITrackable {
-        let fragment = Trackable(
+    func start(identifier: F.FragmentIdentifier) -> FragmentTTITrackable {
+        let fragment: Trackable<F> = Trackable(
             identifier: identifier,
             timeProvider: timeProvider,
             metricsReceiver: metricsReceiver,
@@ -135,10 +153,10 @@ class FragmentTTIReporter: AppMetricsReporter {
 /// Stub trackable object which is returned in case no FragmentTTIReporter is registered
 class EmptyFragmentTTITrackable: FragmentTTITrackable {
     func fragmentIsReady() {
-        preconditionFailure("You've called startFragmentTTI without registering FragmentTTIReceiver")
+        preconditionFailure("You've called startFragmentTTI without registering FragmentTTIReceiver properly")
     }
     func fragmentIsRendered() {
-        preconditionFailure("You've called startFragmentTTI without registering FragmentTTIReceiver")
+        preconditionFailure("You've called startFragmentTTI without registering FragmentTTIReceiver properly")
     }
 }
 
@@ -146,4 +164,22 @@ class EmptyFragmentTTITrackable: FragmentTTITrackable {
 /// Adding ability to override preconditionFailure in tests
 dynamic func preconditionFailure(_ message: String, file: StaticString = #file, line: UInt = #line) {
     Swift.preconditionFailure(message, file: file, line: line)
+}
+
+
+/// Type eraser class, that allows us to use existential protocols for FragmentReceiver
+class AnyFragmentTTIReporter: AppMetricsReporter {
+    init<F>(reporter: FragmentTTIReporter<F>) {
+        _start = { (identifier: Any) in
+            guard let identifier = identifier as? F.FragmentIdentifier else {
+                return EmptyFragmentTTITrackable()
+            }
+            return reporter.start(identifier: identifier)
+        }
+    }
+    private let _start: (Any) -> FragmentTTITrackable
+
+    func start<FragmentIdentifier>(identifier: FragmentIdentifier) -> FragmentTTITrackable {
+        _start(identifier)
+    }
 }

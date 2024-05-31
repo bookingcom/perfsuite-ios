@@ -14,8 +14,8 @@ final class LoggingObserverTests: XCTestCase {
 
     func testMethodsAreCalled() {
         let stub = LoggingReceiverStub()
-        let observer = LoggingObserver(receiver: stub)
         let vc = UIViewController()
+        let observer = LoggingObserver(screen: "view controller", receiver: stub)
 
         XCTAssertNil(stub.method)
         XCTAssertNil(stub.viewController)
@@ -23,43 +23,37 @@ final class LoggingObserverTests: XCTestCase {
         observer.beforeInit(viewController: vc)
         PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onInit")
-        XCTAssertEqual(stub.viewController, vc)
-        XCTAssertEqual(stub.key, vc.description)
+        XCTAssertEqual(stub.key, "view controller")
         stub.clear()
 
         observer.beforeViewDidLoad(viewController: vc)
         PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewDidLoad")
-        XCTAssertEqual(stub.viewController, vc)
-        XCTAssertEqual(stub.key, vc.description)
+        XCTAssertEqual(stub.key, "view controller")
         stub.clear()
 
         observer.afterViewWillAppear(viewController: vc)
         PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewWillAppear")
-        XCTAssertEqual(stub.viewController, vc)
-        XCTAssertEqual(stub.key, vc.description)
+        XCTAssertEqual(stub.key, "view controller")
         stub.clear()
 
         observer.afterViewDidAppear(viewController: vc)
         PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewDidAppear")
-        XCTAssertEqual(stub.viewController, vc)
-        XCTAssertEqual(stub.key, vc.description)
+        XCTAssertEqual(stub.key, "view controller")
         stub.clear()
 
         observer.beforeViewWillDisappear(viewController: vc)
         PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewWillDisappear")
-        XCTAssertEqual(stub.viewController, vc)
-        XCTAssertEqual(stub.key, vc.description)
+        XCTAssertEqual(stub.key, "view controller")
         stub.clear()
 
         observer.beforeViewDidDisappear(viewController: vc)
         PerformanceMonitoring.consumerQueue.sync {}
         XCTAssertEqual(stub.method, "onViewDidDisappear")
-        XCTAssertEqual(stub.viewController, vc)
-        XCTAssertEqual(stub.key, vc.description)
+        XCTAssertEqual(stub.key, "view controller")
         stub.clear()
     }
 
@@ -67,7 +61,6 @@ final class LoggingObserverTests: XCTestCase {
         AppInfoHolder.resetForTests()
 
         let stub = LoggingReceiverStub()
-        let observer = LoggingObserver(receiver: stub)
         let vcs = [
             UIViewController(), // ignored, UIKit
             UIHostingController(rootView: MyViewForLoggingObserverTests()), // take
@@ -78,7 +71,16 @@ final class LoggingObserverTests: XCTestCase {
             MyViewController3(rootView: MyView3()), // take
 
         ]
-        vcs.forEach { observer.afterViewDidAppear(viewController: $0) }
+        let observers = vcs.compactMap {
+            if let screen = stub.screenIdentifier(for: $0) {
+                let o = LoggingObserver(screen: screen, receiver: stub)
+                o.afterViewDidAppear(viewController: $0)
+                return o
+            } else {
+                return nil
+            }
+
+        }
 
         XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [
             "MyViewForLoggingObserverTests",
@@ -89,37 +91,37 @@ final class LoggingObserverTests: XCTestCase {
 }
 
 class LoggingReceiverStub: ViewControllerLoggingReceiver {
-    func key(for viewController: UIViewController) -> String {
+    func screenIdentifier(for viewController: UIViewController) -> String? {
         self.viewController = viewController
         return viewController.description
     }
 
-    func onInit(viewControllerKey: String) {
+    func onInit(screen viewControllerKey: String) {
         self.method = "onInit"
         self.key = viewControllerKey
     }
 
-    func onViewDidLoad(viewControllerKey: String) {
+    func onViewDidLoad(screen viewControllerKey: String) {
         self.method = "onViewDidLoad"
         self.key = viewControllerKey
     }
 
-    func onViewWillAppear(viewControllerKey: String) {
+    func onViewWillAppear(screen viewControllerKey: String) {
         self.method = "onViewWillAppear"
         self.key = viewControllerKey
     }
 
-    func onViewDidAppear(viewControllerKey: String) {
+    func onViewDidAppear(screen viewControllerKey: String) {
         self.method = "onViewDidAppear"
         self.key = viewControllerKey
     }
 
-    func onViewWillDisappear(viewControllerKey: String) {
+    func onViewWillDisappear(screen viewControllerKey: String) {
         self.method = "onViewWillDisappear"
         self.key = viewControllerKey
     }
 
-    func onViewDidDisappear(viewControllerKey: String) {
+    func onViewDidDisappear(screen viewControllerKey: String) {
         self.method = "onViewDidDisappear"
         self.key = viewControllerKey
     }

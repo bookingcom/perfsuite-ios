@@ -2,11 +2,11 @@ PODS:
   - GCDWebServer (3.5.4):
     - GCDWebServer/Core (= 3.5.4)
   - GCDWebServer/Core (3.5.4)
-  - PerformanceSuite (1.2.7)
-  - PerformanceSuite/PerformanceApp (1.2.7):
+  - PerformanceSuite (1.3.0)
+  - PerformanceSuite/PerformanceApp (1.3.0):
     - GCDWebServer
-  - PerformanceSuite/Tests (1.2.7)
-  - PerformanceSuite/UITests (1.2.7):
+  - PerformanceSuite/Tests (1.3.0)
+  - PerformanceSuite/UITests (1.3.0):
     - GCDWebServer
     - PerformanceSuite/PerformanceApp
   - SwiftLint (0.54.0)
@@ -29,9 +29,9 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   GCDWebServer: 2c156a56c8226e2d5c0c3f208a3621ccffbe3ce4
-  PerformanceSuite: 65a6deea664c2d892051f327e0ae64ac42ccc2a2
+  PerformanceSuite: e2dba0a5bb7cb4d3d99678096108cc7f3dc38c21
   SwiftLint: c1de071d9d08c8aba837545f6254315bc900e211
 
 PODFILE CHECKSUM: 5aa3b5f2ace39bfa37a4afead6fd965c443bc6f4
 
-COCOAPODS: 1.14.3
+COCOAPODS: 1.15.2

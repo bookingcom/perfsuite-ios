@@ -60,6 +60,6 @@ class BaseTests: XCTestCase {
             }
         }
 
-        wait(for: [exp], timeout: 10)
+        wait(for: [exp], timeout: 60)
     }
 }

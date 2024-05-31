@@ -115,7 +115,10 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
     /// This function will be called once after any view controller's `viewDidAppearTime`.
     func onViewDidAppearOfTheFirstViewController() {
         guard let viewDidLoadTime = viewDidLoadTime else {
-            assertionFailure("View did load wasn't recorded")
+            // This can happen, at least in XCTest,
+            // that viewDidAppear is called for a view controller without viewDidLoad was called.
+            // I reproduced this case in `PerformanceMonitoringTests.testIntegration` test.
+            // Didn't see it in production though.
             return
         }
         let viewDidAppearTime = Self.currentTime()

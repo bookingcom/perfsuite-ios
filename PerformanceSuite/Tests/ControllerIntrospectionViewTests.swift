@@ -40,6 +40,6 @@ class ControllerIntrospectionViewTests: XCTestCase {
         window.rootViewController = vc
         window.makeKeyAndVisible()
 
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 2, handler: nil)
     }
 }

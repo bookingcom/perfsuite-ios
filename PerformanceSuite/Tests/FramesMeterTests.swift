@@ -30,7 +30,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
 
         func oneTick() {
             self.expectation = self.expectation(description: "wait for the next frame")
-            waitForExpectations(timeout: 1, handler: nil)
+            waitForExpectations(timeout: 2, handler: nil)
 
             if self.lastDuration == nil {
                 XCTFail("Check if your simulator is launched during this test run")

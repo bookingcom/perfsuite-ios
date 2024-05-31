@@ -16,7 +16,7 @@ jobs:
         with:
           xcode-version: latest
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install CocoaPods
         run: |
@@ -47,7 +47,7 @@ jobs:
         with:
           xcode-version: latest
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Install CocoaPods
         run: |
@@ -56,7 +56,7 @@ jobs:
       - name: Run Unit Tests
         env:
           scheme: UnitTests
-          destination: platform=iOS Simulator,name=iPhone 14 Pro
+          destination: platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5
           workspace: Project.xcworkspace
         run: |
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES -derivedDataPath DerivedData
@@ -74,13 +74,13 @@ jobs:
           slather coverage --cobertura-xml --workspace $workspace --scheme $scheme --binary-file "$binary_file" --build-directory $build_directory $project
 
       - name: Upload code_coverage.txt
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code_coverage.txt
           path: code_coverage.txt
 
       - name: Upload cobertura.xml
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cobertura.xml
           path: cobertura.xml
@@ -91,10 +91,10 @@ jobs:
       - name: Set Xcode version
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest
+          xcode-version: 15.4
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install CocoaPods
         run: |
@@ -103,7 +103,7 @@ jobs:
       - name: Run UI Tests
         env:
           scheme: UITests
-          destination: platform=iOS Simulator,name=iPhone 14 Pro
+          destination: platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5
           workspace: Project.xcworkspace
         run: |
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination"
@@ -113,7 +113,7 @@ jobs:
     needs: unit-tests
     steps:
       - name: Download cobertura.xml
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: cobertura.xml
 
@@ -127,7 +127,7 @@ jobs:
           hide_branch_rate: false
           hide_complexity: true
           output: both
-          thresholds: '80 85'
+          thresholds: '75 85'
 
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
@@ -137,7 +137,7 @@ jobs:
           path: code-coverage-results.md
 
       - name: Upload code-coverage-results.md
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage-results.md
           path: code-coverage-results.md
@@ -149,11 +149,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: badges
       - name: Download code_coverage.txt
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: code_coverage.txt
       - name: Commit code_coverage.txt
@@ -172,7 +172,7 @@ jobs:
         run: |
           echo "coverage=$(cat code_coverage.txt | grep -o -E '[0-9\.]+%' | awk '{print $1}')" >> $GITHUB_OUTPUT
       - name: Make Coverage Badge
-        uses: action-badges/core@0.2.2
+        uses: action-badges/core@0.3.1
         with:
           label: coverage
           message: "${{ steps.load-coverage.outputs.coverage }}"

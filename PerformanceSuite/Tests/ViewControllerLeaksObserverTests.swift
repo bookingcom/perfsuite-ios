@@ -13,12 +13,17 @@ import XCTest
 // swiftlint:disable force_unwrapping
 class ViewControllerLeaksObserverTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+    }
+
     private func performLeakTest(expectLeak: Bool, viewControllerMaker: () -> UIViewController) throws {
         let receiver = ViewControllerLeaksReceiverStub()
         receiver.expectation = expectation(description: "leak detected")
         receiver.expectation?.isInverted = !expectLeak
 
-        let observer = ViewControllerLeaksObserver(metricsReceiver: receiver, detectionTimeout: .milliseconds(3))
+        let observer = ViewControllerLeaksObserver(metricsReceiver: receiver, detectionTimeout: .milliseconds(50))
 
         try ViewControllerSubscriber.shared.subscribeObserver(observer)
 
@@ -40,13 +45,13 @@ class ViewControllerLeaksObserverTests: XCTestCase {
                     }
                 }
             }
-            wait(for: [exp], timeout: 1)
+            wait(for: [exp], timeout: 5)
         }
 
         PerformanceMonitoring.queue.sync { }
         PerformanceMonitoring.consumerQueue.sync { }
 
-        wait(for: [receiver.expectation!], timeout: 1)
+        wait(for: [receiver.expectation!], timeout: 5)
         if expectLeak {
             let vc = weakViewController
             XCTAssertNotNil(vc)

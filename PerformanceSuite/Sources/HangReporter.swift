@@ -26,6 +26,22 @@ public protocol HangsReceiver: AnyObject {
     /// If user has never launched the app after the hang, we won't receive such event. To track those
     /// users, you can track them in this method.
     func hangStarted(info: HangInfo)
+
+
+    /// If the main thread doesn't respond for `hangThreshold`,
+    /// we consider this as a start of a hang.
+    ///
+    /// After the main thread is back active, we log a hang as a non-fatal.
+    /// If the main thread was never back active, we log as a fatal hang.
+    ///
+    /// Default value is 2 seconds.
+    var hangThreshold: TimeInterval { get }
+}
+
+public extension HangsReceiver {
+    var hangThreshold: TimeInterval {
+        return 2
+    }
 }
 
 
@@ -77,8 +93,8 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         startupProvider: StartupProvider,
         appStateProvider: AppStateProvider = UIApplication.shared,
         workingQueue: DispatchQueue = PerformanceMonitoring.queue,
-        detectionTimerInterval: DispatchTimeInterval = .seconds(1),
-        hangThreshold: DispatchTimeInterval = .seconds(2),
+        detectionTimerInterval: DispatchTimeInterval,
+        hangThreshold: DispatchTimeInterval,
         didCrashPreviously: Bool = false,
         enabledInDebug: Bool = false,
         receiver: HangsReceiver

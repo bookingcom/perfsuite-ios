@@ -10,7 +10,13 @@ import UIKit
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
-    public init() { }
+    public init(observersOnBackgroundQueue: Bool = false) {
+        self.observersOnBackgroundQueue = observersOnBackgroundQueue
+    }
+
+
+    /// Experiment to try to create view controller observers on the PerformanceMonitoring.queue
+    let observersOnBackgroundQueue: Bool
 }
 
 public enum PerformanceMonitoring {

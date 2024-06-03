@@ -71,7 +71,7 @@ final class LoggingObserverTests: XCTestCase {
             MyViewController3(rootView: MyView3()), // take
 
         ]
-        let observers = vcs.compactMap {
+        _ = vcs.compactMap {
             if let screen = stub.screenIdentifier(for: $0) {
                 let o = LoggingObserver(screen: screen, receiver: stub)
                 o.afterViewDidAppear(viewController: $0)
@@ -81,6 +81,17 @@ final class LoggingObserverTests: XCTestCase {
             }
 
         }
+
+        let exp = expectation(description: "openedScreens")
+
+        DispatchQueue.global().async {
+            while (AppInfoHolder.appRuntimeInfo.openedScreens.count < 3) {
+                Thread.sleep(forTimeInterval: 0.001)
+            }
+            exp.fulfill()
+        }
+
+        wait(for: [exp], timeout: 5)
 
         XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [
             "MyViewForLoggingObserverTests",

@@ -34,7 +34,11 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
     private let observerMaker: (S.ScreenIdentifier) -> T
 
     private func observer(for viewController: UIViewController) -> T? {
-        precondition(Thread.isMainThread)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        } else {
+            precondition(Thread.isMainThread)
+        }
 
         if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
             return observer
@@ -51,27 +55,63 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
     }
 
     func beforeInit(viewController: UIViewController) {
-        observer(for: viewController)?.beforeInit(viewController: viewController)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeInit(viewController: viewController)
+            }
+        } else {
+            observer(for: viewController)?.beforeInit(viewController: viewController)
+        }
     }
 
     func beforeViewDidLoad(viewController: UIViewController) {
-        observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
+            }
+        } else {
+            observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
+        }
     }
 
     func afterViewDidAppear(viewController: UIViewController) {
-        observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
+            }
+        } else {
+            observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
+        }
     }
 
     func beforeViewWillDisappear(viewController: UIViewController) {
-        observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
+            }
+        } else {
+            observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
+        }
     }
 
     func afterViewWillAppear(viewController: UIViewController) {
-        observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
+            }
+        } else {
+            observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
+        }
     }
 
     func beforeViewDidDisappear(viewController: UIViewController) {
-        observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
+            }
+        } else {
+            observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
+        }
     }
 
     static var identifier: AnyObject {
@@ -134,13 +174,20 @@ class ViewControllerObserverCollection: ViewControllerObserver {
 /// Non-generic helper for generic `ViewControllerObserverFactory`. To put all the static methods and vars there.
 final class ViewControllerObserverFactoryHelper {
     static func existingObserver(for viewController: UIViewController, identifier: AnyObject) -> Any? {
-        var vc: UIViewController? = viewController
-        while let current = vc {
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
-            if let result = objc_getAssociatedObject(current, tPointer) {
+            if let result = objc_getAssociatedObject(viewController, tPointer) {
                 return result
             }
-            vc = current.parent
+        } else {
+            var vc: UIViewController? = viewController
+            while let current = vc {
+                let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
+                if let result = objc_getAssociatedObject(current, tPointer) {
+                    return result
+                }
+                vc = current.parent
+            }
         }
 
         return nil

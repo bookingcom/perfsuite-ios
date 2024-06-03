@@ -31,6 +31,14 @@ final class PerformanceMonitoringTests: XCTestCase {
         let vc = UIViewController()
         wait(for: [exp], timeout: 20) // increase timeout as it is very slow on CI
         _ = vc
+
+        _ = vc.view
+        vc.beginAppearanceTransition(true, animated: false)
+        vc.endAppearanceTransition()
+        vc.beginAppearanceTransition(false, animated: false)
+        vc.endAppearanceTransition()
+        PerformanceMonitoring.queue.sync { }
+
         try PerformanceMonitoring.disable()
 
         let exp2 = expectation(description: "onInit2")

@@ -14,12 +14,15 @@ public protocol ScreenMetricsReceiver: AnyObject {
 
     /// Method converts `UIViewController` instance to `ScreenIdentifier`. It can be enum or String, which identifies your screen.
     /// Return `nil` if we shouldn't track metrics for this `UIViewController`.
+    /// This method should be as effective as possible. Slow implementation may harm app performance.
     ///
     /// This method is called on the main thread only once, during `UIViewController` initialization.
+    /// If experiment `observersOnBackgroundQueue` is turned on, this method is called on the background internal queue `PerformanceMonitoring.queue`.
+    /// Slow implementation may harm overall performance and also can affect the precision of the measurements.
     ///
-    /// Default implementation will return nil for view controllers that are not from the main bundle and return UIViewController itself for others
+    /// Default implementation will return nil for view controllers that are not from the main bundle and return `UIViewController` itself for others
     ///
-    /// - Parameter viewController: UIViewController which is being tracked
+    /// - Parameter viewController: `UIViewController` which is being tracked
     func screenIdentifier(for viewController: UIViewController) -> ScreenIdentifier?
 }
 

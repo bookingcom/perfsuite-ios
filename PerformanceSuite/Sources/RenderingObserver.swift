@@ -7,31 +7,31 @@
 
 import UIKit
 
-final class RenderingObserver: ViewControllerObserver, FramesMeterReceiver {
+final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerObserver, FramesMeterReceiver {
 
-    init(metricsReceiver: RenderingMetricsReceiver, framesMeter: FramesMeter) {
+    init(
+        screen: R.ScreenIdentifier,
+        metricsReceiver: R,
+        framesMeter: FramesMeter
+    ) {
+        self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
     }
 
-    private let metricsReceiver: RenderingMetricsReceiver
+    private let screen: R.ScreenIdentifier
+    private let metricsReceiver: R
     private let framesMeter: FramesMeter
-    private weak var viewController: UIViewController?
+
 
     private var metrics = RenderingMetrics.zero
 
-    func beforeInit(viewController: UIViewController) {
-        PerformanceMonitoring.queue.async {
-            assert(self.viewController == nil)
-            self.viewController = viewController
-        }
-    }
+    func beforeInit(viewController: UIViewController) {}
 
     func beforeViewDidLoad(viewController: UIViewController) {}
 
     func afterViewDidAppear(viewController: UIViewController) {
         PerformanceMonitoring.queue.async {
-            assert(self.viewController === viewController)
             self.metrics = RenderingMetrics.zero
             self.framesMeter.subscribe(receiver: self)
         }
@@ -41,7 +41,6 @@ final class RenderingObserver: ViewControllerObserver, FramesMeterReceiver {
 
     func beforeViewWillDisappear(viewController: UIViewController) {
         PerformanceMonitoring.queue.async {
-            assert(self.viewController === viewController)
             self.framesMeter.unsubscribe(receiver: self)
             self.reportMetricsIfNeeded()
         }
@@ -49,16 +48,17 @@ final class RenderingObserver: ViewControllerObserver, FramesMeterReceiver {
 
     func beforeViewDidDisappear(viewController: UIViewController) {}
 
+    static var identifier: AnyObject {
+        return renderingObserverIdentifier
+    }
+
     private func reportMetricsIfNeeded() {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-        guard let viewController = self.viewController else {
-            return
-        }
 
         let metrics = self.metrics
         if metrics != .zero {
             PerformanceMonitoring.consumerQueue.async {
-                self.metricsReceiver.renderingMetricsReceived(metrics: metrics, viewController: viewController)
+                self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
             }
         }
 
@@ -72,3 +72,5 @@ final class RenderingObserver: ViewControllerObserver, FramesMeterReceiver {
         self.metrics = self.metrics + currentMetrics
     }
 }
+
+private let renderingObserverIdentifier: AnyObject = NSObject()

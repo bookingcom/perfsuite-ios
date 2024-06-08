@@ -31,22 +31,22 @@ class TTIObserverTests: XCTestCase {
     func testTTIObserverForViewController() throws {
         let vc1 = UIViewController()
         waitForTheNextRunLoop()
-        XCTAssertNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc1))
+        XCTAssertNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc1, identifier: TTIObserverHelper.identifier))
 
         try PerformanceMonitoring.enable(config: [.screenLevelTTI(TTIMetricsReceiverStub())])
         let vc2 = UIViewController()
         waitForTheNextRunLoop()
-        XCTAssertNotNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc2))
+        XCTAssertNotNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc2, identifier: TTIObserverHelper.identifier))
 
         try PerformanceMonitoring.disable()
         let vc3 = UIViewController()
         waitForTheNextRunLoop()
-        XCTAssertNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc3))
+        XCTAssertNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc3, identifier: TTIObserverHelper.identifier))
 
         try PerformanceMonitoring.enable(config: [])
         let vc4 = UIViewController()
         waitForTheNextRunLoop()
-        XCTAssertNil(ViewControllerObserverFactory<TTIObserver>.existingObserver(for: vc4))
+        XCTAssertNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc4, identifier: TTIObserverHelper.identifier))
         try PerformanceMonitoring.disable()
     }
 
@@ -56,7 +56,7 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
 
         observer.beforeInit(viewController: vc)
@@ -92,7 +92,7 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
 
         observer.beforeInit(viewController: vc)
@@ -126,7 +126,7 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
 
         observer.beforeInit(viewController: vc)
@@ -154,10 +154,10 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
 
-        TTIObserver.startCustomCreationTime(timeProvider: timeProvider)
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(200))
@@ -187,12 +187,12 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
         waitForTheNextRunLoop()
 
-        TTIObserver.startCustomCreationTime(timeProvider: timeProvider)
-        TTIObserver.clearCustomCreationTime()
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
+        TTIObserverHelper.clearCustomCreationTime()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(200))
@@ -225,7 +225,7 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
         waitForTheNextRunLoop()
 
@@ -260,11 +260,11 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
         waitForTheNextRunLoop()
 
-        TTIObserver.startCustomCreationTime(timeProvider: timeProvider)
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(150))
@@ -289,7 +289,7 @@ class TTIObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(30))
 
 
-        let observer2 = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer2 = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc2 = UIViewController()
         waitForTheNextRunLoop()
 
@@ -321,13 +321,13 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
 
-        TTIObserver.startCustomCreationTime(timeProvider: timeProvider)
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
 
-        TTIObserver.clearCustomCreationTime()
+        TTIObserverHelper.clearCustomCreationTime()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
         waitForTheNextRunLoop()
 
@@ -361,11 +361,11 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer1 = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc1 = UIViewController()
+        let observer1 = TTIObserver(screen: vc1, metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
-        let observer2 = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc2 = UIViewController()
+        let observer2 = TTIObserver(screen: vc2, metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
         timeProvider.time = time.advanced(by: .milliseconds(500))
         observer1.beforeInit(viewController: vc1)
@@ -380,7 +380,7 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1300))
-        TTIObserver.startCustomCreationTime(timeProvider: timeProvider)
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1400))
@@ -395,7 +395,7 @@ class TTIObserverTests: XCTestCase {
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(400))  // between 500 and 900
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(100))  // between 500 and 600
-        XCTAssert(metricsReceiver.lastController === vc1)
+        XCTAssertEqual(metricsReceiver.lastController, vc1)
 
         timeProvider.time = time.advanced(by: .milliseconds(1600))
         observer2.afterViewWillAppear(viewController: vc2)
@@ -413,7 +413,7 @@ class TTIObserverTests: XCTestCase {
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(700))  // between 1300 and 2000
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(200))  // between 1400 and 1600
-        XCTAssert(metricsReceiver.lastController === vc2)
+        XCTAssertEqual(metricsReceiver.lastController, vc2)
     }
 
     func testCustomCreationAfterViewWillAppear() {
@@ -424,7 +424,7 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc = UIViewController()
         waitForTheNextRunLoop()
 
@@ -437,7 +437,7 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(600))
-        TTIObserver.startCustomCreationTime(timeProvider: timeProvider)
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(900))
@@ -454,7 +454,7 @@ class TTIObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(300))  // between 100 and 400
 
         // prepare for the next test
-        TTIObserver.clearCustomCreationTime()
+        TTIObserverHelper.clearCustomCreationTime()
         waitForTheNextRunLoop()
     }
 
@@ -465,11 +465,11 @@ class TTIObserverTests: XCTestCase {
         let time = timeProvider.time
 
         let metricsReceiver = TTIMetricsReceiverStub()
-        let observer1 = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc1 = UIViewController()
+        let observer1 = TTIObserver(screen: vc1, metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
-        let observer2 = TTIObserver(metricsReceiver: metricsReceiver, timeProvider: timeProvider)
         let vc2 = UIViewController()
+        let observer2 = TTIObserver(screen: vc2, metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
         timeProvider.time = time.advanced(by: .milliseconds(500))
         observer1.beforeInit(viewController: vc1)
@@ -497,7 +497,7 @@ class TTIObserverTests: XCTestCase {
 
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(800))  // between 500 and 1300
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(100))  // between 500 and 600
-        XCTAssert(metricsReceiver.lastController === vc2)
+        XCTAssertEqual(metricsReceiver.lastController, vc2)
 
         metricsReceiver.lastController = nil
         metricsReceiver.ttiMetrics = nil
@@ -531,18 +531,18 @@ class TimeProviderStub: TimeProvider {
 }
 
 class TTIMetricsReceiverStub: TTIMetricsReceiver {
-    func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) {
+    func ttiMetricsReceived(metrics: TTIMetrics, screen viewController: UIViewController) {
         ttiCallback(metrics, viewController)
         ttiMetrics = metrics
         lastController = viewController
     }
 
-    func shouldTrack(viewController: UIViewController) -> Bool {
+    func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
         if viewController is UINavigationController
             || viewController is UITabBarController {
-            return false
+            return nil
         }
-        return true
+        return viewController
     }
 
     var ttiCallback: (TTIMetrics, UIViewController) -> Void = { (_, _) in }

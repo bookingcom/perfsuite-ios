@@ -9,14 +9,30 @@ import UIKit
 
 /// Base protocol for screen-level TTI and Rendering receivers
 public protocol ScreenMetricsReceiver: AnyObject {
-    /// We can disable tracking for some of the view controllers.
+    /// ScreenIdentifier can be String, some enum, or UIViewController itself.
+    associatedtype ScreenIdentifier
+
+    /// Method converts `UIViewController` instance to `ScreenIdentifier`. It can be enum or String, which identifies your screen.
+    /// Return `nil` if we shouldn't track metrics for this `UIViewController`.
     ///
-    /// Default implementation will ignore view controllers that are not from the main bundle.
+    /// This method is called on the main thread only once, during `UIViewController` initialization.
     ///
-    /// For example Apple's UINavigationController, UITabbarController, UIHostingController and so on.
+    /// Default implementation will return nil for view controllers that are not from the main bundle and return UIViewController itself for others
     ///
-    /// - Parameter viewController: should we enable tracking for this controller?
-    func shouldTrack(viewController: UIViewController) -> Bool
+    /// - Parameter viewController: UIViewController which is being tracked
+    func screenIdentifier(for viewController: UIViewController) -> ScreenIdentifier?
+}
+
+public extension ScreenMetricsReceiver where ScreenIdentifier == UIViewController {
+
+    /// Default implementation that just returns the viewController itself
+    func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
+        /// We track only view controllers from the main bundle by default
+        guard Bundle(for: type(of: viewController)) == Bundle.main else {
+            return nil
+        }
+        return viewController
+    }
 }
 
 
@@ -34,8 +50,8 @@ public protocol TTIMetricsReceiver: ScreenMetricsReceiver {
     ///
     /// - Parameters:
     ///   - metrics: calculated TTI metrics
-    ///   - viewController: view controller instance for which we calculated those TTI metrics
-    func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController)
+    ///   - screen: screen for which we calculated those TTI metrics
+    func ttiMetricsReceived(metrics: TTIMetrics, screen: ScreenIdentifier)
 }
 
 
@@ -53,14 +69,6 @@ public protocol RenderingMetricsReceiver: ScreenMetricsReceiver {
     ///
     /// - Parameters:
     ///   - metrics: calculated rendering metrics
-    ///   - viewController: view controller instance for which we calculated those rendering metrics
-    func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController)
-}
-
-
-public extension ScreenMetricsReceiver {
-    /// The default implementation will track only view controllers from the main bundle
-    func shouldTrack(viewController: UIViewController) -> Bool {
-        return Bundle(for: type(of: viewController)) == Bundle.main
-    }
+    ///   - screen: screen for which we calculated those rendering metrics
+    func renderingMetricsReceived(metrics: RenderingMetrics, screen: ScreenIdentifier)
 }

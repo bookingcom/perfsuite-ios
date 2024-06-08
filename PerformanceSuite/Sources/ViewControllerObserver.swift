@@ -18,43 +18,34 @@ protocol ViewControllerObserver {
     func afterViewDidAppear(viewController: UIViewController)
     func beforeViewWillDisappear(viewController: UIViewController)
     func beforeViewDidDisappear(viewController: UIViewController)
+
+    static var identifier: AnyObject { get }
 }
 
-/// Observer which creates separate `ViewControllerObserver` for every view controller
-final class ViewControllerObserverFactory<T: ViewControllerObserver>: ViewControllerObserver {
 
-    required init(metricsReceiver: ScreenMetricsReceiver, observerMaker: @escaping () -> T) {
+/// Observer which creates separate `ViewControllerObserver` for every view controller
+final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMetricsReceiver>: ViewControllerObserver {
+
+    required init(metricsReceiver: S, observerMaker: @escaping (S.ScreenIdentifier) -> T) {
         self.metricsReceiver = metricsReceiver
         self.observerMaker = observerMaker
     }
-    private let metricsReceiver: ScreenMetricsReceiver
-    private let observerMaker: () -> T
-
-    static func existingObserver(for viewController: UIViewController) -> T? {
-        var vc: UIViewController? = viewController
-        while let current = vc {
-            let tPointer = unsafeBitCast(T.self, to: UnsafeRawPointer.self)
-            if let result = objc_getAssociatedObject(current, tPointer) as? T {
-                return result
-            }
-            vc = current.parent
-        }
-
-        return nil
-    }
+    private let metricsReceiver: S
+    private let observerMaker: (S.ScreenIdentifier) -> T
 
     private func observer(for viewController: UIViewController) -> T? {
+        precondition(Thread.isMainThread)
 
-        guard metricsReceiver.shouldTrack(viewController: viewController) else {
-            return nil
-        }
-
-        if let observer = Self.existingObserver(for: viewController) {
+        if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
             return observer
         }
 
-        let tPointer = unsafeBitCast(T.self, to: UnsafeRawPointer.self)
-        let observer = observerMaker()
+        guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
+            return nil
+        }
+
+        let tPointer = unsafeBitCast(T.identifier, to: UnsafeRawPointer.self)
+        let observer = observerMaker(screen)
         objc_setAssociatedObject(viewController, tPointer, observer, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         return observer
     }
@@ -82,7 +73,13 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver>: ViewContro
     func beforeViewDidDisappear(viewController: UIViewController) {
         observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
     }
+
+    static var identifier: AnyObject {
+        return viewControllerObserverFactoryIdentifier
+    }
 }
+
+private let viewControllerObserverFactoryIdentifier = NSObject()
 
 
 /// Observer that can hold collection of other observers
@@ -128,5 +125,24 @@ class ViewControllerObserverCollection: ViewControllerObserver {
         observers.forEach { o in
             o.beforeViewDidDisappear(viewController: viewController)
         }
+    }
+
+    static let identifier: AnyObject = NSObject()
+}
+
+
+/// Non-generic helper for generic `ViewControllerObserverFactory`. To put all the static methods and vars there.
+final class ViewControllerObserverFactoryHelper {
+    static func existingObserver(for viewController: UIViewController, identifier: AnyObject) -> Any? {
+        var vc: UIViewController? = viewController
+        while let current = vc {
+            let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
+            if let result = objc_getAssociatedObject(current, tPointer) {
+                return result
+            }
+            vc = current.parent
+        }
+
+        return nil
     }
 }

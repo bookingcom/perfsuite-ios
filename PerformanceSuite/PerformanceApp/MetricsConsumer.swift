@@ -25,25 +25,18 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
         interop?.send(message: Message.appFreezeTime(duration: metrics.freezeTime.milliseconds ?? -1))
     }
 
-    func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) {
-        guard let screen = (viewController as? PerformanceTrackable)?.performanceScreen?.rawValue else {
-            fatalError("unknown screen")
-        }
-
+    func ttiMetricsReceived(metrics: TTIMetrics, screen: PerformanceScreen) {
         log("TTIMetrics \(screen) \(metrics)")
-        interop?.send(message: Message.tti(duration: metrics.tti.milliseconds ?? -1, screen: screen))
+        interop?.send(message: Message.tti(duration: metrics.tti.milliseconds ?? -1, screen: screen.rawValue))
     }
 
-    func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController) {
-        guard let screen = (viewController as? PerformanceTrackable)?.performanceScreen?.rawValue else {
-            fatalError("unknown screen")
-        }
+    func renderingMetricsReceived(metrics: RenderingMetrics, screen: PerformanceScreen) {
         log("RenderingMetrics \(screen) \(metrics)")
-        interop?.send(message: Message.freezeTime(duration: metrics.freezeTime.milliseconds ?? -1, screen: screen))
+        interop?.send(message: Message.freezeTime(duration: metrics.freezeTime.milliseconds ?? -1, screen: screen.rawValue))
     }
 
-    func shouldTrack(viewController: UIViewController) -> Bool {
-        return (viewController as? PerformanceTrackable)?.performanceScreen != nil
+    func screenIdentifier(for viewController: UIViewController) -> PerformanceScreen? {
+        return (viewController as? PerformanceTrackable)?.performanceScreen
     }
 
     func watchdogTerminationReceived(_ data: WatchdogTerminationData) {
@@ -61,7 +54,7 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
         interop?.send(message: Message.startupTime(duration: data.totalTime.milliseconds ?? -1))
     }
 
-    func fragmentTTIMetricsReceived(metrics: TTIMetrics, identifier: String) {
+    func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment identifier: String) {
         log("fragmentTTIMetricsReceived \(identifier) \(metrics)")
         interop?.send(message: Message.fragmentTTI(duration: metrics.tti.milliseconds ?? -1, fragment: identifier))
     }
@@ -88,31 +81,27 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
     // MARK: - ViewControllerLoggingReceiver
 
-    func key(for viewController: UIViewController) -> String {
-        return String(describing: viewController)
+    func onInit(screen: PerformanceScreen) {
+        log("onInit \(screen)")
     }
 
-    func onInit(viewControllerKey: String) {
-        log("onInit \(viewControllerKey)")
+    func onViewDidLoad(screen: PerformanceScreen) {
+        log("onViewDidLoad \(screen)")
     }
 
-    func onViewDidLoad(viewControllerKey: String) {
-        log("onViewDidLoad \(viewControllerKey)")
+    func onViewWillAppear(screen: PerformanceScreen) {
+        log("onViewWillAppear \(screen)")
     }
 
-    func onViewWillAppear(viewControllerKey: String) {
-        log("onViewWillAppear \(viewControllerKey)")
+    func onViewDidAppear(screen: PerformanceScreen) {
+        log("onViewDidAppear \(screen)")
     }
 
-    func onViewDidAppear(viewControllerKey: String) {
-        log("onViewDidAppear \(viewControllerKey)")
+    func onViewWillDisappear(screen: PerformanceScreen) {
+        log("onViewWillDisappear \(screen)")
     }
 
-    func onViewWillDisappear(viewControllerKey: String) {
-        log("onViewWillDisappear \(viewControllerKey)")
-    }
-
-    func onViewDidDisappear(viewControllerKey: String) {
-        log("onViewDidDisappear \(viewControllerKey)")
+    func onViewDidDisappear(screen: PerformanceScreen) {
+        log("onViewDidDisappear \(screen)")
     }
 }

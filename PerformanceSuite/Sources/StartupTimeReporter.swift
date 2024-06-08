@@ -234,4 +234,6 @@ final class StartupTimeViewControllerObserver: ViewControllerObserver {
     func afterViewWillAppear(viewController: UIViewController) {}
     func beforeViewWillDisappear(viewController: UIViewController) {}
     func beforeViewDidDisappear(viewController: UIViewController) {}
+
+    static let identifier: AnyObject = NSObject()
 }

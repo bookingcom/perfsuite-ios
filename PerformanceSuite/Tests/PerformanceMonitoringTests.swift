@@ -29,7 +29,7 @@ final class PerformanceMonitoringTests: XCTestCase {
         let exp = expectation(description: "onInit")
         onInitExpectation = exp
         let vc = UIViewController()
-        wait(for: [exp], timeout: 5)
+        wait(for: [exp], timeout: 20) // increase timeout as it is very slow on CI
         _ = vc
         try PerformanceMonitoring.disable()
 
@@ -59,11 +59,17 @@ final class PerformanceMonitoringTests: XCTestCase {
 }
 
 extension PerformanceMonitoringTests: PerformanceSuiteMetricsReceiver {
+    typealias ScreenIdentifier = String
+
+    func screenIdentifier(for viewController: UIViewController) -> String? {
+        return String(describing: type(of: viewController))
+    }
+
     func appRenderingMetricsReceived(metrics: PerformanceSuite.RenderingMetrics) {
 
     }
 
-    func fragmentTTIMetricsReceived(metrics: PerformanceSuite.TTIMetrics, identifier: String) {
+    func fragmentTTIMetricsReceived(metrics: PerformanceSuite.TTIMetrics, fragment identifier: String) {
 
     }
 
@@ -78,39 +84,35 @@ extension PerformanceMonitoringTests: PerformanceSuiteMetricsReceiver {
     func hangStarted(info: PerformanceSuite.HangInfo) {
     }
 
-    func renderingMetricsReceived(metrics: PerformanceSuite.RenderingMetrics, viewController: UIViewController) {
+    func renderingMetricsReceived(metrics: PerformanceSuite.RenderingMetrics, screen: String) {
     }
 
     func startupTimeReceived(_ data: PerformanceSuite.StartupTimeData) {
     }
 
-    func ttiMetricsReceived(metrics: PerformanceSuite.TTIMetrics, viewController: UIViewController) {
+    func ttiMetricsReceived(metrics: PerformanceSuite.TTIMetrics, screen: String) {
     }
 
     func viewControllerLeakReceived(viewController: UIViewController) {
     }
 
-    func key(for viewController: UIViewController) -> String {
-        return String(describing: type(of: viewController))
-    }
-
-    func onInit(viewControllerKey: String) {
+    func onInit(screen: String) {
         onInitExpectation?.fulfill()
     }
 
-    func onViewDidLoad(viewControllerKey: String) {
+    func onViewDidLoad(screen: String) {
     }
 
-    func onViewWillAppear(viewControllerKey: String) {
+    func onViewWillAppear(screen: String) {
     }
 
-    func onViewDidAppear(viewControllerKey: String) {
+    func onViewDidAppear(screen: String) {
     }
 
-    func onViewWillDisappear(viewControllerKey: String) {
+    func onViewWillDisappear(screen: String) {
     }
 
-    func onViewDidDisappear(viewControllerKey: String) {
+    func onViewDidDisappear(screen: String) {
     }
 
     func watchdogTerminationReceived(_ data: PerformanceSuite.WatchdogTerminationData) {

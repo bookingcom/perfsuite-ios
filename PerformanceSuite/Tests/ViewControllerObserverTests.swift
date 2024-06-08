@@ -73,7 +73,7 @@ class ViewControllerObserverTests: XCTestCase {
     }
 
     func testObserversFactory() {
-        let factory = ViewControllerObserverFactory<Observer>(metricsReceiver: TTIMetricsReceiverStub()) {
+        let factory = ViewControllerObserverFactory<Observer, TTIMetricsReceiverStub>(metricsReceiver: TTIMetricsReceiverStub()) { screen in
             Observer()
         }
 
@@ -126,7 +126,7 @@ class ViewControllerObserverTests: XCTestCase {
 
     func testSwiftUIHostingControllerIsIgnored() {
         let metricsReceiver = MetricsConsumerForSwiftUITest()
-        let factory = ViewControllerObserverFactory<Observer>(metricsReceiver: metricsReceiver) {
+        let factory = ViewControllerObserverFactory<Observer, MetricsConsumerForSwiftUITest>(metricsReceiver: metricsReceiver) { screen in
             Observer()
         }
 
@@ -143,7 +143,7 @@ class ViewControllerObserverTests: XCTestCase {
 }
 
 private class MetricsConsumerForSwiftUITest: ScreenMetricsReceiver {
-    func ttiMetricsReceived(metrics: TTIMetrics, viewController: UIViewController) {}
-    func renderingMetricsReceived(metrics: RenderingMetrics, viewController: UIViewController) {}
+    func ttiMetricsReceived(metrics: TTIMetrics, screen: UIViewController) {}
+    func renderingMetricsReceived(metrics: RenderingMetrics, screen: UIViewController) {}
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {}
 }

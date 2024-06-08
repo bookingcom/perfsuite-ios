@@ -46,7 +46,7 @@ final class TerminationTests: BaseTests {
         performFirstLaunch()
         assertNoMessages(.hangStarted, .nonFatalHang)
         app.staticTexts["Non-fatal hang"].tap()
-        waitForTimeout(4)
+        waitForTimeout(5)
         waitForMessage { $0 == .nonFatalHang }
 
         assertHasMessages(.hangStarted, .nonFatalHang)

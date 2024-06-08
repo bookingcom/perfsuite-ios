@@ -1,0 +1,26 @@
+{
+  "configurations" : [
+    {
+      "id" : "ABDBB9DB-889D-4707-B550-881A8D2FE47B",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "maximumTestRepetitions" : 3,
+    "testRepetitionMode" : "untilFailure",
+    "userAttachmentLifetime" : "keepAlways"
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Pods\/Pods.xcodeproj",
+        "identifier" : "E7B17CF293A0585BA47ADEED225E1659",
+        "name" : "PerformanceSuite-Unit-Tests"
+      }
+    }
+  ],
+  "version" : 1
+}

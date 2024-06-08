@@ -10,7 +10,7 @@ import Foundation
 class IssuesSimulator {
     static func simulateNonFatalHang() {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
-            Thread.sleep(forTimeInterval: 4.5)
+            Thread.sleep(forTimeInterval: 6)
         }
     }
 

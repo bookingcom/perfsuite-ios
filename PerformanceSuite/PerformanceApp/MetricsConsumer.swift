@@ -74,6 +74,10 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
         interop?.send(message: Message.hangStarted)
     }
 
+    var hangThreshold: TimeInterval {
+        return 3
+    }
+
     private func log(_ message: String) {
         logger.info("\(message, privacy: .public)")
     }

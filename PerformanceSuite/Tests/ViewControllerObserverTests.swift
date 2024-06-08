@@ -81,6 +81,8 @@ class ViewControllerObserverTests: XCTestCase {
 
         let vc1 = UIViewController()
         factory.beforeInit(viewController: vc1)
+        PerformanceMonitoring.queue.sync { }
+
         let observer = lastObserverCreated
         XCTAssertNotNil(observer)
         XCTAssertEqual(observer?.lastMethod, .beforeInit)
@@ -90,8 +92,9 @@ class ViewControllerObserverTests: XCTestCase {
         lastObserverCreated = nil
 
         factory.afterViewDidAppear(viewController: vc1)
-        XCTAssertNil(lastObserverCreated)
+        PerformanceMonitoring.queue.sync { }
 
+        XCTAssertNil(lastObserverCreated)
         XCTAssertEqual(observer?.lastMethod, .afterViewDidAppear)
         XCTAssertEqual(observer?.viewController, vc1)
         observer?.clear()
@@ -99,6 +102,8 @@ class ViewControllerObserverTests: XCTestCase {
 
         let vc2 = UIViewController()
         factory.afterViewDidAppear(viewController: vc2)
+        PerformanceMonitoring.queue.sync { }
+
         XCTAssertNotNil(lastObserverCreated)
         XCTAssert(lastObserverCreated !== observer)
         XCTAssertEqual(lastObserverCreated?.lastMethod, .afterViewDidAppear)
@@ -106,6 +111,8 @@ class ViewControllerObserverTests: XCTestCase {
         lastObserverCreated?.clear()
 
         factory.beforeViewWillDisappear(viewController: vc2)
+        PerformanceMonitoring.queue.sync { }
+
         XCTAssertNotNil(lastObserverCreated)
         let observer2 = lastObserverCreated
         XCTAssertEqual(observer2?.lastMethod, .beforeViewWillDisappear)
@@ -114,11 +121,15 @@ class ViewControllerObserverTests: XCTestCase {
         lastObserverCreated = nil
 
         factory.afterViewWillAppear(viewController: vc1)
+        PerformanceMonitoring.queue.sync { }
+
         XCTAssertNil(lastObserverCreated)
         XCTAssertEqual(observer?.lastMethod, .afterViewWillAppear)
         XCTAssertEqual(observer?.viewController, vc1)
 
         factory.beforeViewDidDisappear(viewController: vc2)
+        PerformanceMonitoring.queue.sync { }
+        
         XCTAssertNil(lastObserverCreated)
         XCTAssertEqual(observer2?.lastMethod, .beforeViewDidDisappear)
         XCTAssertEqual(observer2?.viewController, vc2)

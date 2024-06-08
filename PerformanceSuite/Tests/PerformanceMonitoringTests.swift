@@ -15,6 +15,7 @@ final class PerformanceMonitoringTests: XCTestCase {
         continueAfterFailure = false
         try PerformanceMonitoring.disable()
         StartupTimeReporter.forgetMainStartedForTests()
+        AppInfoHolder.resetForTests()
     }
 
     override func tearDown() {
@@ -32,6 +33,8 @@ final class PerformanceMonitoringTests: XCTestCase {
         wait(for: [exp], timeout: 20) // increase timeout as it is very slow on CI
         _ = vc
 
+        // simulate vc appearance to generate more performance events
+        // checking there are no crashes
         _ = vc.view
         vc.beginAppearanceTransition(true, animated: false)
         vc.endAppearanceTransition()
@@ -61,6 +64,16 @@ final class PerformanceMonitoringTests: XCTestCase {
 
         try PerformanceMonitoring.disable()
         setenv("ActivePrewarm", "", 1)
+    }
+
+    func testNoPrewarming() throws {
+        setenv("ActivePrewarm", "", 1)
+        PerformanceMonitoring.onMainStarted()
+        try PerformanceMonitoring.enable(config: .all(receiver: self))
+
+        XCTAssertFalse(PerformanceMonitoring.appStartInfo.appStartedWithPrewarming)
+
+        try PerformanceMonitoring.disable()
     }
 
     private var onInitExpectation: XCTestExpectation?

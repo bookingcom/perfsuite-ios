@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "21225ED1-5F89-43DE-9076-0D7ED1174387",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "OS_ACTIVITY_MODE",
+        "value" : "disable"
+      }
+    ],
+    "testRepetitionMode" : "retryOnFailure"
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Pods\/Pods.xcodeproj",
+        "identifier" : "B65E438620CC2DA1C6452F8C936D2E6C",
+        "name" : "PerformanceSuite-UI-UITests"
+      }
+    }
+  ],
+  "version" : 1
+}

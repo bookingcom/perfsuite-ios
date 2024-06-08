@@ -59,7 +59,7 @@ jobs:
           destination: platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5
           workspace: Project.xcworkspace
         run: |
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -test-iterations 3 -run-tests-until-failure -enableCodeCoverage YES -derivedDataPath DerivedData
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData
       
       - name: Slather
         env:

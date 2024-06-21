@@ -79,7 +79,7 @@ class ViewControllerObserverTests: XCTestCase {
 
         lastObserverCreated = nil
 
-        let vc1 = UIViewController()
+        let vc1 = MyViewController()
         factory.beforeInit(viewController: vc1)
         PerformanceMonitoring.queue.sync { }
 
@@ -100,7 +100,7 @@ class ViewControllerObserverTests: XCTestCase {
         observer?.clear()
 
 
-        let vc2 = UIViewController()
+        let vc2 = MyViewController()
         factory.afterViewDidAppear(viewController: vc2)
         PerformanceMonitoring.queue.sync { }
 
@@ -158,3 +158,5 @@ private class MetricsConsumerForSwiftUITest: ScreenMetricsReceiver {
     func renderingMetricsReceived(metrics: RenderingMetrics, screen: UIViewController) {}
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {}
 }
+
+private class MyViewController: UIViewController { }

@@ -200,4 +200,16 @@ final class ViewControllerObserverFactoryHelper {
 
         return nil
     }
+
+    static func existingObserver(forChild viewController: UIViewController, identifier: AnyObject) -> Any? {
+        var vc: UIViewController? = viewController
+        while let current = vc {
+            let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
+            if let result = objc_getAssociatedObject(current, tPointer) {
+                return result
+            }
+            vc = current.parent
+        }
+        return nil
+    }
 }

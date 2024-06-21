@@ -29,22 +29,22 @@ class TTIObserverTests: XCTestCase {
     }
 
     func testTTIObserverForViewController() throws {
-        let vc1 = UIViewController()
+        let vc1 = MyViewController()
         waitForTheNextRunLoop()
         XCTAssertNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc1, identifier: TTIObserverHelper.identifier))
 
         try PerformanceMonitoring.enable(config: [.screenLevelTTI(TTIMetricsReceiverStub())])
-        let vc2 = UIViewController()
+        let vc2 = MyViewController()
         waitForTheNextRunLoop()
         XCTAssertNotNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc2, identifier: TTIObserverHelper.identifier))
 
         try PerformanceMonitoring.disable()
-        let vc3 = UIViewController()
+        let vc3 = MyViewController()
         waitForTheNextRunLoop()
         XCTAssertNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc3, identifier: TTIObserverHelper.identifier))
 
         try PerformanceMonitoring.enable(config: [])
-        let vc4 = UIViewController()
+        let vc4 = MyViewController()
         waitForTheNextRunLoop()
         XCTAssertNil(ViewControllerObserverFactoryHelper.existingObserver(for: vc4, identifier: TTIObserverHelper.identifier))
         try PerformanceMonitoring.disable()
@@ -539,7 +539,8 @@ class TTIMetricsReceiverStub: TTIMetricsReceiver {
 
     func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
         if viewController is UINavigationController
-            || viewController is UITabBarController {
+            || viewController is UITabBarController
+            || type(of: viewController) == UIViewController.self {
             return nil
         }
         return viewController
@@ -549,3 +550,5 @@ class TTIMetricsReceiverStub: TTIMetricsReceiver {
     var ttiMetrics: TTIMetrics?
     var lastController: UIViewController?
 }
+
+private class MyViewController: UIViewController { }

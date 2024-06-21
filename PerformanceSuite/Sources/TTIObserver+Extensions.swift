@@ -29,7 +29,7 @@ public extension UIViewController {
     /// }
     /// ```
     @objc func screenIsReady() {
-        let observer = ViewControllerObserverFactoryHelper.existingObserver(for: self, identifier: TTIObserverHelper.identifier) as? ScreenIsReadyProvider
+        let observer = ViewControllerObserverFactoryHelper.existingObserver(forChild: self, identifier: TTIObserverHelper.identifier) as? ScreenIsReadyProvider
         observer?.screenIsReady()
     }
 

@@ -21,7 +21,7 @@ class TTIObserverExtensionTests: XCTestCase {
         try super.setUpWithError()
         defaultTimeProvider = timeProvider
         metricsReceiver = TTIMetricsReceiverStub()
-        try PerformanceMonitoring.enable(config: [.screenLevelTTI(metricsReceiver)], experiments: Experiments())
+        try PerformanceMonitoring.enable(config: [.screenLevelTTI(metricsReceiver)], experiments: Experiments(observersOnBackgroundQueue: true))
     }
 
     override func tearDownWithError() throws {
@@ -307,6 +307,44 @@ class TTIObserverExtensionTests: XCTestCase {
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(2))
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc3")
+    }
+
+    func testScreenIsReadyForChildViewController() {
+        let now = DispatchTime(uptimeNanoseconds: 10_000_000)
+        timeProvider.time = now
+
+        let vc1 = MyViewController()
+        vc1.title = "vc1"
+
+        let vc2 = UIViewController()
+        vc2.title = "vc2"
+
+        vc1.addChild(vc2)
+
+        timeProvider.time = now.advanced(by: .seconds(1))
+
+        let exp1 = expectation(description: "viewDidAppear vc1")
+        vc1.viewAppeared = {
+            DispatchQueue.main.async {
+                exp1.fulfill()
+            }
+        }
+
+        let window = makeWindow()
+        window.rootViewController = vc1
+        window.makeKeyAndVisible()
+
+        waitForExpectations(timeout: 3, handler: nil)
+
+        // we call screenIsReady for the child, but it should work for the parent
+        vc2.screenIsReady()
+
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertNotNil(metricsReceiver.ttiMetrics)
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
+        XCTAssertEqual(metricsReceiver.lastController?.title, "vc1")
     }
 }
 

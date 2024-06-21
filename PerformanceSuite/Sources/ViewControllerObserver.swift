@@ -40,12 +40,20 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
             precondition(Thread.isMainThread)
         }
 
-        if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
-            return observer
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
+                return observer
+            }
         }
 
         guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
             return nil
+        }
+
+        if !PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
+                return observer
+            }
         }
 
         let tPointer = unsafeBitCast(T.identifier, to: UnsafeRawPointer.self)

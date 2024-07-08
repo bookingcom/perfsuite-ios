@@ -12,6 +12,18 @@ import XCTest
 
 class ViewControllerObserverTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        PerformanceMonitoring.experiments = Experiments(observersOnBackgroundQueue: true)
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        PerformanceMonitoring.consumerQueue.sync { }
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.experiments = Experiments()
+    }
+
     func testObserversCollection() {
         let o1 = Observer()
         let o2 = Observer()
@@ -159,4 +171,8 @@ private class MetricsConsumerForSwiftUITest: ScreenMetricsReceiver {
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {}
 }
 
-private class MyViewController: UIViewController { }
+private class MyViewController: UIViewController {
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
+    }
+}

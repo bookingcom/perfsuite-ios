@@ -33,6 +33,16 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
     private let metricsReceiver: S
     private let observerMaker: (S.ScreenIdentifier) -> T
 
+    private func ensureDeallocationOnTheMainThread(viewController: UIViewController) {
+        DispatchQueue.main.async {
+            // Make sure viewController is deallocated on the main thread, because
+            // if the last access is on the background thread, it will be deallocated
+            // in background, and it can cause data races in UIKit.
+            // Calling `hash` to make sure this call is not removed by the compilation optimizer
+            _ = viewController.hash
+        }
+    }
+
     private func observer(for viewController: UIViewController) -> T? {
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
@@ -66,6 +76,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
                 self.observer(for: viewController)?.beforeInit(viewController: viewController)
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
             observer(for: viewController)?.beforeInit(viewController: viewController)
@@ -76,6 +87,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
                 self.observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
             observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
@@ -86,6 +98,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
                 self.observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
             observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
@@ -96,6 +109,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
                 self.observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
             observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
@@ -106,6 +120,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
                 self.observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
             observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
@@ -116,6 +131,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
                 self.observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
             observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)

@@ -19,6 +19,7 @@ class TTIObserverExtensionTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
+        PerformanceMonitoring.experiments = Experiments(observersOnBackgroundQueue: true)
         defaultTimeProvider = timeProvider
         metricsReceiver = TTIMetricsReceiverStub()
         try PerformanceMonitoring.enable(config: [.screenLevelTTI(metricsReceiver)], experiments: Experiments(observersOnBackgroundQueue: true))
@@ -244,7 +245,8 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = tabbar
         window.makeKeyAndVisible()
 
-        waitForExpectations(timeout: 3, handler: nil)
+        wait(for: [exp1], timeout: 3)
+        PerformanceMonitoring.queue.sync {}
 
         // for the first controller we should calculate TTI between `init` and `screenIsReady` -> 1 second
         vc1.screenIsReady()
@@ -334,7 +336,8 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = vc1
         window.makeKeyAndVisible()
 
-        waitForExpectations(timeout: 3, handler: nil)
+        wait(for: [exp1], timeout: 3)
+        PerformanceMonitoring.queue.sync {}
 
         // we call screenIsReady for the child, but it should work for the parent
         vc2.screenIsReady()
@@ -402,6 +405,10 @@ private class MyViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         output += "viewDidLayoutSubviews\n"
+    }
+
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
     }
 }
 

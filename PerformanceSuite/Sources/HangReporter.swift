@@ -85,7 +85,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private var willResignSubscription: AnyObject?
     private var didBecomeActiveSubscription: AnyObject?
 
-    private let receiver: HangsReceiver
+    let receiver: HangsReceiver
 
     init(
         timeProvider: TimeProvider = DefaultTimeProvider(),

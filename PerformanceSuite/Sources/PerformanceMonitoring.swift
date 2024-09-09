@@ -21,7 +21,7 @@ public struct Experiments {
 
 public enum PerformanceMonitoring {
 
-    private static var appReporters: [AppMetricsReporter] = []
+    private(set) static var appReporters: [AppMetricsReporter] = []
     private static let lock = NSLock()
     private static var viewControllerSubscriberEnabled = false
     static var experiments = Experiments()
@@ -33,7 +33,6 @@ public enum PerformanceMonitoring {
     ///   - storage: Simple key/value storage which we use to store some simple objects, by default `UserDefaults` is used.
     ///   - didCrashPreviously: flag if app crashed during previous launch. For example, you can pass `FIRCrashlytics.crashlytics.didCrashDuringPreviousExecution` if you use Firebase for crash reporting. If you pass `false`, all the crashes will be considered as memory terminations.
     ///   - experiments: Feature flags that can be used to enable/disable some experimentation features inside PerformanceSuite. Is used for A/B testing in production.
-    ///   - currentAppState: By default it gets `UIApplication.shared.applicationState`, but you need to pass it manually if you call this method from a background thread. Because you should access `applicationState` only from the main thread.
     ///   NB: If you use `FIRCrashlytics.crashlytics.didCrashDuringPreviousExecution`, do not forget, to call FirebaseApp.configure() before that,
     ///   otherwise it will be always `false`.
     public static func enable(

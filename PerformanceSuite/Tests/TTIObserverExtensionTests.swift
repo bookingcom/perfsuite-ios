@@ -28,7 +28,12 @@ class TTIObserverExtensionTests: XCTestCase {
     override func tearDownWithError() throws {
         try super.tearDownWithError()
         defaultTimeProvider = DefaultTimeProvider()
+
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+
         try PerformanceMonitoring.disable()
+
         PerformanceMonitoring.experiments = Experiments()
     }
 
@@ -217,7 +222,7 @@ class TTIObserverExtensionTests: XCTestCase {
     }
 
     func testCustomInitTimeForViewControllersInsideTabBarController() {
-        let now = DispatchTime(uptimeNanoseconds: 10_000_000)
+        let now = makeRandomTime()
         timeProvider.time = now
 
         let vc1 = MyViewController()
@@ -228,6 +233,9 @@ class TTIObserverExtensionTests: XCTestCase {
 
         let vc3 = MyViewController()
         vc3.title = "vc3"
+
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         timeProvider.time = now.advanced(by: .seconds(1))
 
@@ -246,7 +254,9 @@ class TTIObserverExtensionTests: XCTestCase {
         window.makeKeyAndVisible()
 
         wait(for: [exp1], timeout: 3)
+
         PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // for the first controller we should calculate TTI between `init` and `screenIsReady` -> 1 second
         vc1.screenIsReady()
@@ -254,9 +264,8 @@ class TTIObserverExtensionTests: XCTestCase {
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
-        XCTAssertNotNil(metricsReceiver.ttiMetrics)
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc1")
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
 
         timeProvider.time = now.advanced(by: .seconds(5))
 
@@ -274,6 +283,9 @@ class TTIObserverExtensionTests: XCTestCase {
 
         waitForExpectations(timeout: 3, handler: nil)
 
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+
         self.timeProvider.time = now.advanced(by: .seconds(12))
         // for the second controller we should calculate TTI between `setSelectedIndex` and `screenIsReady` -> 7 seconds
         vc2.screenIsReady()
@@ -281,9 +293,8 @@ class TTIObserverExtensionTests: XCTestCase {
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
-        XCTAssertNotNil(metricsReceiver.ttiMetrics)
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(7))
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc2")
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(7))
 
         let exp3 = expectation(description: "viewDidDisappear vc2")
         vc2.viewDisappeared = {
@@ -299,6 +310,9 @@ class TTIObserverExtensionTests: XCTestCase {
 
         waitForExpectations(timeout: 3, handler: nil)
 
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+
         self.timeProvider.time = now.advanced(by: .seconds(18))
         // for the third controller we should calculate TTI between `setSelectedViewController` and `screenIsReady` -> 2 seconds
         vc3.screenIsReady()
@@ -306,13 +320,13 @@ class TTIObserverExtensionTests: XCTestCase {
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
-        XCTAssertNotNil(metricsReceiver.ttiMetrics)
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(2))
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc3")
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(2))
+
     }
 
     func testScreenIsReadyForChildViewController() {
-        let now = DispatchTime(uptimeNanoseconds: 10_000_000)
+        let now = makeRandomTime()
         timeProvider.time = now
 
         let vc1 = MyViewController()
@@ -322,6 +336,9 @@ class TTIObserverExtensionTests: XCTestCase {
         vc2.title = "vc2"
 
         vc1.addChild(vc2)
+
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         timeProvider.time = now.advanced(by: .seconds(1))
 
@@ -337,7 +354,9 @@ class TTIObserverExtensionTests: XCTestCase {
         window.makeKeyAndVisible()
 
         wait(for: [exp1], timeout: 3)
+
         PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // we call screenIsReady for the child, but it should work for the parent
         vc2.screenIsReady()
@@ -348,6 +367,10 @@ class TTIObserverExtensionTests: XCTestCase {
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
         XCTAssertEqual(metricsReceiver.lastController?.title, "vc1")
+    }
+
+    private func makeRandomTime() -> DispatchTime {
+        DispatchTime(uptimeNanoseconds: 10_000_000 + UInt64.random(in: 0..<100000))
     }
 }
 

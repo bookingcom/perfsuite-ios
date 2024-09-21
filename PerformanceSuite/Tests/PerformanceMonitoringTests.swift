@@ -21,6 +21,8 @@ final class PerformanceMonitoringTests: XCTestCase {
 
     override func tearDown() {
         super.tearDown()
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
         StartupTimeReporter.forgetMainStartedForTests()
     }
 
@@ -41,7 +43,10 @@ final class PerformanceMonitoringTests: XCTestCase {
         vc.endAppearanceTransition()
         vc.beginAppearanceTransition(false, animated: false)
         vc.endAppearanceTransition()
+
         PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
+        waitForTheNextRunLoop()
 
         try PerformanceMonitoring.disable()
 

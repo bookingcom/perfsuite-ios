@@ -325,48 +325,58 @@ class TTIObserverExtensionTests: XCTestCase {
 
     }
 
-    func testScreenIsReadyForChildViewController() {
+    func testScreenIsReadyForChildViewController() throws {
+        metricsReceiver.shouldTrack = { vc in
+            return (vc as? OutputViewController)?.outputTitle == "vc1"
+        }
+
         let now = makeRandomTime()
         timeProvider.time = now
 
-        let vc1 = OutputViewController()
-        vc1.title = "vc1"
+        let vc1 = OutputViewController(outputTitle: "vc1")
+        let vc2 = OutputViewController(outputTitle: "vc2")
 
-        let vc2 = OutputViewController()
-        vc2.title = "vc2"
+        let exp1 = expectation(description: "viewDidAppear vc1")
+        let exp2 = expectation(description: "viewDidAppear vc2")
+        vc1.viewAppeared = {
+            exp1.fulfill()
+        }
 
+        vc2.viewAppeared = {
+            exp2.fulfill()
+        }
+
+        vc2.willMove(toParent: vc1)
         vc1.addChild(vc2)
+        vc1.view.addSubview(vc2.view)
+        vc2.didMove(toParent: vc1)
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
         timeProvider.time = now.advanced(by: .seconds(1))
 
-        let exp1 = expectation(description: "viewDidAppear vc1")
-        vc1.viewAppeared = {
-            DispatchQueue.main.async {
-                exp1.fulfill()
-            }
-        }
-
         let window = makeWindow()
         window.rootViewController = vc1
         window.makeKeyAndVisible()
 
-        wait(for: [exp1], timeout: 3)
+        wait(for: [exp1, exp2], timeout: 3)
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
         // we call screenIsReady for the child, but it should work for the parent
         vc2.screenIsReady()
+        waitForTheNextRunLoop()
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
-        XCTAssertEqual(metricsReceiver.lastController?.title, "vc1")
+
+        let ovc = try XCTUnwrap(metricsReceiver.lastController as? OutputViewController)
+        XCTAssertEqual(ovc.outputTitle, "vc1")
     }
 
     private func makeRandomTime() -> DispatchTime {

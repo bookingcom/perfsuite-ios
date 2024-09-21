@@ -511,14 +511,6 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNil(metricsReceiver.lastController)
         XCTAssertNil(metricsReceiver.ttiMetrics)
     }
-
-    private func waitForTheNextRunLoop() {
-        let exp = expectation(description: "runloop")
-        DispatchQueue.main.asyncAfter(deadline: .now()) {
-            exp.fulfill()
-        }
-        waitForExpectations(timeout: 1, handler: nil)
-    }
 }
 
 class TimeProviderStub: TimeProvider {
@@ -528,25 +520,14 @@ class TimeProviderStub: TimeProvider {
     }
 }
 
-class TTIMetricsReceiverStub: TTIMetricsReceiver {
-    func ttiMetricsReceived(metrics: TTIMetrics, screen viewController: UIViewController) {
-        ttiCallback(metrics, viewController)
-        ttiMetrics = metrics
-        lastController = viewController
-    }
-
-    func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
-        if viewController is UINavigationController
-            || viewController is UITabBarController
-            || type(of: viewController) == UIViewController.self {
-            return nil
+extension XCTestCase {
+    func waitForTheNextRunLoop() {
+        let exp = expectation(description: "runloop")
+        DispatchQueue.main.asyncAfter(deadline: .now()) {
+            exp.fulfill()
         }
-        return viewController
+        wait(for: [exp])
     }
-
-    var ttiCallback: (TTIMetrics, UIViewController) -> Void = { (_, _) in }
-    var ttiMetrics: TTIMetrics?
-    var lastController: UIViewController?
 }
 
 private class MyViewController: UIViewController { }

@@ -13,6 +13,17 @@ final class OutputViewController: UIViewController {
     var viewAppeared: () -> Void = {}
     var output = ""
 
+    init(outputTitle: String = "title") {
+        self.outputTitle = outputTitle
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    let outputTitle: String
+
     override func viewDidLoad() {
         super.viewDidLoad()
         output += "viewDidLoad\n"

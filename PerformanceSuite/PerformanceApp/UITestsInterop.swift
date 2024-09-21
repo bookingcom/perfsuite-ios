@@ -28,7 +28,7 @@ public enum Message: Codable, Equatable {
     case memoryLeak
     case crash
 
-    public static func ==(lhs: Message, rhs: Message) -> Bool {
+    public static func == (lhs: Message, rhs: Message) -> Bool {
         switch (lhs, rhs) {
         case (.startupTime, .startupTime),
             (.appFreezeTime, .appFreezeTime),
@@ -39,14 +39,14 @@ public enum Message: Codable, Equatable {
             (.memoryLeak, .memoryLeak),
             (.crash, .crash):
             return true
-            
+
         case let (.freezeTime(_, screenA), .freezeTime(_, screenB)),
             let (.tti(_, screenA), .tti(_, screenB)):
             return screenA == screenB
-            
+
         case let (.fragmentTTI(_, fragmentA), .fragmentTTI(_, fragmentB)):
             return fragmentA == fragmentB
-            
+
         default:
             return false
         }

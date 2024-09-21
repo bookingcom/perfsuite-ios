@@ -24,7 +24,7 @@ jobs:
 
       - name: SwiftLint
         run:
-          Pods/SwiftLint/swiftlint
+          Pods/SwiftLint/swiftlint lint --strict
       # to compile swift package we should remove workspace and xcodeproj
       # otherwise xcodebuild takes schemes from them
       - name: Remove workspace

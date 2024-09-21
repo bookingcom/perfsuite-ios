@@ -72,7 +72,7 @@ public class CrashlyticsHangsReceiverWrapper: HangsReceiver {
 
     public func fatalHangReceived(info: HangInfo) {
         hangsReceiver.fatalHangReceived(info: info)
-        
+
         // on the next launch we shouldn't do anything
     }
 
@@ -91,7 +91,7 @@ public class CrashlyticsHangsReceiverWrapper: HangsReceiver {
 
     public func hangStarted(info: HangInfo) {
         hangsReceiver.hangStarted(info: info)
-        
+
         // when hang starts, we create report as "fatal hang"
         // so that if app is terminated, this report stays as fatal
         let hangType = hangTypeFormatter(true, info.duringStartup)

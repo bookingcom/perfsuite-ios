@@ -11,7 +11,7 @@ class BaseTests: XCTestCase {
     var client: UITestsInterop.Client!
     let app = XCUIApplication()
     private var waitingTimer: Timer?
-    
+
     override func setUp() {
         super.setUp()
         client = UITestsInterop.Client()

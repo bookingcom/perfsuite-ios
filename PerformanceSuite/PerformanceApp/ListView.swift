@@ -163,7 +163,7 @@ struct ListView: View {
                                 }
                             }
                     }
-                }.onAppear() {
+                }.onAppear {
                     if viewModel.mode.scrollOnAppear {
                         DispatchQueue.main.async {
                             withAnimation {

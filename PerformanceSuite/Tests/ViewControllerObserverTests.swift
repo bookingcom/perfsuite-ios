@@ -85,7 +85,7 @@ class ViewControllerObserverTests: XCTestCase {
     }
 
     func testObserversFactory() {
-        let factory = ViewControllerObserverFactory<Observer, TTIMetricsReceiverStub>(metricsReceiver: TTIMetricsReceiverStub()) { screen in
+        let factory = ViewControllerObserverFactory<Observer, TTIMetricsReceiverStub>(metricsReceiver: TTIMetricsReceiverStub()) { _ in
             Observer()
         }
 
@@ -141,7 +141,7 @@ class ViewControllerObserverTests: XCTestCase {
 
         factory.beforeViewDidDisappear(viewController: vc2)
         PerformanceMonitoring.queue.sync { }
-        
+
         XCTAssertNil(lastObserverCreated)
         XCTAssertEqual(observer2?.lastMethod, .beforeViewDidDisappear)
         XCTAssertEqual(observer2?.viewController, vc2)
@@ -149,7 +149,7 @@ class ViewControllerObserverTests: XCTestCase {
 
     func testSwiftUIHostingControllerIsIgnored() {
         let metricsReceiver = MetricsConsumerForSwiftUITest()
-        let factory = ViewControllerObserverFactory<Observer, MetricsConsumerForSwiftUITest>(metricsReceiver: metricsReceiver) { screen in
+        let factory = ViewControllerObserverFactory<Observer, MetricsConsumerForSwiftUITest>(metricsReceiver: metricsReceiver) { _ in
             Observer()
         }
 

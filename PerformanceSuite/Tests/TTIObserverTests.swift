@@ -9,8 +9,6 @@ import UIKit
 import XCTest
 
 @testable import PerformanceSuite
-// swiftlint:disable type_body_length
-// swiftlint:disable file_length
 class TTIObserverTests: XCTestCase {
 
     override func setUp() {

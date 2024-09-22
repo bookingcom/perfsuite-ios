@@ -8,6 +8,11 @@
 import FirebaseCore
 import FirebaseCrashlytics
 
+// In SwiftPM we have separate targets
+#if canImport(PerformanceSuite)
+import PerformanceSuite
+#endif
+
 extension PerformanceMonitoring {
     /// Method to start PerformanceSuite with Crashlytics Support.
     /// Additionally to `enable` method it:

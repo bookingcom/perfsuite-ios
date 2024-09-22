@@ -7,6 +7,14 @@
 
 import FirebaseCrashlytics
 
+// In SwiftPM we have separate targets
+#if canImport(CrashlyticsImports)
+import CrashlyticsImports
+#endif
+#if canImport(PerformanceSuite)
+import PerformanceSuite
+#endif
+
 // this type is used for crashes to log all threads stack traces
 private let firebaseNativeErrorType: Int32 = 1
 

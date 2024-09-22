@@ -114,7 +114,7 @@ SPEC CHECKSUMS:
   GoogleDataTransport: 6c09b596d841063d76d4288cc2d2f42cc36e1e2a
   GoogleUtilities: ea963c370a38a8069cc5f7ba4ca849a60b6d7d15
   nanopb: 438bc412db1928dac798aa6fd75726007be04262
-  PerformanceSuite: ee4b889d3edf92664a97897ea2b3d0c751d239ba
+  PerformanceSuite: 293d6763ea751557d73d1b14393593867a1b31a5
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
   SwiftLint: c1de071d9d08c8aba837545f6254315bc900e211

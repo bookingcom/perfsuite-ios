@@ -5,6 +5,11 @@
 //  Created by Gleb Tarasov on 07/09/2024.
 //
 
+// In SwiftPM we have separate targets
+#if canImport(PerformanceSuite)
+import PerformanceSuite
+#endif
+
 /// Settings how to report hangs to Crashlytics
 /// - how to format issue name depending on the type of a hang
 /// - which types to use (fatal/non-fatal)

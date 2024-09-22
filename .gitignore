@@ -15,3 +15,4 @@ Pods
 *.xcresult
 /code_coverage.txt
 /cobertura.xml
+/Package.resolved

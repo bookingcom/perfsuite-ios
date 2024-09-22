@@ -34,6 +34,8 @@ jobs:
       - name: Compile
         run: |
           xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'
+          xcodebuild -scheme PerformanceSuiteCrashlytics -destination 'generic/platform=iOS'
+          xcodebuild -scheme PerformanceApp -destination 'generic/platform=iOS'
       # restore removed files just in case it is needed for the further steps    
       - name: Restore workspace
         run: |

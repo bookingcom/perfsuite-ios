@@ -16,8 +16,8 @@ Pod::Spec.new do |s|
   end
 
   s.subspec 'Crashlytics' do |cr_spec|
-    cr_spec.source_files = 'PerformanceSuite/Crashlytics/*.swift', 'PerformanceSuite/Crashlytics/include/*.h'  
-    cr_spec.public_header_files = 'PerformanceSuite/Crashlytics/include/*.h'
+    cr_spec.source_files = 'PerformanceSuite/Crashlytics/Sources/*.swift', 'PerformanceSuite/Crashlytics/Imports/include/*.h'  
+    cr_spec.public_header_files = 'PerformanceSuite/Crashlytics/Imports/include/*.h'
     cr_spec.dependency 'PerformanceSuite/Core'
     cr_spec.dependency 'FirebaseCrashlytics'
   end

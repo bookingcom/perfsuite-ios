@@ -9,7 +9,7 @@ import FirebaseCore
 import FirebaseCrashlytics
 
 // In SwiftPM we have separate targets
-#if canImport(PerformanceSuite)
+#if canImport(PerformanceSuiteCrashlytics)
 import PerformanceSuite
 #endif
 

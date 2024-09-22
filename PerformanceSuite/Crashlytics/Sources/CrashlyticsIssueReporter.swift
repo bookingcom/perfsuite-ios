@@ -11,7 +11,7 @@ import FirebaseCrashlytics
 #if canImport(CrashlyticsImports)
 import CrashlyticsImports
 #endif
-#if canImport(PerformanceSuite)
+#if canImport(PerformanceSuiteCrashlytics)
 import PerformanceSuite
 #endif
 

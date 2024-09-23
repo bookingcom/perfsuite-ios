@@ -18,7 +18,15 @@ import PerformanceSuite
 // this type is used for crashes to log all threads stack traces
 private let firebaseNativeErrorType: Int32 = 1
 
-class CrashlyticsIssueReporter {
+protocol CrashlyticsIssueReporting {
+    func reportHangStarted(withType hangType: String, stackTrace: String) -> String
+    func changeExistingHangReport(toType type: String, stackTrace: String, reportPath: String)
+
+    var fatalHangsAsCrashes: Bool { get }
+    var firebaseHangReason: String { get }
+}
+
+class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
 
     init(fatalHangsAsCrashes: Bool, firebaseHangReason: String) {
         self.fatalHangsAsCrashes = fatalHangsAsCrashes

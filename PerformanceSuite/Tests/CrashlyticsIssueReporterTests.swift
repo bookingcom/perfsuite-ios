@@ -284,5 +284,5 @@ private let addresses: [UInt] = [
     0x0000_0001_e3e9_cdec,
 ]
 
-let hangType = "TestHangType"
-let hangReason = "Test Hang Reason"
+private let hangType = "TestHangType"
+private let hangReason = "Test Hang Reason"

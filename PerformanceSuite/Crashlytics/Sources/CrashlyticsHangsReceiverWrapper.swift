@@ -57,19 +57,27 @@ public typealias HangTypeFormatter = (_ fatal: Bool, _ startup: Bool) -> String
 /// will send hangs to Firebase Crashlytics.
 public class CrashlyticsHangsReceiverWrapper: HangsReceiver {
 
-    public init(hangsReceiver: HangsReceiver,
-                settings: CrashlyticsHangsSettings) {
+    public convenience init(hangsReceiver: HangsReceiver,
+                            settings: CrashlyticsHangsSettings) {
+        let issueReporter = CrashlyticsIssueReporter(
+            fatalHangsAsCrashes: settings.reportingMode.sendFatalHangsAsCrashes,
+            firebaseHangReason: settings.hangReason)
+        self.init(hangsReceiver: hangsReceiver, settings: settings, issueReporter: issueReporter)
+    }
+
+    init(hangsReceiver: HangsReceiver,
+         settings: CrashlyticsHangsSettings,
+         issueReporter: CrashlyticsIssueReporting) {
+        self.issueReporter = issueReporter
         self.hangsReceiver = hangsReceiver
         self.reportingMode = settings.reportingMode
-        self.issueReporter = CrashlyticsIssueReporter(
-            fatalHangsAsCrashes: reportingMode.sendFatalHangsAsCrashes,
-            firebaseHangReason: settings.hangReason)
         self.hangTypeFormatter = settings.hangTypeFormatter
     }
+
     let hangsReceiver: HangsReceiver
     let reportingMode: CrashlyticsHangsReportingMode
     let hangTypeFormatter: HangTypeFormatter
-    let issueReporter: CrashlyticsIssueReporter
+    let issueReporter: CrashlyticsIssueReporting
 
     private var lastHangReport: String?
 

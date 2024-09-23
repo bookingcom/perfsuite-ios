@@ -11,9 +11,16 @@ pod 'SwiftLint'
 
 post_install do |installer|
     installer.pods_project.targets.each do |target|
-        if target.name == 'GCDWebServer' or target.name == 'SwiftLint' then
+        target.build_configurations.each do |config|
+           config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = deployment_target
+           config.build_settings['EMBEDDED_CONTENT_CONTAINS_SWIFT'] = nil
+           config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = nil
+           config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        end
+        
+        if target.name == 'FirebaseCrashlytics' then
             target.build_configurations.each do |config|
-               config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = deployment_target
+                config.build_settings['OTHER_LDFLAGS'] = "-Xlinker -no_warn_duplicate_libraries #{config.build_settings['OTHER_LDFLAGS']}"
             end
         end
 

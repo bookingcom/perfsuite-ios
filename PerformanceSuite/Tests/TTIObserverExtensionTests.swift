@@ -44,7 +44,7 @@ class TTIObserverExtensionTests: XCTestCase {
         window.makeKeyAndVisible()
 
         let exp = expectation(description: "vc appeared")
-        let vc = MyViewController()
+        let vc = OutputViewController()
         vc.viewAppeared = {
             exp.fulfill()
         }
@@ -74,11 +74,11 @@ class TTIObserverExtensionTests: XCTestCase {
     }
 
     func testTTIIsFinishedWhenViewDisappearedByDefault() {
-        let root = MyViewController()
+        let root = OutputViewController()
         root.title = "root"
-        let vc1 = MyViewController()
+        let vc1 = OutputViewController()
         vc1.title = "vc1"
-        let vc2 = MyViewController()
+        let vc2 = OutputViewController()
         vc2.title = "vc2"
         let navigation = UINavigationController(rootViewController: root)
 
@@ -133,7 +133,7 @@ class TTIObserverExtensionTests: XCTestCase {
     }
 
     func testNoTTIForViewControllerWithoutScreenIsReady() {
-        let vc = MyViewController()
+        let vc = OutputViewController()
         vc.title = "vc"
 
         let exp = expectation(description: "viewDidAppear")
@@ -163,7 +163,7 @@ class TTIObserverExtensionTests: XCTestCase {
     }
 
     func testScreenIsReadyForViewControllerGeneratesTTIMetrics() {
-        let vc = MyViewController()
+        let vc = OutputViewController()
         vc.title = "vc"
 
         let exp = expectation(description: "viewDidAppear")
@@ -200,7 +200,7 @@ class TTIObserverExtensionTests: XCTestCase {
     }
 
     func testScreenIsReadyForSwiftUIViewGeneratesTTIMetrics() {
-        let vc = MyHostingController(rootView: MyView())
+        let vc = HostingControllerWithAppeared(rootView: ViewIsReadyOnAppear())
         vc.title = "hosting vc"
 
         let window = makeWindow()
@@ -225,13 +225,13 @@ class TTIObserverExtensionTests: XCTestCase {
         let now = makeRandomTime()
         timeProvider.time = now
 
-        let vc1 = MyViewController()
+        let vc1 = OutputViewController()
         vc1.title = "vc1"
 
-        let vc2 = MyViewController()
+        let vc2 = OutputViewController()
         vc2.title = "vc2"
 
-        let vc3 = MyViewController()
+        let vc3 = OutputViewController()
         vc3.title = "vc3"
 
         PerformanceMonitoring.queue.sync {}
@@ -325,118 +325,61 @@ class TTIObserverExtensionTests: XCTestCase {
 
     }
 
-    func testScreenIsReadyForChildViewController() {
+    func testScreenIsReadyForChildViewController() throws {
+        metricsReceiver.shouldTrack = { vc in
+            return (vc as? OutputViewController)?.outputTitle == "vc1"
+        }
+
         let now = makeRandomTime()
         timeProvider.time = now
 
-        let vc1 = MyViewController()
-        vc1.title = "vc1"
+        let vc1 = OutputViewController(outputTitle: "vc1")
+        let vc2 = OutputViewController(outputTitle: "vc2")
 
-        let vc2 = UIViewController()
-        vc2.title = "vc2"
+        let exp1 = expectation(description: "viewDidAppear vc1")
+        let exp2 = expectation(description: "viewDidAppear vc2")
+        vc1.viewAppeared = {
+            exp1.fulfill()
+        }
 
+        vc2.viewAppeared = {
+            exp2.fulfill()
+        }
+
+        vc2.willMove(toParent: vc1)
         vc1.addChild(vc2)
+        vc1.view.addSubview(vc2.view)
+        vc2.didMove(toParent: vc1)
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
         timeProvider.time = now.advanced(by: .seconds(1))
 
-        let exp1 = expectation(description: "viewDidAppear vc1")
-        vc1.viewAppeared = {
-            DispatchQueue.main.async {
-                exp1.fulfill()
-            }
-        }
-
         let window = makeWindow()
         window.rootViewController = vc1
         window.makeKeyAndVisible()
 
-        wait(for: [exp1], timeout: 3)
+        wait(for: [exp1, exp2], timeout: 3)
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
         // we call screenIsReady for the child, but it should work for the parent
         vc2.screenIsReady()
+        waitForTheNextRunLoop()
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .seconds(1))
-        XCTAssertEqual(metricsReceiver.lastController?.title, "vc1")
+
+        let ovc = try XCTUnwrap(metricsReceiver.lastController as? OutputViewController)
+        XCTAssertEqual(ovc.outputTitle, "vc1")
     }
 
     private func makeRandomTime() -> DispatchTime {
         DispatchTime(uptimeNanoseconds: 10_000_000 + UInt64.random(in: 0..<100000))
-    }
-}
-
-private class MyHostingController<T: View>: UIHostingController<T> {
-
-    var viewAppeared: () -> Void = {}
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        DispatchQueue.main.async {
-            self.viewAppeared()
-        }
-    }
-}
-
-private class MyViewController: UIViewController {
-
-    var viewDisappeared: () -> Void = {}
-    var viewAppeared: () -> Void = {}
-    var output = ""
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        output += "viewDidLoad\n"
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        output += "viewWillAppear\n"
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        output += "viewDidAppear\n"
-        viewAppeared()
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        output += "viewWillDisappear\n"
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        output += "viewDidDisappear\n"
-
-        viewDisappeared()
-    }
-
-    override func viewWillLayoutSubviews() {
-        super.viewWillLayoutSubviews()
-        output += "viewWillLayoutSubviews\n"
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        output += "viewDidLayoutSubviews\n"
-    }
-
-    deinit {
-        XCTAssertTrue(Thread.isMainThread)
-    }
-}
-
-private struct MyView: View {
-    var body: some View {
-        return Text("test").screenIsReadyOnAppear()
     }
 }

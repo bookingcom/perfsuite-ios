@@ -20,6 +20,8 @@ final class PerformanceMonitoringTests: XCTestCase {
 
     override func tearDown() {
         super.tearDown()
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
         StartupTimeReporter.forgetMainStartedForTests()
     }
 
@@ -40,7 +42,10 @@ final class PerformanceMonitoringTests: XCTestCase {
         vc.endAppearanceTransition()
         vc.beginAppearanceTransition(false, animated: false)
         vc.endAppearanceTransition()
+
         PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
+        waitForTheNextRunLoop()
 
         try PerformanceMonitoring.disable()
 
@@ -74,6 +79,30 @@ final class PerformanceMonitoringTests: XCTestCase {
         XCTAssertFalse(PerformanceMonitoring.appStartInfo.appStartedWithPrewarming)
 
         try PerformanceMonitoring.disable()
+    }
+
+    func testEnableWithCrashlytics() async throws {
+        configureFirebase()
+        let settings = CrashlyticsHangsSettings(reportingMode: .fatalHangsAsNonFatals,
+                                                hangReason: "my_reason",
+                                                hangTypeFormatter: customHangTypeFormatter)
+        try PerformanceMonitoring.enableWithCrashlyticsSupport(config: .all(receiver: self), settings: settings)
+
+        let hangReporter = try XCTUnwrap(PerformanceMonitoring.appReporters.compactMap { $0 as? HangReporter }.first)
+        // check that hangsReceiver is properly wrapped
+        XCTAssertTrue(hangReporter.receiver is CrashlyticsHangsReceiverWrapper)
+        let wrapper = try XCTUnwrap(hangReporter.receiver as? CrashlyticsHangsReceiverWrapper)
+        XCTAssertEqual(wrapper.hangsReceiver as? PerformanceMonitoringTests, self)
+        XCTAssertEqual(wrapper.hangTypeFormatter(true, true), "hang_type")
+        XCTAssertEqual(wrapper.issueReporter.fatalHangsAsCrashes, false)
+        XCTAssertEqual(wrapper.issueReporter.firebaseHangReason, "my_reason")
+
+        // cleanup PerformanceSuite
+        try PerformanceMonitoring.disable()
+    }
+
+    private func customHangTypeFormatter(_ fatal: Bool, _ startup: Bool) -> String {
+        return "hang_type"
     }
 
     private var onInitExpectation: XCTestExpectation?

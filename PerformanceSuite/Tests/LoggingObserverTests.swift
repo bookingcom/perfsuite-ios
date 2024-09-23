@@ -85,7 +85,7 @@ final class LoggingObserverTests: XCTestCase {
         let exp = expectation(description: "openedScreens")
 
         DispatchQueue.global().async {
-            while (AppInfoHolder.appRuntimeInfo.openedScreens.count < 3) {
+            while AppInfoHolder.appRuntimeInfo.openedScreens.count < 3 {
                 Thread.sleep(forTimeInterval: 0.001)
             }
             exp.fulfill()

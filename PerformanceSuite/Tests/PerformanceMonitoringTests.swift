@@ -5,7 +5,6 @@
 //  Created by Gleb Tarasov on 25/09/2023.
 //
 
-import FirebaseCore
 import XCTest
 @testable import PerformanceSuite
 
@@ -83,13 +82,10 @@ final class PerformanceMonitoringTests: XCTestCase {
     }
 
     func testEnableWithCrashlytics() async throws {
+        configureFirebase()
         let settings = CrashlyticsHangsSettings(reportingMode: .fatalHangsAsNonFatals,
                                                 hangReason: "my_reason",
                                                 hangTypeFormatter: customHangTypeFormatter)
-        let options = FirebaseOptions(googleAppID: "1:11111111111:ios:aa1a1111111111a1", gcmSenderID: "123")
-        options.projectID = "abc-xyz-123"
-        options.apiKey = "A12345678901234567890123456789012345678"
-        FirebaseApp.configure(name: "TestApp", options: options)
         try PerformanceMonitoring.enableWithCrashlyticsSupport(config: .all(receiver: self), settings: settings)
 
         let hangReporter = try XCTUnwrap(PerformanceMonitoring.appReporters.compactMap { $0 as? HangReporter }.first)
@@ -103,11 +99,6 @@ final class PerformanceMonitoringTests: XCTestCase {
 
         // cleanup PerformanceSuite
         try PerformanceMonitoring.disable()
-
-        // cleanup configured firebase
-        for a in FirebaseApp.allApps!.values {
-            await a.delete()
-        }
     }
 
     private func customHangTypeFormatter(_ fatal: Bool, _ startup: Bool) -> String {

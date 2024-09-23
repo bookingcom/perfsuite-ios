@@ -48,11 +48,10 @@ class CrashlyticsIssueReporter {
             result = FIRCLSExceptionRecordOnDemandModel(model, 0, 0)
         }
 
-        if fatalHangsAsCrashes {
-            // this shouldn't happen, but remove the previous marker
-            // if it is still there
-            removeFirebaseCrashMarker()
-        }
+        // Ensure, that crash marker is not created
+        // (so that `didCrashPreviously` returns false on the next launch)
+        removeFirebaseCrashMarker()
+
         return result
     }
 
@@ -77,14 +76,20 @@ class CrashlyticsIssueReporter {
         }
     }
 
-    private func removeFirebaseCrashMarker() {
+    var crashedMarkerFileFullPath: String? {
         guard let crashedMarkerFileName = String(utf8String: FIRCLSCrashedMarkerFileName),
               let rootPath = Crashlytics.crashlytics().fileManager?.rootPath else {
+            return nil
+        }
+
+        return (rootPath as NSString).appendingPathComponent(crashedMarkerFileName)
+    }
+
+    func removeFirebaseCrashMarker() {
+        guard let crashedMarkerFileFullPath else {
             debugPrint("Failed to get path for Crashlytics crash marker file")
             return
         }
-
-        let crashedMarkerFileFullPath = (rootPath as NSString).appendingPathComponent(crashedMarkerFileName)
         try? FileManager.default.removeItem(atPath: crashedMarkerFileFullPath)
     }
 

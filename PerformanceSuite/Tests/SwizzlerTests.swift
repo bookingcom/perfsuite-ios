@@ -112,6 +112,40 @@ class SwizzlerTests: XCTestCase {
         try Swizzler.unswizzle(class: C1.self, selector: selector)
     }
 
+    func testSwizzleBeforeWorks() throws {
+        let selector = #selector(C1.testMethod1Param(p1:))
+        var swizzledCalled = false
+        try Swizzler.swizzle(class: C1.self, selector: selector, after: false) { (c1: C1) in
+            XCTAssert(c1.lastP1 as? Bool == nil)
+            swizzledCalled = true
+        }
+
+        let c1 = C1()
+        XCTAssertNil(c1.lastP1)
+        XCTAssertFalse(swizzledCalled)
+        _ = c1.testMethod1Param(p1: true)
+        XCTAssertTrue(swizzledCalled)
+
+        try Swizzler.unswizzle(class: C1.self, selector: selector)
+    }
+
+    func testSwizzleAfterWorks() throws {
+        let selector = #selector(C1.testMethod1Param(p1:))
+        var swizzledCalled = false
+        try Swizzler.swizzle(class: C1.self, selector: selector, after: true) { (c1: C1) in
+            XCTAssert(c1.lastP1 as? Bool == true)
+            swizzledCalled = true
+        }
+
+        let c1 = C1()
+        XCTAssertNil(c1.lastP1)
+        XCTAssertFalse(swizzledCalled)
+        _ = c1.testMethod1Param(p1: true)
+        XCTAssertTrue(swizzledCalled)
+
+        try Swizzler.unswizzle(class: C1.self, selector: selector)
+    }
+
     private var lastCalled: C1?
 }
 

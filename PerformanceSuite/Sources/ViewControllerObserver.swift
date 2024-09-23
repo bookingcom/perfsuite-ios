@@ -34,7 +34,7 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
     private let observerMaker: (S.ScreenIdentifier) -> T
 
     private func ensureDeallocationOnTheMainThread(viewController: UIViewController) {
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [viewController] in
             // Make sure viewController is deallocated on the main thread, because
             // if the last access is on the background thread, it will be deallocated
             // in background, and it can cause data races in UIKit.

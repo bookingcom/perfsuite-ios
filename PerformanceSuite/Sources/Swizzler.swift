@@ -34,7 +34,7 @@ public enum SwizzlerError: Error, LocalizedError {
 public enum Swizzler {
 
 
-    /// Adds calling of `action` block before every call of `selector` method in class `class`.
+    /// Adds calling of `action` block before/after every call of `selector` method in class `class`.
     ///
     /// It is done by injection another method and swizzling existing method with the new one.
     ///
@@ -47,8 +47,9 @@ public enum Swizzler {
     /// - Parameters:
     ///   - classToSwizzle: which class to patch
     ///   - selector: which method to patch
+    ///   - after: determines if `action` is called before or after the original method
     ///   - action: what action to call before the method is called
-    public static func swizzle<T: NSObject>(class classToSwizzle: T.Type, selector: Selector, action: @escaping (T) -> Void) throws {
+    public static func swizzle<T: NSObject>(class classToSwizzle: T.Type, selector: Selector, after: Bool = false, action: @escaping (T) -> Void) throws {
         let swizzledSelector = makeSwizzledSelector(selector)
 
         guard let method = class_getInstanceMethod(classToSwizzle, selector),
@@ -68,7 +69,9 @@ public enum Swizzler {
                 // we can't throw error from here, but this shouldn't happen, so just do a fatalError
                 fatalError("Expected \(T.self) but got object \(sself).")
             }
-            action(sself)
+            if !after {
+                action(sself)
+            }
             guard let oldImp = class_getMethodImplementation(classToSwizzle, swizzledSelector) else {
                 // we can't throw error from here, but this shouldn't happen, so just do a fatalError
                 fatalError("Something went wrong. There is no existing method for selector \(swizzledSelector) in class \(classToSwizzle)")
@@ -76,7 +79,11 @@ public enum Swizzler {
             let oldImpFunction = unsafeBitCast(
                 oldImp,
                 to: (@convention(c) (NSObject, Selector, UnsafeMutableRawPointer, UnsafeMutableRawPointer) -> UnsafeMutableRawPointer).self)
-            return oldImpFunction(sself, swizzledSelector, p1, p2)
+            let result = oldImpFunction(sself, swizzledSelector, p1, p2)
+            if after {
+                action(sself)
+            }
+            return result
         }
 
         let imp = imp_implementationWithBlock(unsafeBitCast(block, to: AnyObject.self))

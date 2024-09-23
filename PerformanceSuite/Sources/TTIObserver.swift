@@ -39,7 +39,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
 
     func beforeInit(viewController: UIViewController) {
         let now = timeProvider.now()
-        PerformanceMonitoring.queue.async {
+        let action = {
             self.sameRunLoopAsTheInit = true
             assert(!self.ttiCalculated)
             assert(self.screenCreatedTime == nil)
@@ -52,6 +52,12 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
                 }
             }
         }
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+            action()
+        } else {
+            PerformanceMonitoring.queue.async(execute: action)
+        }
     }
 
     func beforeViewDidLoad(viewController: UIViewController) {
@@ -60,17 +66,23 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
         // Ideally we should start before `loadView`, but it is impossible to swizzle `loadView` because usually nobody calls `super.loadView`
         // in their custom implementations. So we start at `viewDidLoad` as the nearest possible place to swizzle.
         let now = timeProvider.now()
-        PerformanceMonitoring.queue.async {
+        let action = {
             if !self.sameRunLoopAsTheInit {
                 assert(!self.ttiCalculated)
                 self.screenCreatedTime = now
             }
         }
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+            action()
+        } else {
+            PerformanceMonitoring.queue.async(execute: action)
+        }
     }
 
     func afterViewWillAppear(viewController: UIViewController) {
         let now = timeProvider.now()
-        PerformanceMonitoring.queue.async {
+        let action = {
             if self.viewWillAppearTime != nil && self.ttiCalculated == false {
                 // viewWillAppear might be called twice before viewDidAppear
                 // One example: when we show view controller in UINavigationController
@@ -91,25 +103,46 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
                 self.viewWillAppearTime = now
             }
         }
+
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+            action()
+        } else {
+            PerformanceMonitoring.queue.async(execute: action)
+        }
     }
 
     func afterViewDidAppear(viewController: UIViewController) {
         let now = timeProvider.now()
-        PerformanceMonitoring.queue.async {
+        let action = {
             if self.shouldReportTTI && self.viewDidAppearTime == nil {
                 self.viewDidAppearTime = now
                 self.reportTTIIfNeeded()
             }
         }
+
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+            action()
+        } else {
+            PerformanceMonitoring.queue.async(execute: action)
+        }
     }
 
     func beforeViewWillDisappear(viewController: UIViewController) {
         // if screenIsReady wasn't called until now, we consider that screen was ready in `viewDidAppear`.
-        PerformanceMonitoring.queue.async {
+        let action = {
             if self.shouldReportTTI && self.screenIsReadyTime == nil {
                 self.screenIsReadyTime = self.viewDidAppearTime
                 self.reportTTIIfNeeded()
             }
+        }
+
+        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
+            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+            action()
+        } else {
+            PerformanceMonitoring.queue.async(execute: action)
         }
     }
 

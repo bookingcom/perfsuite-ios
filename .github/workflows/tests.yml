@@ -18,6 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # we need pods to download SwiftLint
       - name: Install CocoaPods
         run: |
           pod install

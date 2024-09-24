@@ -1,4 +1,4 @@
-name: "CodeQL Advanced"
+name: "CodeQL"
 on: 
   push:
     branches: 
@@ -43,6 +43,7 @@ jobs:
       shell: bash
       run: |
         xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'
+        xcodebuild -scheme PerformanceSuiteCrashlytics -destination 'generic/platform=iOS'
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3

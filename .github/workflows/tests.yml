@@ -1,4 +1,4 @@
-name: PerformanceSuite Tests
+name: Tests
 
 on: 
   push:

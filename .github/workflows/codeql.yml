@@ -1,0 +1,50 @@
+name: "CodeQL"
+on: 
+  push:
+    branches: 
+      - main
+  schedule: 
+    - cron: '34 2 * * *'
+
+jobs:
+  analyze:
+    name: codeql
+    runs-on: 'macos-latest'
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: swift
+          build-mode: manual
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # to compile swift package we should remove workspace and xcodeproj
+    # otherwise xcodebuild takes schemes from them
+    - name: Remove workspace
+      run: |
+        rm -rf Project.xcodeproj
+        rm -rf Project.xcworkspace
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+    - if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'
+        xcodebuild -scheme PerformanceSuiteCrashlytics -destination 'generic/platform=iOS'
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"

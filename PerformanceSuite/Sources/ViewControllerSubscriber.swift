@@ -22,66 +22,36 @@ final class ViewControllerSubscriber {
     private let viewDidDisappearSelector = #selector(UIViewController.viewDidDisappear(_:))
 
     func subscribeObserver(_ observer: ViewControllerObserver) throws {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            try Swizzler.swizzle(class: classToSwizzle, selector: initWithNibSelector) { (vc: UIViewController) in
-                observer.beforeInit(viewController: vc)
-            }
+        try Swizzler.swizzle(class: classToSwizzle, selector: initWithNibSelector) { (vc: UIViewController) in
+            observer.beforeInit(viewController: vc)
+        }
 
-            try Swizzler.swizzle(class: classToSwizzle, selector: initWithCoderSelector) { (vc: UIViewController) in
-                observer.beforeInit(viewController: vc)
-            }
+        try Swizzler.swizzle(class: classToSwizzle, selector: initWithCoderSelector) { (vc: UIViewController) in
+            observer.beforeInit(viewController: vc)
+        }
 
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewDidLoadSelector) { (vc: UIViewController) in
-                observer.beforeViewDidLoad(viewController: vc)
-            }
+        try Swizzler.swizzle(class: classToSwizzle, selector: viewDidLoadSelector) { (vc: UIViewController) in
+            observer.beforeViewDidLoad(viewController: vc)
+        }
 
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewWillAppearSelector, after: true) { (vc: UIViewController) in
+        try Swizzler.swizzle(class: classToSwizzle, selector: viewWillAppearSelector) { (vc: UIViewController) in
+            DispatchQueue.main.async {
                 observer.afterViewWillAppear(viewController: vc)
             }
+        }
 
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewDidAppearSelector, after: true) { (vc: UIViewController) in
+        try Swizzler.swizzle(class: classToSwizzle, selector: viewDidAppearSelector) { (vc: UIViewController) in
+            DispatchQueue.main.async {
                 observer.afterViewDidAppear(viewController: vc)
             }
+        }
 
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewWillDisappearSelector) { (vc: UIViewController) in
-                observer.beforeViewWillDisappear(viewController: vc)
-            }
+        try Swizzler.swizzle(class: classToSwizzle, selector: viewWillDisappearSelector) { (vc: UIViewController) in
+            observer.beforeViewWillDisappear(viewController: vc)
+        }
 
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewDidDisappearSelector) { (vc: UIViewController) in
-                observer.beforeViewDidDisappear(viewController: vc)
-            }
-        } else {
-            try Swizzler.swizzle(class: classToSwizzle, selector: initWithNibSelector) { (vc: UIViewController) in
-                observer.beforeInit(viewController: vc)
-            }
-
-            try Swizzler.swizzle(class: classToSwizzle, selector: initWithCoderSelector) { (vc: UIViewController) in
-                observer.beforeInit(viewController: vc)
-            }
-
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewDidLoadSelector) { (vc: UIViewController) in
-                observer.beforeViewDidLoad(viewController: vc)
-            }
-
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewWillAppearSelector) { (vc: UIViewController) in
-                DispatchQueue.main.async {
-                    observer.afterViewWillAppear(viewController: vc)
-                }
-            }
-
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewDidAppearSelector) { (vc: UIViewController) in
-                DispatchQueue.main.async {
-                    observer.afterViewDidAppear(viewController: vc)
-                }
-            }
-
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewWillDisappearSelector) { (vc: UIViewController) in
-                observer.beforeViewWillDisappear(viewController: vc)
-            }
-
-            try Swizzler.swizzle(class: classToSwizzle, selector: viewDidDisappearSelector) { (vc: UIViewController) in
-                observer.beforeViewDidDisappear(viewController: vc)
-            }
+        try Swizzler.swizzle(class: classToSwizzle, selector: viewDidDisappearSelector) { (vc: UIViewController) in
+            observer.beforeViewDidDisappear(viewController: vc)
         }
     }
 

@@ -55,19 +55,18 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
 
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
         timeProvider.time = time.advanced(by: .milliseconds(9))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(10))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
@@ -91,9 +90,8 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
 
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
@@ -105,11 +103,11 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
         timeProvider.time = time.advanced(by: .microseconds(7))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .microseconds(10))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         PerformanceMonitoring.consumerQueue.sync {}
@@ -125,9 +123,8 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
 
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
@@ -139,8 +136,8 @@ class TTIObserverTests: XCTestCase {
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
 
         timeProvider.time = time.advanced(by: .microseconds(10))
-        observer.afterViewWillAppear(viewController: vc)
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
         PerformanceMonitoring.consumerQueue.sync {}
 
         // metrics were not calculated because app went to background
@@ -153,21 +150,20 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
 
         TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(200))
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(214))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(230))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(330))
@@ -186,7 +182,6 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
         waitForTheNextRunLoop()
 
         TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
@@ -194,15 +189,15 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(200))
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(210))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(230))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(330))
@@ -224,26 +219,25 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
         waitForTheNextRunLoop()
 
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
         timeProvider.time = time.advanced(by: .milliseconds(8))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(10))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
         timeProvider.time = time.advanced(by: .milliseconds(100))
-        observer.beforeViewWillDisappear(viewController: vc)
+        observer.beforeViewWillDisappear()
         waitForTheNextRunLoop()
 
         PerformanceMonitoring.consumerQueue.sync {}
@@ -259,22 +253,21 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
         waitForTheNextRunLoop()
 
         TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(150))
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(180))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(200))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(300))
@@ -292,15 +285,15 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(500))
-        observer2.beforeInit(viewController: vc2)
+        observer2.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(880))
-        observer2.afterViewWillAppear(viewController: vc2)
+        observer2.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(900))
-        observer2.afterViewDidAppear(viewController: vc2)
+        observer2.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1300))
@@ -326,19 +319,18 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNil(metricsReceiver.ttiMetrics)
 
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(500))
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(600))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(900))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1300))
@@ -366,15 +358,15 @@ class TTIObserverTests: XCTestCase {
         let observer2 = TTIObserver(screen: vc2, metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
         timeProvider.time = time.advanced(by: .milliseconds(500))
-        observer1.beforeInit(viewController: vc1)
+        observer1.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(600))
-        observer1.afterViewWillAppear(viewController: vc1)
+        observer1.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(900))
-        observer1.afterViewDidAppear(viewController: vc1)
+        observer1.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1300))
@@ -382,11 +374,11 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1400))
-        observer2.beforeInit(viewController: vc2)
+        observer2.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1500))
-        observer1.beforeViewWillDisappear(viewController: vc1)
+        observer1.beforeViewWillDisappear()
         waitForTheNextRunLoop()
 
         PerformanceMonitoring.consumerQueue.sync {}
@@ -396,15 +388,15 @@ class TTIObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.lastController, vc1)
 
         timeProvider.time = time.advanced(by: .milliseconds(1600))
-        observer2.afterViewWillAppear(viewController: vc2)
+        observer2.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(2000))
-        observer2.afterViewDidAppear(viewController: vc2)
+        observer2.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(2600))
-        observer2.beforeViewWillDisappear(viewController: vc2)
+        observer2.beforeViewWillDisappear()
         waitForTheNextRunLoop()
 
         PerformanceMonitoring.consumerQueue.sync {}
@@ -423,15 +415,14 @@ class TTIObserverTests: XCTestCase {
 
         let metricsReceiver = TTIMetricsReceiverStub()
         let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-        let vc = UIViewController()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(100))
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(400))
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(600))
@@ -439,11 +430,11 @@ class TTIObserverTests: XCTestCase {
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(900))
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(2000))
-        observer.beforeViewWillDisappear(viewController: vc)
+        observer.beforeViewWillDisappear()
         waitForTheNextRunLoop()
 
         PerformanceMonitoring.consumerQueue.sync {}
@@ -470,25 +461,25 @@ class TTIObserverTests: XCTestCase {
         let observer2 = TTIObserver(screen: vc2, metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
         timeProvider.time = time.advanced(by: .milliseconds(500))
-        observer1.beforeInit(viewController: vc1)
-        observer2.beforeInit(viewController: vc2)
+        observer1.beforeInit()
+        observer2.beforeInit()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(600))
-        observer1.afterViewWillAppear(viewController: vc1)
-        observer2.afterViewWillAppear(viewController: vc2)
+        observer1.afterViewWillAppear()
+        observer2.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(1300))
-        observer2.afterViewDidAppear(viewController: vc2)
+        observer2.afterViewDidAppear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(10000))
-        observer2.beforeViewWillDisappear(viewController: vc2)
+        observer2.beforeViewWillDisappear()
         waitForTheNextRunLoop()
 
         timeProvider.time = time.advanced(by: .milliseconds(10100))
-        observer1.afterViewWillAppear(viewController: vc1)
+        observer1.afterViewWillAppear()
         waitForTheNextRunLoop()
 
         PerformanceMonitoring.consumerQueue.sync {}
@@ -501,10 +492,10 @@ class TTIObserverTests: XCTestCase {
         metricsReceiver.ttiMetrics = nil
 
         timeProvider.time = time.advanced(by: .milliseconds(11000))
-        observer1.afterViewDidAppear(viewController: vc1)
+        observer1.afterViewDidAppear()
 
         timeProvider.time = time.advanced(by: .milliseconds(15000))
-        observer1.beforeViewWillDisappear(viewController: vc1)
+        observer1.beforeViewWillDisappear()
         PerformanceMonitoring.consumerQueue.sync {}
 
         // TTI shouldn't be sent

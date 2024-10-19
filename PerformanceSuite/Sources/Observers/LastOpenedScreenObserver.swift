@@ -1,92 +1,26 @@
 //
-//  LoggingObserver.swift
-//  PerformanceSuite
+//  LastOpenedScreenObserver.swift
+//  Pods
 //
-//  Created by Gleb Tarasov on 23/09/2022.
+//  Created by Gleb Tarasov on 19/10/2024.
 //
 
-import Foundation
-import UIKit
 import SwiftUI
 
-/// Use this protocol for light-weight operations like logging only,
-/// it is not intended to be used for some business-logic.
-///
-/// If you execute something heavy, offload it to some other background thread.
-public protocol ViewControllerLoggingReceiver: ScreenMetricsReceiver {
-
-    /// Method is called during view controller's initialization
-    func onInit(screen: ScreenIdentifier)
-
-    /// Method is called during view controller's `viewDidLoad`
-    func onViewDidLoad(screen: ScreenIdentifier)
-
-    /// Method is called during view controller's `viewWillAppear`
-    func onViewWillAppear(screen: ScreenIdentifier)
-
-    /// Method is called during view controller's `viewDidAppear`
-    func onViewDidAppear(screen: ScreenIdentifier)
-
-    /// Method is called during view controller's `viewWillDisappear`
-    func onViewWillDisappear(screen: ScreenIdentifier)
-
-    /// Method is called during view controller's `viewDidDisappear`
-    func onViewDidDisappear(screen: ScreenIdentifier)
-}
-
-
-/// Observer which forward all delegate methods to its receiver for logging purposes
-final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerObserver {
-
-    init(screen: V.ScreenIdentifier, receiver: V) {
-        self.screen = screen
-        self.receiver = receiver
-    }
-
-    private let screen: V.ScreenIdentifier
-    private let receiver: V
-
-
-    func beforeInit(viewController: UIViewController) {
-        PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onInit(screen: self.screen)
-        }
-    }
-
-    func beforeViewDidLoad(viewController: UIViewController) {
-        PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewDidLoad(screen: self.screen)
-        }
-    }
-
-    func afterViewWillAppear(viewController: UIViewController) {
-        PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewWillAppear(screen: self.screen)
-        }
-    }
-
+final class LastOpenedScreenObserver: ViewControllerObserver {
+    func beforeInit(viewController: UIViewController) {}
+    
+    func beforeViewDidLoad(viewController: UIViewController) {}
+    
+    func afterViewWillAppear(viewController: UIViewController) {}
+    
     func afterViewDidAppear(viewController: UIViewController) {
         rememberOpenedScreenIfNeeded(viewController)
-        PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewDidAppear(screen: self.screen)
-        }
     }
-
-    func beforeViewWillDisappear(viewController: UIViewController) {
-        PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewWillDisappear(screen: self.screen)
-        }
-    }
-
-    func beforeViewDidDisappear(viewController: UIViewController) {
-        PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewDidDisappear(screen: self.screen)
-        }
-    }
-
-    static var identifier: AnyObject {
-        return loggingObserverIdentifier
-    }
+    
+    func beforeViewWillDisappear(viewController: UIViewController) {}
+    
+    func beforeViewDidDisappear(viewController: UIViewController) {}
 
     // MARK: - Top screen detection
 
@@ -193,8 +127,6 @@ final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerObs
     ]
 
 }
-
-private let loggingObserverIdentifier = NSObject()
 
 // We cannot check `viewController is UIHostingController` because of generics,
 // so we use helper protocol here

@@ -48,7 +48,7 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
     private let identifier: F.FragmentIdentifier
     private let timeProvider: TimeProvider
     private let metricsReceiver: F
-    private let appStateObserver: AppStateObserver
+    private let appStateListener: AppStateListener
     private weak var reporter: FragmentTTIReporter<F>?
 
     private let createdTime: DispatchTime
@@ -60,13 +60,13 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
         identifier: F.FragmentIdentifier,
         timeProvider: TimeProvider,
         metricsReceiver: F,
-        appStateObserver: AppStateObserver,
+        appStateListener: AppStateListener,
         reporter: FragmentTTIReporter<F>
     ) {
         self.identifier = identifier
         self.timeProvider = timeProvider
         self.metricsReceiver = metricsReceiver
-        self.appStateObserver = appStateObserver
+        self.appStateListener = appStateListener
         self.reporter = reporter
         self.createdTime = timeProvider.now()
     }
@@ -92,7 +92,7 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
             return
         }
 
-        if appStateObserver.wasInBackground {
+        if appStateListener.wasInBackground {
             // we ignore events when app went into background during screen session, because TTI will be too long
             return
         }
@@ -128,23 +128,23 @@ class FragmentTTIReporter<F: FragmentTTIMetricsReceiver>: AppMetricsReporter {
 
     init(
         metricsReceiver: F, timeProvider: TimeProvider = defaultTimeProvider,
-        appStateObserverFactory: @escaping () -> AppStateObserver = { DefaultAppStateObserver() }
+        appStateListenerFactory: @escaping () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self.metricsReceiver = metricsReceiver
         self.timeProvider = timeProvider
-        self.appStateObserverFactory = appStateObserverFactory
+        self.appStateListenerFactory = appStateListenerFactory
     }
 
     private let metricsReceiver: F
     private let timeProvider: TimeProvider
-    private let appStateObserverFactory: () -> AppStateObserver
+    private let appStateListenerFactory: () -> AppStateListener
 
     func start(identifier: F.FragmentIdentifier) -> FragmentTTITrackable {
         let fragment: Trackable<F> = Trackable(
             identifier: identifier,
             timeProvider: timeProvider,
             metricsReceiver: metricsReceiver,
-            appStateObserver: appStateObserverFactory(),
+            appStateListener: appStateListenerFactory(),
             reporter: self)
         return fragment
     }

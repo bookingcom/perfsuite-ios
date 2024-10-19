@@ -7,6 +7,8 @@
 
 import UIKit
 
+
+/// Singleton class to swizzle UIViewController methods and add calling methods of the single main `ViewControllerObserver`.
 final class ViewControllerSubscriber {
 
     static let shared = ViewControllerSubscriber()

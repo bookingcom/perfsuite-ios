@@ -51,10 +51,10 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
     }
 
     func testNoTicksInBackground() {
-        let appStateObserver = AppStateObserverStub()
-        appStateObserver.isInBackground = true
+        let appStateListener = AppStateListenerStub()
+        appStateListener.isInBackground = true
 
-        let framesMeter = DefaultFramesMeter(appStateObserver: appStateObserver)
+        let framesMeter = DefaultFramesMeter(appStateListener: appStateListener)
         framesMeter.subscribe(receiver: self)
 
         self.expectation = self.expectation(description: "no frame should be reported, we are in background")
@@ -63,9 +63,9 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
         waitForExpectations(timeout: 0.2, handler: nil)
         XCTAssertNil(lastDuration)
 
-        appStateObserver.isInBackground = false
+        appStateListener.isInBackground = false
         PerformanceMonitoring.queue.async {
-            appStateObserver.didChange()
+            appStateListener.didChange()
         }
 
         self.expectation = self.expectation(description: "frame should be reported, we are active")
@@ -76,9 +76,9 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
         XCTAssertLessThan(lastDuration!, 0.5)
         lastDuration = nil
 
-        appStateObserver.isInBackground = true
+        appStateListener.isInBackground = true
         PerformanceMonitoring.queue.async {
-            appStateObserver.didChange()
+            appStateListener.didChange()
         }
 
         self.expectation = self.expectation(description: "no frame should be reported, we are in background again")
@@ -89,7 +89,7 @@ class FramesMeterTests: XCTestCase, FramesMeterReceiver {
     }
 }
 
-class AppStateObserverStub: AppStateObserver {
+class AppStateListenerStub: AppStateListener {
     var wasInBackground: Bool = false
     var isInBackground: Bool = false
     var didChange: () -> Void = {}

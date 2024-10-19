@@ -1,5 +1,5 @@
 //
-//  AppStateObserverTests.swift
+//  AppStateListenerTests.swift
 //  PerformanceSuite-Tests
 //
 //  Created by Gleb Tarasov on 12/07/2021.
@@ -10,10 +10,10 @@ import XCTest
 
 @testable import PerformanceSuite
 
-class AppStateObserverTests: XCTestCase {
+class AppStateListenerTests: XCTestCase {
 
     func testResignActiveWorks() throws {
-        let observer = DefaultAppStateObserver()
+        let observer = DefaultAppStateListener()
         XCTAssertFalse(observer.wasInBackground)
         XCTAssertFalse(observer.isInBackground)
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
@@ -22,7 +22,7 @@ class AppStateObserverTests: XCTestCase {
     }
 
     func testBecomeActiveWorks() throws {
-        let observer = DefaultAppStateObserver()
+        let observer = DefaultAppStateListener()
         XCTAssertFalse(observer.wasInBackground)
         XCTAssertFalse(observer.isInBackground)
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)

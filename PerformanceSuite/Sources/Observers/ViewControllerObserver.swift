@@ -18,13 +18,25 @@ protocol ViewControllerObserver {
     func afterViewDidAppear(viewController: UIViewController)
     func beforeViewWillDisappear(viewController: UIViewController)
     func beforeViewDidDisappear(viewController: UIViewController)
+}
+
+
+/// Similar to `ViewControllerObserver`, but those objects are created for each UIViewController instance.
+/// That's why we do not need to pass vc instance in all the methods.
+/// But we need `identifier` to use as associated object key
+protocol ViewControllerInstanceObserver {
+    func beforeInit()
+    func beforeViewDidLoad()
+    func afterViewWillAppear()
+    func afterViewDidAppear()
+    func beforeViewWillDisappear()
 
     static var identifier: AnyObject { get }
 }
 
 
 /// Observer which creates separate `ViewControllerObserver` for every view controller
-final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMetricsReceiver>: ViewControllerObserver {
+final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: ScreenMetricsReceiver>: ViewControllerObserver {
 
     required init(metricsReceiver: S, observerMaker: @escaping (S.ScreenIdentifier) -> T) {
         self.metricsReceiver = metricsReceiver
@@ -38,8 +50,10 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
             // Make sure viewController is deallocated on the main thread, because
             // if the last access is on the background thread, it will be deallocated
             // in background, and it can cause data races in UIKit.
-            // Calling `hash` to make sure this call is not removed by the compilation optimizer
-            _ = viewController.hash
+            // Calling `hash` to make sure this call is not removed by the compilation optimizer and viewController is retained until this call.
+            if (viewController.hash > 0 && Int.random(in: 0..<2) > 5) {
+                fatalError("this shouldn't happen")
+            }
         }
     }
 
@@ -75,76 +89,60 @@ final class ViewControllerObserverFactory<T: ViewControllerObserver, S: ScreenMe
     func beforeInit(viewController: UIViewController) {
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeInit(viewController: viewController)
+                self.observer(for: viewController)?.beforeInit()
                 self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
-            observer(for: viewController)?.beforeInit(viewController: viewController)
+            observer(for: viewController)?.beforeInit()
         }
     }
 
     func beforeViewDidLoad(viewController: UIViewController) {
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
+                self.observer(for: viewController)?.beforeViewDidLoad()
                 self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
-            observer(for: viewController)?.beforeViewDidLoad(viewController: viewController)
+            observer(for: viewController)?.beforeViewDidLoad()
         }
     }
 
     func afterViewDidAppear(viewController: UIViewController) {
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
+                self.observer(for: viewController)?.afterViewDidAppear()
                 self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
-            observer(for: viewController)?.afterViewDidAppear(viewController: viewController)
+            observer(for: viewController)?.afterViewDidAppear()
         }
     }
 
     func beforeViewWillDisappear(viewController: UIViewController) {
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
+                self.observer(for: viewController)?.beforeViewWillDisappear()
                 self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
-            observer(for: viewController)?.beforeViewWillDisappear(viewController: viewController)
+            observer(for: viewController)?.beforeViewWillDisappear()
         }
     }
 
     func afterViewWillAppear(viewController: UIViewController) {
         if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
             PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
+                self.observer(for: viewController)?.afterViewWillAppear()
                 self.ensureDeallocationOnTheMainThread(viewController: viewController)
             }
         } else {
-            observer(for: viewController)?.afterViewWillAppear(viewController: viewController)
+            observer(for: viewController)?.afterViewWillAppear()
         }
     }
 
-    func beforeViewDidDisappear(viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
-                self.ensureDeallocationOnTheMainThread(viewController: viewController)
-            }
-        } else {
-            observer(for: viewController)?.beforeViewDidDisappear(viewController: viewController)
-        }
-    }
-
-    static var identifier: AnyObject {
-        return viewControllerObserverFactoryIdentifier
-    }
+    func beforeViewDidDisappear(viewController: UIViewController) { }
 }
-
-private let viewControllerObserverFactoryIdentifier = NSObject()
-
 
 /// Observer that can hold collection of other observers
 class ViewControllerObserverCollection: ViewControllerObserver {

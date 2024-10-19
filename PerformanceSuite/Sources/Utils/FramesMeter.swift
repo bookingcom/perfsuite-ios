@@ -38,9 +38,9 @@ private class DisplayLinkProxy {
 
 final class DefaultFramesMeter: FramesMeter {
 
-    init(appStateObserver: AppStateObserver = DefaultAppStateObserver()) {
-        self.appStateObserver = appStateObserver
-        appStateObserver.didChange = { [weak self] in
+    init(appStateListener: AppStateListener = DefaultAppStateListener()) {
+        self.appStateListener = appStateListener
+        appStateListener.didChange = { [weak self] in
             self?.updateState()
         }
     }
@@ -61,7 +61,7 @@ final class DefaultFramesMeter: FramesMeter {
     // can't use FramesMeterReceiver as a generic type parameter here, so let's live with AnyObject
     private var receivers = NSHashTable<AnyObject>.weakObjects()
 
-    private let appStateObserver: AppStateObserver
+    private let appStateListener: AppStateListener
 
     func subscribe(receiver: FramesMeterReceiver) {
         PerformanceMonitoring.queue.async {
@@ -83,7 +83,7 @@ final class DefaultFramesMeter: FramesMeter {
         // NSHashTable doesn't have `isEmpty`, ignore swiftlint
         // swiftlint:disable:next empty_count
         let hasReceivers = (receivers.count > 0)
-        let isInBackground = appStateObserver.isInBackground
+        let isInBackground = appStateListener.isInBackground
         // this property is thread safe in CADisplayLink, we can access it from our queue
         let isPaused = displayLink.isPaused
         let shouldBePaused = isInBackground || !hasReceivers
@@ -105,7 +105,7 @@ final class DefaultFramesMeter: FramesMeter {
         // ideal duration coming from display link is not always equal to `targetTimestamp - timestamp`
         let displayLinkDuration = self.displayLink.duration
         PerformanceMonitoring.queue.async {
-            if self.appStateObserver.isInBackground {
+            if self.appStateListener.isInBackground {
                 // in case app went to background during our `async` call, just do nothing
                 return
             }

@@ -31,8 +31,9 @@ public enum SwizzlerError: Error, LocalizedError {
     }
 }
 
-public enum Swizzler {
 
+/// Container for static swizzle and unswizzle methods
+public enum Swizzler {
 
     /// Adds calling of `action` block before/after every call of `selector` method in class `class`.
     ///

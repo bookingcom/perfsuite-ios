@@ -7,6 +7,14 @@
 
 import UIKit
 
+
+/// This is a base protocol for recievers of the metrics from AppMetricsReporter's,
+/// those metrics are not connected to some particular UIViewController.
+public protocol AppMetricsReceiver {}
+
+
+/// This is a protocol for classes,
+/// which report metrics without any view controller observer
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
@@ -238,12 +246,17 @@ public enum PerformanceMonitoring {
         }
     }
 
+    private static func makeLastScreenObserver() -> any ViewControllerObserver {
+        return LastOpenedScreenObserver()
+    }
+
     private static func appendLoggingObservers(config: Config, vcObservers: inout [ViewControllerObserver]) {
         guard let loggingReceiver = config.loggingReceiver else {
             return
         }
         let loggingFactory = makeLoggingObserverFactory(metricsReceiver: loggingReceiver)
         vcObservers.append(loggingFactory)
+        vcObservers.append(makeLastScreenObserver())
     }
 
     private static func makeFragmentTTIReporter<F: FragmentTTIMetricsReceiver>(metricsReceiver: F) -> AppMetricsReporter {

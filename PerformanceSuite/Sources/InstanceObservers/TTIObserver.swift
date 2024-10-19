@@ -8,23 +8,23 @@
 import UIKit
 
 /// Observer that calculates `TTIMetrics` during view controller lifetime.
-final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIsReadyProvider {
+final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, ScreenIsReadyProvider {
 
     init(screen: T.ScreenIdentifier,
          metricsReceiver: T,
          timeProvider: TimeProvider = defaultTimeProvider,
-         appStateObserver: AppStateObserver = DefaultAppStateObserver()
+         appStateListener: AppStateListener = DefaultAppStateListener()
     ) {
         self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.timeProvider = timeProvider
-        self.appStateObserver = appStateObserver
+        self.appStateListener = appStateListener
     }
 
     private let screen: T.ScreenIdentifier
     private let metricsReceiver: T
     private let timeProvider: TimeProvider
-    private let appStateObserver: AppStateObserver
+    private let appStateListener: AppStateListener
 
 
     private var screenCreatedTime: DispatchTime?
@@ -37,7 +37,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
 
     private var customCreationTime: DispatchTime?
 
-    func beforeInit(viewController: UIViewController) {
+    func beforeInit() {
         let now = timeProvider.now()
         let action = {
             self.sameRunLoopAsTheInit = true
@@ -60,7 +60,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
         }
     }
 
-    func beforeViewDidLoad(viewController: UIViewController) {
+    func beforeViewDidLoad() {
         // if there is time passed between `init` and `viewDidLoad`, it means view controller was created earlier, but displayed only recently,
         // in this case we don't consider `init` time, but start measuring in `viewDidLoad`.
         // Ideally we should start before `loadView`, but it is impossible to swizzle `loadView` because usually nobody calls `super.loadView`
@@ -80,7 +80,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
         }
     }
 
-    func afterViewWillAppear(viewController: UIViewController) {
+    func afterViewWillAppear() {
         let now = timeProvider.now()
         let action = {
             if self.viewWillAppearTime != nil && self.ttiCalculated == false {
@@ -112,7 +112,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
         }
     }
 
-    func afterViewDidAppear(viewController: UIViewController) {
+    func afterViewDidAppear() {
         let now = timeProvider.now()
         let action = {
             if self.shouldReportTTI && self.viewDidAppearTime == nil {
@@ -129,7 +129,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
         }
     }
 
-    func beforeViewWillDisappear(viewController: UIViewController) {
+    func beforeViewWillDisappear() {
         // if screenIsReady wasn't called until now, we consider that screen was ready in `viewDidAppear`.
         let action = {
             if self.shouldReportTTI && self.screenIsReadyTime == nil {
@@ -145,8 +145,6 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
             PerformanceMonitoring.queue.async(execute: action)
         }
     }
-
-    func beforeViewDidDisappear(viewController: UIViewController) {}
 
     static var identifier: AnyObject {
         return TTIObserverHelper.identifier
@@ -201,7 +199,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerObserver, ScreenIs
     }
 
     private var shouldReportTTI: Bool {
-        return !ttiCalculated && !appStateObserver.wasInBackground && !ignoreThisScreen
+        return !ttiCalculated && !appStateListener.wasInBackground && !ignoreThisScreen
     }
 }
 

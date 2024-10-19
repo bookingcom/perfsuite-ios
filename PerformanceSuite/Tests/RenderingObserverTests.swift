@@ -40,19 +40,19 @@ class RenderingObserverTests: XCTestCase {
         // should be ignored
         framesMeter.report(frameDuration: 160, refreshRateDuration: 0.016)
 
-        observer.beforeInit(viewController: vc)
+        observer.beforeInit()
         waitForEvents()
 
         // should be ignored
         framesMeter.report(frameDuration: 1600, refreshRateDuration: 0.016)
 
-        observer.afterViewWillAppear(viewController: vc)
+        observer.afterViewWillAppear()
         waitForEvents()
 
         // should be ignored
         framesMeter.report(frameDuration: 16000, refreshRateDuration: 0.016)
 
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewDidAppear()
         waitForEvents()
 
         var expectedDroppedFrames = 0
@@ -72,7 +72,7 @@ class RenderingObserverTests: XCTestCase {
         expectedFreezeTime += 800 - 16
         expectedSessionDuration += 800
 
-        observer.beforeViewWillDisappear(viewController: vc)
+        observer.beforeViewWillDisappear()
         waitForEvents()
 
         // should be ignored
@@ -101,15 +101,15 @@ class RenderingObserverTests: XCTestCase {
 
         let vc = UIViewController()
 
-        observer.beforeInit(viewController: vc)
-        observer.afterViewWillAppear(viewController: vc)
-        observer.afterViewDidAppear(viewController: vc)
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
         waitForEvents()
 
         // 9 dropped frames, 10 expected frames, 1 slow, 0 frozen
         framesMeter.report(frameDuration: 0.16, refreshRateDuration: 0.016)
 
-        observer.beforeViewWillDisappear(viewController: vc)
+        observer.beforeViewWillDisappear()
         waitForEvents()
 
         XCTAssertEqual(metricsReceiver.renderingMetrics!.expectedFrames, 10)
@@ -120,14 +120,14 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.renderingMetrics!.frozenFrames, 0)
         metricsReceiver.renderingMetrics = nil
 
-        observer.afterViewWillAppear(viewController: vc)
-        observer.afterViewDidAppear(viewController: vc)
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
         waitForEvents()
 
         // 49 dropped frames, 50 expected frames, 1 slow, 1 frozen
         framesMeter.report(frameDuration: 0.8, refreshRateDuration: 0.016)
 
-        observer.beforeViewWillDisappear(viewController: vc)
+        observer.beforeViewWillDisappear()
         waitForEvents()
 
         XCTAssertEqual(metricsReceiver.renderingMetrics!.expectedFrames, 50)

@@ -1,5 +1,5 @@
 //
-//  AppStateObserver.swift
+//  AppStateListener.swift
 //  PerformanceSuite
 //
 //  Created by Gleb Tarasov on 12/07/2021.
@@ -7,14 +7,14 @@
 
 import UIKit
 
-protocol AppStateObserver: AnyObject {
+protocol AppStateListener: AnyObject {
     var wasInBackground: Bool { get }
     var isInBackground: Bool { get }
 
     var didChange: () -> Void { get set }
 }
 
-class DefaultAppStateObserver: AppStateObserver {
+class DefaultAppStateListener: AppStateListener {
 
     init() {
         NotificationCenter.default.addObserver(

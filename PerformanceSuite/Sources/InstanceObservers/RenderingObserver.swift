@@ -7,7 +7,7 @@
 
 import UIKit
 
-final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerObserver, FramesMeterReceiver {
+final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstanceObserver, FramesMeterReceiver {
 
     init(
         screen: R.ScreenIdentifier,
@@ -26,27 +26,25 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerObserv
 
     private var metrics = RenderingMetrics.zero
 
-    func beforeInit(viewController: UIViewController) {}
+    func beforeInit() {}
 
-    func beforeViewDidLoad(viewController: UIViewController) {}
+    func beforeViewDidLoad() {}
 
-    func afterViewDidAppear(viewController: UIViewController) {
+    func afterViewDidAppear() {
         PerformanceMonitoring.queue.async {
             self.metrics = RenderingMetrics.zero
             self.framesMeter.subscribe(receiver: self)
         }
     }
 
-    func afterViewWillAppear(viewController: UIViewController) {}
+    func afterViewWillAppear() {}
 
-    func beforeViewWillDisappear(viewController: UIViewController) {
+    func beforeViewWillDisappear() {
         PerformanceMonitoring.queue.async {
             self.framesMeter.unsubscribe(receiver: self)
             self.reportMetricsIfNeeded()
         }
     }
-
-    func beforeViewDidDisappear(viewController: UIViewController) {}
 
     static var identifier: AnyObject {
         return renderingObserverIdentifier

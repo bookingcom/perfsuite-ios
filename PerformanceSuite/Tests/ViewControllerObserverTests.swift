@@ -85,8 +85,8 @@ class ViewControllerObserverTests: XCTestCase {
     }
 
     func testObserversFactory() {
-        let factory = ViewControllerObserverFactory<Observer, TTIMetricsReceiverStub>(metricsReceiver: TTIMetricsReceiverStub()) { _ in
-            Observer()
+        let factory = ViewControllerObserverFactory<InstanceObserver, TTIMetricsReceiverStub>(metricsReceiver: TTIMetricsReceiverStub()) { vc in
+            InstanceObserver(viewController: vc)
         }
 
         lastObserverCreated = nil
@@ -143,14 +143,15 @@ class ViewControllerObserverTests: XCTestCase {
         PerformanceMonitoring.queue.sync { }
 
         XCTAssertNil(lastObserverCreated)
-        XCTAssertEqual(observer2?.lastMethod, .beforeViewDidDisappear)
+        // beforeViewDidDisappear is not supported in instance observers, only in observers, that's why it shouldn't change anything
+        XCTAssertNil(observer2?.lastMethod)
         XCTAssertEqual(observer2?.viewController, vc2)
     }
 
     func testSwiftUIHostingControllerIsIgnored() {
         let metricsReceiver = MetricsConsumerForSwiftUITest()
-        let factory = ViewControllerObserverFactory<Observer, MetricsConsumerForSwiftUITest>(metricsReceiver: metricsReceiver) { _ in
-            Observer()
+        let factory = ViewControllerObserverFactory<InstanceObserver, MetricsConsumerForSwiftUITest>(metricsReceiver: metricsReceiver) { vc in
+            InstanceObserver(viewController: vc)
         }
 
         lastObserverCreated = nil

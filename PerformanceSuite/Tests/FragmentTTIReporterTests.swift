@@ -23,13 +23,13 @@ final class FragmentTTIReporterTests: XCTestCase {
         XCTAssertNil(metricsReceiver.metrics)
         XCTAssertNil(metricsReceiver.identifier)
 
-        let appStateObserver = AppStateObserverStub()
+        let appStateListener = AppStateListenerStub()
         let timeProvider = TimeProviderStub()
         let time = DispatchTime.now()
 
         timeProvider.time = time
         let reporter = FragmentTTIReporter(
-            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateObserverFactory: { appStateObserver })
+            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateListenerFactory: { appStateListener })
 
         let trackable = reporter.start(identifier: "my_identifier")
         timeProvider.time = time.advanced(by: .seconds(10))
@@ -52,13 +52,13 @@ final class FragmentTTIReporterTests: XCTestCase {
         XCTAssertNil(metricsReceiver.metrics)
         XCTAssertNil(metricsReceiver.identifier)
 
-        let appStateObserver = AppStateObserverStub()
+        let appStateListener = AppStateListenerStub()
         let timeProvider = TimeProviderStub()
         let time = DispatchTime.now()
 
         timeProvider.time = time
         let reporter = FragmentTTIReporter(
-            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateObserverFactory: { appStateObserver })
+            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateListenerFactory: { appStateListener })
 
         let trackable = reporter.start(identifier: "my_identifier")
         timeProvider.time = time.advanced(by: .seconds(10))
@@ -87,13 +87,13 @@ final class FragmentTTIReporterTests: XCTestCase {
         XCTAssertNil(metricsReceiver.metrics)
         XCTAssertNil(metricsReceiver.identifier)
 
-        let appStateObserver = AppStateObserverStub()
+        let appStateListener = AppStateListenerStub()
         let timeProvider = TimeProviderStub()
         let time = DispatchTime.now()
 
         timeProvider.time = time
         let reporter = FragmentTTIReporter(
-            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateObserverFactory: { appStateObserver })
+            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateListenerFactory: { appStateListener })
 
         let trackable = reporter.start(identifier: "my_identifier")
         timeProvider.time = time.advanced(by: .seconds(10))
@@ -122,17 +122,17 @@ final class FragmentTTIReporterTests: XCTestCase {
         XCTAssertNil(metricsReceiver.metrics)
         XCTAssertNil(metricsReceiver.identifier)
 
-        let appStateObserver = AppStateObserverStub()
+        let appStateListener = AppStateListenerStub()
         let timeProvider = TimeProviderStub()
         let time = DispatchTime.now()
 
         timeProvider.time = time
         let reporter = FragmentTTIReporter(
-            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateObserverFactory: { appStateObserver })
+            metricsReceiver: metricsReceiver, timeProvider: timeProvider, appStateListenerFactory: { appStateListener })
 
         let trackable = reporter.start(identifier: "my_identifier")
         timeProvider.time = time.advanced(by: .seconds(10))
-        appStateObserver.wasInBackground = true
+        appStateListener.wasInBackground = true
         trackable.fragmentIsReady()
 
         PerformanceMonitoring.queue.sync {}

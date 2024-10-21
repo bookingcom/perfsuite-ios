@@ -107,8 +107,6 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
         }
     }
 
-    static let identifier: AnyObject = NSObject()
-
     // MARK: - Helpers
 
     private func selfAndAllChildren(viewController: UIViewController) -> [UIViewController] {

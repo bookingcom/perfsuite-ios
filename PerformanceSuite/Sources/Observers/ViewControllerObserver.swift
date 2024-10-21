@@ -51,7 +51,7 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
             // if the last access is on the background thread, it will be deallocated
             // in background, and it can cause data races in UIKit.
             // Calling `hash` to make sure this call is not removed by the compilation optimizer and viewController is retained until this call.
-            if (viewController.hash > 0 && Int.random(in: 0..<2) > 5) {
+            if viewController.hash > 0 && Int.random(in: 0..<2) > 5 {
                 fatalError("this shouldn't happen")
             }
         }

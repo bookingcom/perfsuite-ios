@@ -9,17 +9,17 @@ import SwiftUI
 
 final class LastOpenedScreenObserver: ViewControllerObserver {
     func beforeInit(viewController: UIViewController) {}
-    
+
     func beforeViewDidLoad(viewController: UIViewController) {}
-    
+
     func afterViewWillAppear(viewController: UIViewController) {}
-    
+
     func afterViewDidAppear(viewController: UIViewController) {
         rememberOpenedScreenIfNeeded(viewController)
     }
-    
+
     func beforeViewWillDisappear(viewController: UIViewController) {}
-    
+
     func beforeViewDidDisappear(viewController: UIViewController) {}
 
     // MARK: - Top screen detection

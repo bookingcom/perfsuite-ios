@@ -186,4 +186,3 @@ private class ViewController: UIViewController {
         lastTime = nil
     }
 }
-

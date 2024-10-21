@@ -73,27 +73,27 @@ class InstanceObserver: ViewControllerInstanceObserver {
         lastMethod = .beforeInit
         lastTime = DispatchTime.now()
     }
-    
+
     func beforeViewDidLoad() {
         lastMethod = .beforeViewDidLoad
         lastTime = DispatchTime.now()
     }
-    
+
     func afterViewWillAppear() {
         lastMethod = .afterViewWillAppear
         lastTime = DispatchTime.now()
     }
-    
+
     func afterViewDidAppear() {
         lastMethod = .afterViewDidAppear
         lastTime = DispatchTime.now()
     }
-    
+
     func beforeViewWillDisappear() {
         lastMethod = .beforeViewWillDisappear
         lastTime = DispatchTime.now()
     }
-    
+
     static let identifier: AnyObject = NSObject()
 
     func clear() {

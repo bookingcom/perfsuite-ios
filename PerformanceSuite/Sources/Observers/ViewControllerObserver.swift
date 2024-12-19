@@ -58,26 +58,14 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
     }
 
     private func observer(for viewController: UIViewController) -> T? {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-        } else {
-            precondition(Thread.isMainThread)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
 
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
-                return observer
-            }
+        if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
+            return observer
         }
 
         guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
             return nil
-        }
-
-        if !PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            if let observer = ViewControllerObserverFactoryHelper.existingObserver(for: viewController, identifier: T.identifier) as? T {
-                return observer
-            }
         }
 
         let tPointer = unsafeBitCast(T.identifier, to: UnsafeRawPointer.self)
@@ -87,57 +75,37 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
     }
 
     func beforeInit(viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeInit()
-                self.ensureDeallocationOnTheMainThread(viewController: viewController)
-            }
-        } else {
-            observer(for: viewController)?.beforeInit()
+        PerformanceMonitoring.queue.async {
+            self.observer(for: viewController)?.beforeInit()
+            self.ensureDeallocationOnTheMainThread(viewController: viewController)
         }
     }
 
     func beforeViewDidLoad(viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeViewDidLoad()
-                self.ensureDeallocationOnTheMainThread(viewController: viewController)
-            }
-        } else {
-            observer(for: viewController)?.beforeViewDidLoad()
+        PerformanceMonitoring.queue.async {
+            self.observer(for: viewController)?.beforeViewDidLoad()
+            self.ensureDeallocationOnTheMainThread(viewController: viewController)
         }
     }
 
     func afterViewDidAppear(viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.afterViewDidAppear()
-                self.ensureDeallocationOnTheMainThread(viewController: viewController)
-            }
-        } else {
-            observer(for: viewController)?.afterViewDidAppear()
+        PerformanceMonitoring.queue.async {
+            self.observer(for: viewController)?.afterViewDidAppear()
+            self.ensureDeallocationOnTheMainThread(viewController: viewController)
         }
     }
 
     func beforeViewWillDisappear(viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.beforeViewWillDisappear()
-                self.ensureDeallocationOnTheMainThread(viewController: viewController)
-            }
-        } else {
-            observer(for: viewController)?.beforeViewWillDisappear()
+        PerformanceMonitoring.queue.async {
+            self.observer(for: viewController)?.beforeViewWillDisappear()
+            self.ensureDeallocationOnTheMainThread(viewController: viewController)
         }
     }
 
     func afterViewWillAppear(viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            PerformanceMonitoring.queue.async {
-                self.observer(for: viewController)?.afterViewWillAppear()
-                self.ensureDeallocationOnTheMainThread(viewController: viewController)
-            }
-        } else {
-            observer(for: viewController)?.afterViewWillAppear()
+        PerformanceMonitoring.queue.async {
+            self.observer(for: viewController)?.afterViewWillAppear()
+            self.ensureDeallocationOnTheMainThread(viewController: viewController)
         }
     }
 
@@ -196,23 +164,8 @@ class ViewControllerObserverCollection: ViewControllerObserver {
 /// Non-generic helper for generic `ViewControllerObserverFactory`. To put all the static methods and vars there.
 final class ViewControllerObserverFactoryHelper {
     static func existingObserver(for viewController: UIViewController, identifier: AnyObject) -> Any? {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
-            if let result = objc_getAssociatedObject(viewController, tPointer) {
-                return result
-            }
-        } else {
-            var vc: UIViewController? = viewController
-            while let current = vc {
-                let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
-                if let result = objc_getAssociatedObject(current, tPointer) {
-                    return result
-                }
-                vc = current.parent
-            }
-        }
-
-        return nil
+        let tPointer = unsafeBitCast(identifier, to: UnsafeRawPointer.self)
+        return objc_getAssociatedObject(viewController, tPointer)
     }
 
     static func existingObserver(forChild viewController: UIViewController, identifier: AnyObject) -> Any? {

@@ -12,16 +12,10 @@ import XCTest
 
 class ViewControllerObserverTests: XCTestCase {
 
-    override func setUp() {
-        super.setUp()
-        PerformanceMonitoring.experiments = Experiments(observersOnBackgroundQueue: true)
-    }
-
     override func tearDown() {
         super.tearDown()
         PerformanceMonitoring.consumerQueue.sync { }
         PerformanceMonitoring.queue.sync { }
-        PerformanceMonitoring.experiments = Experiments()
     }
 
     func testObserversCollection() {

@@ -19,10 +19,9 @@ class TTIObserverExtensionTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        PerformanceMonitoring.experiments = Experiments(observersOnBackgroundQueue: true)
         defaultTimeProvider = timeProvider
         metricsReceiver = TTIMetricsReceiverStub()
-        try PerformanceMonitoring.enable(config: [.screenLevelTTI(metricsReceiver)], experiments: Experiments(observersOnBackgroundQueue: true))
+        try PerformanceMonitoring.enable(config: [.screenLevelTTI(metricsReceiver)])
     }
 
     override func tearDownWithError() throws {
@@ -33,8 +32,6 @@ class TTIObserverExtensionTests: XCTestCase {
         PerformanceMonitoring.consumerQueue.sync {}
 
         try PerformanceMonitoring.disable()
-
-        PerformanceMonitoring.experiments = Experiments()
     }
 
     func testAllViewControllerMethodsAreCalledWhenMonitoringIsEnabled() {

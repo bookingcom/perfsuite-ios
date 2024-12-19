@@ -52,12 +52,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 }
             }
         }
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-            action()
-        } else {
-            PerformanceMonitoring.queue.async(execute: action)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        action()
     }
 
     func beforeViewDidLoad() {
@@ -72,12 +68,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 self.screenCreatedTime = now
             }
         }
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-            action()
-        } else {
-            PerformanceMonitoring.queue.async(execute: action)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        action()
     }
 
     func afterViewWillAppear() {
@@ -104,12 +96,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             }
         }
 
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-            action()
-        } else {
-            PerformanceMonitoring.queue.async(execute: action)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        action()
     }
 
     func afterViewDidAppear() {
@@ -121,12 +109,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             }
         }
 
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-            action()
-        } else {
-            PerformanceMonitoring.queue.async(execute: action)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        action()
     }
 
     func beforeViewWillDisappear() {
@@ -138,12 +122,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             }
         }
 
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-            action()
-        } else {
-            PerformanceMonitoring.queue.async(execute: action)
-        }
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        action()
     }
 
     static var identifier: AnyObject {

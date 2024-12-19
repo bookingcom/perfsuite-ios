@@ -25,22 +25,14 @@ final class LastOpenedScreenObserver: ViewControllerObserver {
     // MARK: - Top screen detection
 
     private func rememberOpenedScreenIfNeeded(_ viewController: UIViewController) {
-        if PerformanceMonitoring.experiments.observersOnBackgroundQueue {
-            DispatchQueue.main.async {
-                guard self.isTopScreen(viewController) else {
-                    return
-                }
-                PerformanceMonitoring.queue.async {
-                    let description = RootViewIntrospection.shared.description(viewController: viewController)
-                    AppInfoHolder.screenOpened(description)
-                }
-            }
-        } else {
-            guard isTopScreen(viewController) else {
+        DispatchQueue.main.async {
+            guard self.isTopScreen(viewController) else {
                 return
             }
-            let description = RootViewIntrospection.shared.description(viewController: viewController)
-            AppInfoHolder.screenOpened(description)
+            PerformanceMonitoring.queue.async {
+                let description = RootViewIntrospection.shared.description(viewController: viewController)
+                AppInfoHolder.screenOpened(description)
+            }
         }
     }
 

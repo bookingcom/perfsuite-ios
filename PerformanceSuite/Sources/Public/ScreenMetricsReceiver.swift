@@ -17,7 +17,7 @@ public protocol ScreenMetricsReceiver: AnyObject {
     /// This method should be as effective as possible. Slow implementation may harm app performance.
     ///
     /// This method is called on the main thread only once, during `UIViewController` initialization.
-    /// If experiment `observersOnBackgroundQueue` is turned on, this method is called on the background internal queue `PerformanceMonitoring.queue`.
+    /// This method is called on the background internal queue `PerformanceMonitoring.queue`.
     /// Slow implementation may harm overall performance and also can affect the precision of the measurements.
     ///
     /// Default implementation will return nil for view controllers that are not from the main bundle and return `UIViewController` itself for others

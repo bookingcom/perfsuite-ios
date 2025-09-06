@@ -100,6 +100,19 @@ final class PerformanceMonitoringTests: XCTestCase {
         // cleanup PerformanceSuite
         try PerformanceMonitoring.disable()
     }
+    
+    func testEnableWithDisabledCrashlytics() async throws {
+        let settings = CrashlyticsHangsSettings()
+        // it shouldn't crash without crashlytics initialized
+        try PerformanceMonitoring.enableWithCrashlyticsSupport(config: .all(receiver: self), settings: settings, crashlyticsEnabledInDebug: false)
+        
+        let hangReporter = try XCTUnwrap(PerformanceMonitoring.appReporters.compactMap { $0 as? HangReporter }.first)
+        // check that hangsReceiver is not wrapped
+        XCTAssertTrue(hangReporter.receiver is PerformanceMonitoringTests)
+        
+        // cleanup PerformanceSuite
+        try PerformanceMonitoring.disable()
+    }
 
     private func customHangTypeFormatter(_ fatal: Bool, _ startup: Bool) -> String {
         return "hang_type"

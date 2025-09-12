@@ -18,7 +18,19 @@ class ViewControllerLeaksObserverTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    override func tearDown() {
+        super.tearDown()
+        // Ensure swizzling is always cleaned up, even if test fails
+        try? ViewControllerSubscriber.shared.unsubscribeObservers()
+        // Wait for queues to complete any pending work
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
+    }
+
     private func performLeakTest(expectLeak: Bool, viewControllerMaker: () -> UIViewController) throws {
+        // Clean up any leftover swizzling from previous test failures
+        try? ViewControllerSubscriber.shared.unsubscribeObservers()
+
         let receiver = ViewControllerLeaksReceiverStub()
         receiver.expectation = expectation(description: "leak detected")
         receiver.expectation?.isInverted = !expectLeak

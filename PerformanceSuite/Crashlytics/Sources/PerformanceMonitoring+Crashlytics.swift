@@ -37,12 +37,12 @@ extension PerformanceMonitoring {
         #else
         let crashlyticsEnabled = true
         #endif
-        
+
         if crashlyticsEnabled {
             guard FirebaseApp.allApps?.count ?? 0 > 0 else {
                 fatalError("Firebase is not configured yet. Please call `FirebaseApp.configure()` before calling this method.")
             }
-            
+
             let didCrashPreviously = Crashlytics.crashlytics().didCrashDuringPreviousExecution()
             let wrappedConfig = config.map { c in
                 switch c {
@@ -53,7 +53,7 @@ extension PerformanceMonitoring {
                     return c
                 }
             }
-            
+
             try PerformanceMonitoring.enable(config: wrappedConfig, storage: storage, didCrashPreviously: didCrashPreviously, experiments: experiments)
         } else {
             try PerformanceMonitoring.enable(config: config, storage: storage, didCrashPreviously: false, experiments: experiments)

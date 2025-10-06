@@ -61,7 +61,8 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
     func fatalHangReceived(info: HangInfo) {
         log("fatalHangReceived \(info)")
-        interop?.send(message: Message.fatalHang)
+        let message: Message = info.duringStartup ? .startupFatalHang : .fatalHang
+        interop?.send(message: message)
     }
 
     func nonFatalHangReceived(info: HangInfo) {

@@ -14,6 +14,12 @@ class RootController: UIHostingController<MenuView> {
 
         // simulate long startup time
         Thread.sleep(forTimeInterval: 2)
+
+        // For UI tests: simulate a fatal hang during startup if requested
+        if ProcessInfo.processInfo.environment[startupFatalHangKey] != nil {
+            // Block the main thread indefinitely to simulate a fatal hang during startup
+            Thread.sleep(forTimeInterval: .infinity)
+        }
     }
 
     @MainActor @objc required dynamic init?(coder aDecoder: NSCoder) {

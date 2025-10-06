@@ -79,4 +79,31 @@ final class TerminationTests: BaseTests {
         app.staticTexts["Memory Leak"].tap()
         waitForMessage { $0 == .memoryLeak }
     }
+
+    func testStartupFatalHang() throws {
+        // First launch: clear storage
+        performFirstLaunch()
+        assertNoMessages(.fatalHang, .startupFatalHang, .hangStarted)
+
+        // Second launch: trigger startup fatal hang
+        app.terminate()
+        app.launchEnvironment = [inTestsKey: "1", startupFatalHangKey: "1"]
+        app.launch()
+
+        // Wait for hang to be detected (hang detection takes time)
+        waitForTimeout(5)
+
+        // Kill the app during the hang (simulating system kill or user force quit)
+        // Note: We may or may not receive hangStarted before termination, so we don't check for it
+        app.terminate()
+
+        // Third launch: should receive startup fatal hang callback (duringStartup=true)
+        app.launchEnvironment = [inTestsKey: "1"]
+        app.launch()
+
+        waitForMessage { $0 == .startupFatalHang }
+        // The startup fatal hang was successfully detected and reported!
+        assertNoMessages(.crash, .nonFatalHang, .fatalHang)
+        // Note: watchdogTermination might also be reported, which is acceptable
+    }
 }

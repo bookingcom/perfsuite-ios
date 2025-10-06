@@ -12,6 +12,7 @@ import GCDWebServer
 
 public let inTestsKey = "UI_TESTS"
 public let clearStorageKey = "CLEAR_STORAGE"
+public let startupFatalHangKey = "STARTUP_FATAL_HANG"
 
 
 /// Message which is sent from the app to UI tests target
@@ -23,6 +24,7 @@ public enum Message: Codable, Equatable {
     case fragmentTTI(duration: Int, fragment: String)
     case hangStarted
     case fatalHang
+    case startupFatalHang
     case nonFatalHang
     case watchdogTermination
     case memoryLeak
@@ -34,6 +36,7 @@ public enum Message: Codable, Equatable {
             (.appFreezeTime, .appFreezeTime),
             (.hangStarted, .hangStarted),
             (.fatalHang, .fatalHang),
+            (.startupFatalHang, .startupFatalHang),
             (.nonFatalHang, .nonFatalHang),
             (.watchdogTermination, .watchdogTermination),
             (.memoryLeak, .memoryLeak),

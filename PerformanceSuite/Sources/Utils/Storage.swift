@@ -72,5 +72,6 @@ extension UserDefaults: Storage {
 
     public func write(domain: String, key: String, value: String?) {
         set(value, forKey: defaultsKey(domain: domain, key: key))
+        synchronize()
     }
 }

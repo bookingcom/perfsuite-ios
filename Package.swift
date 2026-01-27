@@ -20,7 +20,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: .init(10, 0, 0)),
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", "10.0.0"..<"13.0.0"),
         .package(url: "https://github.com/yene/GCDWebServer", exact: .init(3, 5, 7)),
     ],
     targets: [

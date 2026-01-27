@@ -1,6 +1,6 @@
 workspace 'Project'
 project 'Project'
-deployment_target = '14.0'
+deployment_target = '15.0'
 install! 'cocoapods', integrate_targets: true
 
 target :Project

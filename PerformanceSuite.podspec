@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.license              = { :type => 'MIT', :file => 'LICENSE' }
   s.author               = { 'Gleb Tarasov' => 'gleb.tarasov@booking.com' }
   s.source               = { :git => 'https://github.com/bookingcom/perfsuite-ios.git', :tag => s.version.to_s }
-  s.platform             = :ios, '14.0'
+  s.platform             = :ios, '15.0'
   s.swift_version        = '5.7.1'
   s.default_subspec      = 'Core'
 

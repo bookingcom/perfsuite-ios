@@ -13,7 +13,7 @@ import SwiftUI
 /// it is not intended to be used for some business-logic.
 ///
 /// If you execute something heavy, offload it to some other background thread.
-public protocol ViewControllerLoggingReceiver: ScreenMetricsReceiver {
+public protocol ViewControllerLoggingReceiver<ScreenIdentifier>: ScreenMetricsReceiver {
 
     /// Method is called during view controller's initialization
     func onInit(screen: ScreenIdentifier)

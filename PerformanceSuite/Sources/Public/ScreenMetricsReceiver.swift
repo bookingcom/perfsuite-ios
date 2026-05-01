@@ -8,7 +8,7 @@
 import UIKit
 
 /// Base protocol for screen-level TTI and Rendering receivers
-public protocol ScreenMetricsReceiver: AnyObject {
+public protocol ScreenMetricsReceiver<ScreenIdentifier>: AnyObject {
     /// ScreenIdentifier can be String, some enum, or UIViewController itself.
     associatedtype ScreenIdentifier
 
@@ -42,7 +42,7 @@ public extension ScreenMetricsReceiver where ScreenIdentifier == UIViewControlle
 /// You should implement this protocol to receive TTI metrics in your code.
 ///
 /// Pass instance of this protocol to the config item `ConfigItem.screenLevelTTI`
-public protocol TTIMetricsReceiver: ScreenMetricsReceiver {
+public protocol TTIMetricsReceiver<ScreenIdentifier>: ScreenMetricsReceiver {
     /// Method is called when TTI metrics are calculated for some screen.
     ///
     /// `Config.screenLevelTTI` should be enabled.
@@ -61,7 +61,7 @@ public protocol TTIMetricsReceiver: ScreenMetricsReceiver {
 /// You should implement this protocol to receive screen-level rendering metrics in your code.
 ///
 /// Pass instance of this protocol to the config item `ConfigItem.screenLevelRendering`
-public protocol RenderingMetricsReceiver: ScreenMetricsReceiver {
+public protocol RenderingMetricsReceiver<ScreenIdentifier>: ScreenMetricsReceiver {
     /// Method is called when performance metrics are calculated for some screen.
     ///
     /// `Config.screenLevelRendering` should be enabled.

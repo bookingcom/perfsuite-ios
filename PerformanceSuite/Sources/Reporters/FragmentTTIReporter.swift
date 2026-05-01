@@ -23,7 +23,7 @@ public protocol FragmentTTITrackable: AnyObject {
 
 
 /// Implement this protocol if you want to receive events about Fragment TTI
-public protocol FragmentTTIMetricsReceiver: AnyObject {
+public protocol FragmentTTIMetricsReceiver<FragmentIdentifier>: AnyObject {
     /// This can be String, or enum or any other identifier
     associatedtype FragmentIdentifier
 

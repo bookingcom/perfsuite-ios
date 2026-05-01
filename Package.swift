@@ -51,6 +51,15 @@ let package = Package(
             ],
             path: "PerformanceSuite/OTel/Sources"
         ),
+        .testTarget(
+            name: "PerformanceSuiteOTelTests",
+            dependencies: [
+                "PerformanceSuite",
+                "PerformanceSuiteOTel",
+                .product(name: "OpenTelemetryApi", package: "opentelemetry-swift-core"),
+            ],
+            path: "PerformanceSuite/OTel/Tests"
+        ),
         .target(name: "CrashlyticsImports",
                 dependencies: [
                     .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk")

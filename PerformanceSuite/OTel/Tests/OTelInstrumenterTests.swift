@@ -125,7 +125,7 @@ final class OTelInstrumenterTests: XCTestCase {
         let builder = try XCTUnwrap(provider.tracer.lastBuilder)
         XCTAssertEqual(
             builder.attributes["app.startup.prewarmed"]?.boolValue, true,
-            "OTel side always emits, including for prewarmed launches (RFC §11 F-12)"
+            "OTel side always emits, including for prewarmed launches"
         )
     }
 

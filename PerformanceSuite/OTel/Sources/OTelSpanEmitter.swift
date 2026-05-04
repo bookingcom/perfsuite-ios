@@ -27,7 +27,7 @@ import PerformanceSuite
 ///   initialises before the OTel SDK (Embrace) registers the global provider —
 ///   eagerly capturing `OpenTelemetry.instance.tracerProvider` at init time
 ///   would freeze the no-op `DefaultTracerProvider` and silently drop every
-///   span. See RFC §9 for the initialization-ordering analysis.
+///   span.
 /// * `setNoParent()` is called on every span. PerformanceSuite metrics are
 ///   leaf measurements with no caller-scoped active span; explicitly making
 ///   them root spans avoids accidental parent linkage to whatever happens to

@@ -22,9 +22,7 @@ import PerformanceSuite
 /// `OTelInstrumenter` conforms to **all** PerformanceSuite receiver protocols
 /// and emits one OTel span per signal received. Spans are recorded as completed
 /// (start time + end time set together at emission), which is the simplest
-/// shape that flows through any standard OTel pipeline. Phase 2 of the RFC
-/// adds *live* spans on top of this; see
-/// `docs/2026-04-16-plan-perfsuite-otel-live-spans.md`.
+/// shape that flows through any standard OTel pipeline.
 ///
 /// ## Generic parameters
 ///
@@ -51,7 +49,7 @@ import PerformanceSuite
 /// provider is injected. PerformanceSuite typically initialises before the
 /// OTel SDK (for example the Embrace SDK in BookingObservability), so eager
 /// resolution would freeze the no-op `DefaultTracerProvider` and silently drop
-/// every span. See RFC §9 for the full ordering analysis.
+/// every span.
 ///
 /// ## Identifier conversion
 ///
@@ -176,7 +174,7 @@ public final class OTelInstrumenter<Screen, Fragment>:
     // MARK: - StartupTimeReceiver
 
     public func startupTimeReceived(_ data: StartupTimeData) {
-        // Per RFC §7 / §11 finding F-12: the OTel side always emits, even on
+        // The OTel side always emits, even on
         // prewarmed launches. The `app.startup.prewarmed` attribute lets
         // backends filter or weight prewarm samples instead of dropping them.
         emitter.emitStartupSpan(data: data)

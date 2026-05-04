@@ -214,6 +214,95 @@ class MetricsConsumer: TTIMetricsReceiver {
 
 ```
 
+## OpenTelemetry Integration
+
+`PerformanceSuiteOTel` is an additional library that turns every `PerformanceSuite` metric into an [OpenTelemetry](https://opentelemetry.io) span, so you can route performance data through any OTel-compatible backend (Embrace, Honeycomb, an in-house OTLP collector, …) without writing a custom bridge. It depends on `PerformanceSuite` and on [`opentelemetry-swift-core`](https://github.com/open-telemetry/opentelemetry-swift-core)'s `OpenTelemetryApi`; it does not pull in the OTel SDK.
+
+### Installation
+
+#### Swift Package Manager
+
+Add `PerformanceSuiteOTel` as a target dependency alongside `PerformanceSuite`. The package URL is the same one you already use:
+
+```
+https://github.com/bookingcom/perfsuite-ios
+```
+
+#### CocoaPods
+
+```
+pod 'PerformanceSuite/OTel'
+```
+
+The `OTel` subspec depends on `OpenTelemetry-Swift-Api` (the CocoaPods spec name; the imported Swift module name is `OpenTelemetryApi`).
+
+### Standalone usage
+
+`OTelInstrumenter<Screen, Fragment>` conforms to all seven `PerformanceSuite` receiver protocols and can be passed wherever the library expects a receiver. The simplest setup uses it as the only receiver:
+
+```swift
+import PerformanceSuite
+import PerformanceSuiteOTel
+
+let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>()
+
+let config: Config = [
+    .startupTime(otel),
+    .screenLevelTTI(otel),
+    .screenLevelRendering(otel),
+    .appLevelRendering(otel),
+    .hangs(otel),
+    .watchdogTerminations(otel),
+    .fragmentTTI(otel),
+]
+try PerformanceMonitoring.enable(config: config)
+```
+
+### Combining OTel with custom receivers
+
+If you already have a custom receiver (e.g. an analytics pipeline) and want to fan signals out to both that receiver and OTel, wrap each one in the matching `Multi*Receiver` from `PerformanceSuite` core:
+
+```swift
+let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>()
+let custom = MyCustomReceiver()
+let screenId: (UIViewController) -> PerformanceScreen? = { vc in
+    (vc as? PerformanceTrackableScreen)?.performanceScreen
+}
+
+let config: Config = [
+    .startupTime(MultiStartupTimeReceiver(receivers: [custom, otel])),
+    .screenLevelTTI(MultiTTIMetricsReceiver(
+        screenIdentifier: screenId,
+        receivers: [custom, otel]
+    )),
+    .hangs(MultiHangsReceiver(receivers: [custom, otel])),
+    // ...
+]
+```
+
+> **iOS 16+ for the three generic Multi receivers.** `MultiTTIMetricsReceiver`, `MultiRenderingMetricsReceiver`, and `MultiFragmentTTIMetricsReceiver` store `[any P<X>]` arrays, whose runtime support shipped with iOS 16 (SE-0353). They are gated with `@available(iOS 16.0, *)`. The other four `Multi*Receiver` types and all of `OTelInstrumenter` work on iOS 15+.
+
+### TracerProvider resolution
+
+By default, `OTelInstrumenter` resolves `OpenTelemetry.instance.tracerProvider` lazily — at every emission, not at instantiation. This is intentional: the host app's OTel SDK (Embrace, vendor SDK, …) typically registers the global provider during its own startup, which may run *after* `PerformanceMonitoring.enable(...)`. Resolving lazily means spans emitted before the SDK is ready fall through the no-op `DefaultTracerProvider` (silently dropped, no crash), and every emission afterward uses the real provider.
+
+You can also inject an explicit provider at construction time — useful for tests, multi-tenant setups, or routing PerformanceSuite spans to a different tracer than the rest of the app:
+
+```swift
+let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
+    tracerProvider: customTracerProvider,
+    instrumentationName: "perfsuite-ios",        // default, included on every span
+    instrumentationVersion: "1.7.0"              // optional
+)
+```
+
+### Span semantic conventions
+
+Span names and attribute keys are exposed as constants on `OTelSemanticConventions` (e.g. `OTelSemanticConventions.SpanName.appStartup`, `OTelSemanticConventions.Attribute.screenTTIMs`). Backend dashboards can target these without grepping the source. The full list:
+
+- `app-startup`, `screen-tti.<name>`, `fragment-tti.<name>`, `screen-rendering.<name>`, `app-rendering`, `app-hang`, `app-watchdog-termination`
+- attributes covering startup timing, screen / fragment TTI, rendering frame counts and freeze time, hang type / duration / top screen, watchdog termination state and memory.
+
 ## How to reproduce metrics?
 
 In the repository we have the sample app `PerformanceApp`, on the first screen there are options to generate all the possible metrics:

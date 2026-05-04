@@ -14,6 +14,9 @@ let package = Package(
         .library(
             name: "PerformanceSuiteCrashlytics",
             targets: ["PerformanceSuiteCrashlytics"]),
+        .library(
+            name: "PerformanceSuiteOTel",
+            targets: ["PerformanceSuiteOTel"]),
         .executable(
             name: "PerformanceApp",
             targets: ["PerformanceApp"]
@@ -22,6 +25,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/firebase/firebase-ios-sdk.git", "10.0.0"..<"13.0.0"),
         .package(url: "https://github.com/yene/GCDWebServer", exact: .init(3, 5, 7)),
+        .package(url: "https://github.com/open-telemetry/opentelemetry-swift-core.git", from: "2.0.0"),
     ],
     targets: [
         .target(
@@ -38,6 +42,14 @@ let package = Package(
                 .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
             ],
             path: "PerformanceSuite/Crashlytics/Sources"
+        ),
+        .target(
+            name: "PerformanceSuiteOTel",
+            dependencies: [
+                "PerformanceSuite",
+                .product(name: "OpenTelemetryApi", package: "opentelemetry-swift-core"),
+            ],
+            path: "PerformanceSuite/OTel/Sources"
         ),
         .target(name: "CrashlyticsImports",
                 dependencies: [

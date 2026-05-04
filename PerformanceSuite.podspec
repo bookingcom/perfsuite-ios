@@ -22,6 +22,12 @@ Pod::Spec.new do |s|
     cr_spec.dependency 'FirebaseCrashlytics'
   end
 
+  s.subspec 'OTel' do |otel_spec|
+    otel_spec.source_files = 'PerformanceSuite/OTel/Sources/*.swift'
+    otel_spec.dependency 'PerformanceSuite/Core'
+    otel_spec.dependency 'OpenTelemetry-Swift-Api', '~> 2.0'
+  end
+
   # Sample App which is also used for UI tests as a host
   s.app_spec 'PerformanceApp' do |app_spec|
     app_spec.source_files = 'PerformanceSuite/PerformanceApp/**/*.swift'
@@ -29,11 +35,13 @@ Pod::Spec.new do |s|
     app_spec.dependency 'PerformanceSuite/Crashlytics'
   end
 
-  # Unit tests
+  # Unit tests — OTel tests live under PerformanceSuite/OTel/Tests/ and are
+  # folded into the same Tests scheme so all unit tests run as one xctest.
   s.test_spec 'Tests' do |test_spec|
     test_spec.requires_app_host = true
-    test_spec.source_files = 'PerformanceSuite/Tests/**/*.swift'
+    test_spec.source_files = 'PerformanceSuite/Tests/**/*.swift', 'PerformanceSuite/OTel/Tests/**/*.swift'
     test_spec.dependency 'PerformanceSuite/Crashlytics'
+    test_spec.dependency 'PerformanceSuite/OTel'
   end
 
   # UI Tests

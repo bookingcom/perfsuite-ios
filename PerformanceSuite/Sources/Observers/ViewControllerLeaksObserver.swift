@@ -22,6 +22,25 @@ public protocol ViewControllerLeaksReceiver {
     /// (for example if you have reuse pool for view controllers in something like UIPageViewController).
     /// To silent those messages for some of your controllers, mark those controllers with the protocol `LeakCheckDisabled`.
     func viewControllerLeakReceived(viewController: UIViewController)
+
+    /// Per-receiver opt-out, consulted by ``ViewControllerLeaksObserver`` before
+    /// it dispatches a leak to ``viewControllerLeakReceived(viewController:)``.
+    /// Returns `true` by default via a protocol-extension default — every leak
+    /// is dispatched unless a receiver explicitly opts out.
+    ///
+    /// Declared as a *requirement* (not extension-only) so the Observer's
+    /// existential call site dispatches dynamically to overrides such as
+    /// ``MultiViewControllerLeaksReceiver``'s chain-wide predicate. Conforming
+    /// types that don't implement this method automatically pick up the
+    /// extension default and remain source-compatible.
+    ///
+    /// Implementations must be side-effect-free.
+    func shouldTrack(viewController: UIViewController) -> Bool
+}
+
+extension ViewControllerLeaksReceiver {
+
+    public func shouldTrack(viewController: UIViewController) -> Bool { true }
 }
 
 /// Observer checks if view controllers are deallocated some time after `viewDidDisappear`
@@ -127,6 +146,11 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             // Was moving from parent, but still has a parent. Most often happens for
             // view controllers made by UIViewControllerRepresentable SwiftUI Views.
             // Ignore this vc.
+            return
+        }
+
+        guard metricsReceiver.shouldTrack(viewController: viewController) else {
+            // Receiver chain (or single receiver) opted out — skip the dispatch.
             return
         }
 

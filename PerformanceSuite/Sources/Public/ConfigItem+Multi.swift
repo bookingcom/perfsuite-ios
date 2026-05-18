@@ -26,6 +26,16 @@ extension ConfigItem {
     public static func watchdogTerminations(_ receivers: [WatchdogTerminationsReceiver]) -> ConfigItem {
         .watchdogTerminations(MultiWatchdogTerminationsReceiver(receivers: receivers))
     }
+
+    public static func viewControllerLeaks(
+        _ receivers: [ViewControllerLeaksReceiver],
+        shouldTrack: ((UIViewController) -> Bool)? = nil
+    ) -> ConfigItem {
+        .viewControllerLeaks(MultiViewControllerLeaksReceiver(
+            receivers: receivers,
+            shouldTrack: shouldTrack
+        ))
+    }
 }
 
 // MARK: - Generic receivers (iOS 16+)

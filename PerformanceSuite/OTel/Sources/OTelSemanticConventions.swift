@@ -74,10 +74,21 @@ public enum OTelSemanticConventions {
         public static let memoryWarningsCount = "memory.warnings_count"
         public static let deviceRamMb = "device.ram.mb"
 
+        // View-controller leak
+        public static let viewControllerClassName = "vc.class_name"
+        public static let viewControllerIdentifier = "vc.identifier"
+
         // Device / OS (set on app-level spans where useful)
         public static let deviceModel = "device.model"
         public static let osName = "os.name"
         public static let osVersion = "os.version"
+    }
+
+    /// String values that appear as the `body` of OTel log records emitted by
+    /// ``OTelInstrumenter``. Centralised so backends can pin filters on stable
+    /// strings.
+    public enum LogBody {
+        public static let viewControllerLeak = "view_controller_leak"
     }
 
     /// String values that appear in the `hang.type` attribute. Kept narrow on

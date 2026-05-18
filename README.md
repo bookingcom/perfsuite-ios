@@ -216,7 +216,7 @@ class MetricsConsumer: TTIMetricsReceiver {
 
 ## OpenTelemetry Integration
 
-`PerformanceSuiteOTel` is an additional library that turns every `PerformanceSuite` metric into an [OpenTelemetry](https://opentelemetry.io) span, so you can route performance data through any OTel-compatible backend (Embrace, Honeycomb, an in-house OTLP collector, …) without writing a custom bridge. It depends on `PerformanceSuite` and on [`opentelemetry-swift-core`](https://github.com/open-telemetry/opentelemetry-swift-core)'s `OpenTelemetryApi`; it does not pull in the OTel SDK.
+`PerformanceSuiteOTel` is an additional library that bridges `PerformanceSuite` metrics to the [OpenTelemetry](https://opentelemetry.io) pipeline — most signals as spans, view-controller leaks as log records — so you can route performance data through any OTel-compatible backend (Embrace, Honeycomb, an in-house OTLP collector, …) without writing a custom bridge. It depends on `PerformanceSuite` and on [`opentelemetry-swift-core`](https://github.com/open-telemetry/opentelemetry-swift-core)'s `OpenTelemetryApi`; it does not pull in the OTel SDK.
 
 ### Installation
 
@@ -238,7 +238,7 @@ The `OTel` subspec depends on `OpenTelemetry-Swift-Api` (the CocoaPods spec name
 
 ### Standalone usage
 
-`OTelInstrumenter<Screen, Fragment>` conforms to all seven `PerformanceSuite` receiver protocols and can be passed wherever the library expects a receiver. The simplest setup uses it as the only receiver:
+`OTelInstrumenter<Screen, Fragment>` conforms to all eight `PerformanceSuite` receiver protocols and can be passed wherever the library expects a receiver. The simplest setup uses it as the only receiver:
 
 ```swift
 import PerformanceSuite
@@ -254,6 +254,7 @@ let config: Config = [
     .hangs(otel),
     .watchdogTerminations(otel),
     .fragmentTTI(otel),
+    .viewControllerLeaks(otel),
 ]
 try PerformanceMonitoring.enable(config: config)
 ```
@@ -276,32 +277,92 @@ let config: Config = [
         receivers: [custom, otel]
     )),
     .hangs(MultiHangsReceiver(receivers: [custom, otel])),
+    .viewControllerLeaks(
+        [custom, otel],
+        shouldTrack: { viewController in
+            // Chain-wide opt-out: returning false short-circuits the
+            // observer's dispatch entirely, so neither the custom receiver
+            // nor OTel sees an excluded view controller. Use this to keep
+            // squeak-style and OTel emissions in lockstep.
+            !(viewController is UINavigationController)
+        }
+    ),
     // ...
 ]
 ```
 
-> **iOS 16+ for the three generic Multi receivers.** `MultiTTIMetricsReceiver`, `MultiRenderingMetricsReceiver`, and `MultiFragmentTTIMetricsReceiver` store `[any P<X>]` arrays, whose runtime support shipped with iOS 16 (SE-0353). They are gated with `@available(iOS 16.0, *)`. The other four `Multi*Receiver` types and all of `OTelInstrumenter` work on iOS 15+.
+The `viewControllerLeaks(_:shouldTrack:)` convenience wraps `MultiViewControllerLeaksReceiver`, whose optional `shouldTrack` predicate gates dispatch for *all* children at once. The predicate is invoked once per leak, immediately before any child receiver is called; returning `false` skips the dispatch so the chain stays in lockstep.
 
-### TracerProvider resolution
+> **iOS 16+ for the three generic Multi receivers.** `MultiTTIMetricsReceiver`, `MultiRenderingMetricsReceiver`, and `MultiFragmentTTIMetricsReceiver` store `[any P<X>]` arrays, whose runtime support shipped with iOS 16 (SE-0353). They are gated with `@available(iOS 16.0, *)`. The other five `Multi*Receiver` types (including `MultiViewControllerLeaksReceiver`) and all of `OTelInstrumenter` work on iOS 15+.
 
-By default, `OTelInstrumenter` resolves `OpenTelemetry.instance.tracerProvider` lazily — at every emission, not at instantiation. This is intentional: the host app's OTel SDK (Embrace, vendor SDK, …) typically registers the global provider during its own startup, which may run *after* `PerformanceMonitoring.enable(...)`. Resolving lazily means spans emitted before the SDK is ready fall through the no-op `DefaultTracerProvider` (silently dropped, no crash), and every emission afterward uses the real provider.
+### View-controller leak log records
 
-You can also inject an explicit provider at construction time — useful for tests, multi-tenant setups, or routing PerformanceSuite spans to a different tracer than the rest of the app:
+`OTelInstrumenter` emits view-controller leaks as **OTel log records** rather than spans — leak detection is a point-in-time event with no meaningful duration, and a log with `severity = WARN` and `body = "view_controller_leak"` is the right semantic shape. The record carries:
+
+| Attribute | Value |
+| --- | --- |
+| `vc.class_name` | `String(describing: type(of: viewController))`. For `UIHostingController`s (anything conforming to `RootViewIntrospectable`), the introspected SwiftUI root view's type is used instead, so the record carries the meaningful user-facing type rather than the generic-mangled `UIHostingController<…>`. |
+| `vc.identifier` | `viewController.description` (the standard `NSObject` `<MyClass: 0x…>` form). |
+| `app.startup.prewarmed` | `true` if the app was started by iOS pre-warming, otherwise `false`. Mirrors the startup span's policy. |
+
+Records are emitted via `OpenTelemetry.instance.loggerProvider`, lazily resolved at first emission (see [Provider resolution](#provider-resolution) below).
+
+### Host attribute enrichment
+
+`OTelInstrumenter.init` accepts an optional `attributeProvider:` closure that is invoked **once per emission** with the matching `PerformanceSuiteSignalContext`. The dictionary it returns is merged onto the resulting span (or log record) — useful for adding host-app context (experiment buckets, low-power-mode, …) that the SDK itself doesn't know about.
+
+```swift
+let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
+    spanNamePrefix: "myapp",
+    attributeProvider: { context in
+        // Exhaustive switch — the compiler will flag any future signal
+        // kind, so enrichment stays complete by construction.
+        switch context {
+        case .watchdogTermination, .fatalHang:
+            // Use cross-launch state — the previous session's experiments,
+            // for example.
+            return previousSessionExperimentBuckets()
+        case .nonFatalHang, .viewControllerLeak:
+            // In-session events; current-session state is appropriate.
+            return currentSessionExperimentBuckets()
+        case .startup, .appRendering:
+            return ["app.low_power_mode": .bool(ProcessInfo.processInfo.isLowPowerModeEnabled)]
+        case .screenTTI, .screenRendering, .fragmentTTI:
+            return [:]
+        }
+    }
+)
+```
+
+`PerformanceSuiteSignalContext` is a hybrid enum: hang / watchdog / leak cases carry the SDK's own public payload type directly (`HangInfo`, `WatchdogTerminationData`, `UIViewController`); TTI / rendering / startup cases carry small generic-erased projection structs (`ScreenContext`, `FragmentContext`, `StartupContext`, `AppRenderingContext`). Pattern-bind the payload on the cases that have one — for example `case .fatalHang(let info):` exposes every public field of `HangInfo` (`callStack`, `duration`, `appRuntimeInfo`, …) without requiring an upstream PR to widen a curated projection.
+
+Splitting fatal and non-fatal hang dispatch into distinct enum cases makes the emitter pick the right one at construction time — mis-threading fatality is a compile-time error rather than a silent default. Host enrichment closures get the same guarantee through exhaustive switches.
+
+**SDK-set keys are protected.** Each per-signal merge filters host attributes against the universe of attribute keys the SDK reserves for that signal (`OTelSDKKeys.startup`, `OTelSDKKeys.hang`, `OTelSDKKeys.viewControllerLeak`, …). A host attribute matching one of those keys is silently dropped at the merge boundary, so semantic-convention values like `screen.tti.ms`, `app.state`, `hang.duration.ms`, or `vc.class_name` can never be overwritten by host code.
+
+### Provider resolution
+
+By default, `OTelInstrumenter` resolves both `OpenTelemetry.instance.tracerProvider` and `OpenTelemetry.instance.loggerProvider` lazily — at every emission, not at instantiation. This is intentional: the host app's OTel SDK (Embrace, vendor SDK, …) typically registers the global providers during its own startup, which may run *after* `PerformanceMonitoring.enable(...)`. Resolving lazily means signals emitted before the SDK is ready fall through to the no-op default providers (silently dropped, no crash), and every emission afterward uses the real providers.
+
+You can also inject explicit providers at construction time — useful for tests, multi-tenant setups, or routing PerformanceSuite signals to a different tracer / logger than the rest of the app:
 
 ```swift
 let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
     tracerProvider: customTracerProvider,
-    instrumentationName: "perfsuite-ios",        // default, included on every span
+    loggerProvider: customLoggerProvider,
+    instrumentationName: "perfsuite-ios",        // default, included on every span / log record
     instrumentationVersion: "1.7.0"              // optional
 )
 ```
 
-### Span semantic conventions
+### Semantic conventions
 
-Span names and attribute keys are exposed as constants on `OTelSemanticConventions` (e.g. `OTelSemanticConventions.SpanName.appStartup`, `OTelSemanticConventions.Attribute.screenTTIMs`). Backend dashboards can target these without grepping the source. The full list:
+Span names, log bodies, and attribute keys are exposed as constants on `OTelSemanticConventions` (e.g. `OTelSemanticConventions.SpanName.appStartup`, `OTelSemanticConventions.Attribute.screenTTIMs`, `OTelSemanticConventions.LogBody.viewControllerLeak`). Backend dashboards can target these without grepping the source. The full list:
 
-- `app-startup`, `screen-tti.<name>`, `fragment-tti.<name>`, `screen-rendering.<name>`, `app-rendering`, `app-hang`, `app-watchdog-termination`
-- attributes covering startup timing, screen / fragment TTI, rendering frame counts and freeze time, hang type / duration / top screen, watchdog termination state and memory.
+- **Span names**: `app-startup`, `screen-tti.<name>`, `fragment-tti.<name>`, `screen-rendering.<name>`, `app-rendering`, `app-hang`, `app-watchdog-termination`.
+- **Log bodies**: `view_controller_leak`.
+- **Span attributes**: startup timing, screen / fragment TTI, rendering frame counts and freeze time, hang type / duration / top screen, watchdog termination state and memory.
+- **Log attributes** (view-controller leaks): `vc.class_name`, `vc.identifier`, `app.startup.prewarmed`.
 
 ## How to reproduce metrics?
 

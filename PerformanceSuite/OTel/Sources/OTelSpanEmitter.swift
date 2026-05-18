@@ -137,7 +137,6 @@ final class OTelSpanEmitter {
             sdkAttributes[attrs.startupPremainTimeMs] = .int(ms)
         }
         sdkAttributes[attrs.startupPrewarmed] = .bool(data.appStartInfo.appStartedWithPrewarming)
-        addOTelDeviceAttributes(to: &sdkAttributes)
 
         emitSpan(
             spanName: prefixed(OTelSemanticConventions.SpanName.appStartup),
@@ -304,14 +303,10 @@ final class OTelSpanEmitter {
         // meaningful duration to compute — `durationInterval: 0` records a
         // zero-length point span at the moment of detection.
         let attrs = OTelSemanticConventions.Attribute.self
-        var sdkAttributes: [String: AttributeValue] = [
-            attrs.appState: .string(otelAppStateString(from: data.applicationState)),
-            attrs.deviceRamMb: .int(otelPhysicalMemoryMb()),
-        ]
+        var sdkAttributes: [String: AttributeValue] = [:]
         if let warnings = data.memoryWarnings {
             sdkAttributes[attrs.memoryWarningsCount] = .int(warnings)
         }
-        addOTelDeviceAttributes(to: &sdkAttributes)
         emitSpan(
             spanName: prefixed(OTelSemanticConventions.SpanName.appWatchdogTermination),
             durationInterval: 0,

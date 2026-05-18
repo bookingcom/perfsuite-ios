@@ -24,9 +24,6 @@ enum OTelSDKKeys {
         OTelSemanticConventions.Attribute.startupMainTimeMs,
         OTelSemanticConventions.Attribute.startupPremainTimeMs,
         OTelSemanticConventions.Attribute.startupPrewarmed,
-        OTelSemanticConventions.Attribute.osName,
-        OTelSemanticConventions.Attribute.osVersion,
-        OTelSemanticConventions.Attribute.deviceModel,
     ]
 
     static let screenRendering: Set<String> = [
@@ -54,12 +51,7 @@ enum OTelSDKKeys {
     ]
 
     static let watchdogTermination: Set<String> = [
-        OTelSemanticConventions.Attribute.appState,
         OTelSemanticConventions.Attribute.memoryWarningsCount,
-        OTelSemanticConventions.Attribute.deviceRamMb,
-        OTelSemanticConventions.Attribute.osName,
-        OTelSemanticConventions.Attribute.osVersion,
-        OTelSemanticConventions.Attribute.deviceModel,
     ]
 
     static let viewControllerLeak: Set<String> = [

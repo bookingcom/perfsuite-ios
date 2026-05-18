@@ -106,9 +106,9 @@ final class OTelInstrumenterTests: XCTestCase {
         XCTAssertEqual(builder.attributes["app.startup.main_time.ms"]?.intValue, 1_200)
         XCTAssertEqual(builder.attributes["app.startup.premain_time.ms"]?.intValue, 300)
         XCTAssertEqual(builder.attributes["app.startup.prewarmed"]?.boolValue, false)
-        XCTAssertEqual(builder.attributes["os.name"]?.stringValue, "iOS")
-        XCTAssertNotNil(builder.attributes["device.model"]?.stringValue)
-        XCTAssertNotNil(builder.attributes["os.version"]?.stringValue)
+        XCTAssertNil(builder.attributes["os.name"], "Device/OS attributes are host-authored via attributeProvider")
+        XCTAssertNil(builder.attributes["os.version"], "Device/OS attributes are host-authored via attributeProvider")
+        XCTAssertNil(builder.attributes["device.model"], "Device/OS attributes are host-authored via attributeProvider")
 
         let span = try XCTUnwrap(builder.startedSpan)
         XCTAssertTrue(span.ended, "Span must be ended after emission")
@@ -268,9 +268,12 @@ final class OTelInstrumenterTests: XCTestCase {
 
         let builder = try XCTUnwrap(provider.tracer.lastBuilder)
         XCTAssertEqual(builder.spanName, "app-watchdog-termination")
-        XCTAssertEqual(builder.attributes["app.state"]?.stringValue, "active")
         XCTAssertEqual(builder.attributes["memory.warnings_count"]?.intValue, 4)
-        XCTAssertNotNil(builder.attributes["device.ram.mb"]?.intValue)
+        XCTAssertNil(builder.attributes["app.state"], "app.state is host-authored via attributeProvider")
+        XCTAssertNil(builder.attributes["device.ram.mb"], "device.ram.mb is host-authored via attributeProvider")
+        XCTAssertNil(builder.attributes["os.name"], "Device/OS attributes are host-authored via attributeProvider")
+        XCTAssertNil(builder.attributes["os.version"], "Device/OS attributes are host-authored via attributeProvider")
+        XCTAssertNil(builder.attributes["device.model"], "Device/OS attributes are host-authored via attributeProvider")
 
         let span = try XCTUnwrap(builder.startedSpan)
         XCTAssertEqual(span.firstEndTime, builder.startTime,

@@ -55,16 +55,16 @@ final class OTelAttributeMergeTests: XCTestCase {
     func testHostAttributesMatchingReservedKeysAreDropped() {
         let sdkSet: [String: AttributeValue] = [
             "app.startup.prewarmed": .bool(false),
-            "app.state": .string("active"),
+            "hang.type": .string("fatal"),
         ]
         let merged = mergeOTelAttributes(
             sdkSet: sdkSet,
-            sdkSetKeys: ["app.startup.prewarmed", "app.state", "memory.warnings_count"],
+            sdkSetKeys: ["app.startup.prewarmed", "hang.type", "memory.warnings_count"],
             provider: { _ in
                 [
                     // Malicious host attempting to overwrite SDK-set values.
                     "app.startup.prewarmed": .bool(true),
-                    "app.state": .string("background"),
+                    "hang.type": .string("non_fatal"),
                     // Reserved key the SDK didn't set this time but still owns —
                     // host must not be allowed to claim it.
                     "memory.warnings_count": .int(99),
@@ -77,7 +77,7 @@ final class OTelAttributeMergeTests: XCTestCase {
 
         XCTAssertEqual(merged["app.startup.prewarmed"]?.boolValue, false,
                        "Host must not be able to overwrite an SDK-set value")
-        XCTAssertEqual(merged["app.state"]?.stringValue, "active",
+        XCTAssertEqual(merged["hang.type"]?.stringValue, "fatal",
                        "Host must not be able to overwrite an SDK-set value")
         XCTAssertNil(merged["memory.warnings_count"],
                      "Reserved key not set this emission must still be guarded")

@@ -150,7 +150,7 @@ public struct FragmentContext: Sendable, Equatable {
 /// SDK-set semantic-convention keys win in case of collision — host attributes
 /// matching a key the SDK reserves for the current signal are silently dropped
 /// at the merge boundary (see ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``).
-/// This guarantees the `screen.tti.ms` / `app.state` / `hang.duration.ms` /
-/// etc. semantic guarantees never get clobbered by host code.
+/// This guarantees the `screen.tti.ms` / `hang.duration.ms` / etc. semantic
+/// guarantees never get clobbered by host code.
 public typealias OTelAttributeProvider =
     (PerformanceSuiteSignalContext) -> [String: AttributeValue]

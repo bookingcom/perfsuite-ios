@@ -34,12 +34,18 @@ import PerformanceSuite
 ///   be active on the queue at emit time.
 /// * Span timing is computed as `(now - duration, now)` so that backends see
 ///   wall-clock-aligned spans and a single batch retains causal ordering.
+/// * Attributes are collected into an SDK dict, merged with any host
+///   ``OTelAttributeProvider`` output through ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``,
+///   then applied to the span builder. The merge filters host attributes
+///   against per-signal `*SDKKeys` sets so SDK semantic-convention keys can
+///   never be overwritten by the host.
 final class OTelSpanEmitter {
 
     private let tracerProvider: (any TracerProvider)?
     private let instrumentationName: String
     private let instrumentationVersion: String?
     private let spanNamePrefix: String?
+    private let attributeProvider: OTelAttributeProvider?
     private let now: () -> Date
 
     init(
@@ -47,12 +53,14 @@ final class OTelSpanEmitter {
         instrumentationName: String,
         instrumentationVersion: String?,
         spanNamePrefix: String? = nil,
+        attributeProvider: OTelAttributeProvider? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.tracerProvider = tracerProvider
         self.instrumentationName = instrumentationName
         self.instrumentationVersion = instrumentationVersion
         self.spanNamePrefix = spanNamePrefix
+        self.attributeProvider = attributeProvider
         self.now = now
     }
 
@@ -71,35 +79,68 @@ final class OTelSpanEmitter {
         )
     }
 
+    // MARK: - Builder helpers
+
+    private func makeBuilder(spanName: String, startTime: Date) -> SpanBuilder {
+        tracer()
+            .spanBuilder(spanName: spanName)
+            .setStartTime(time: startTime)
+            .setNoParent()
+            .setSpanKind(spanKind: .internal)
+    }
+
+    private func apply(_ attributes: [String: AttributeValue], to builder: SpanBuilder) {
+        for (key, value) in attributes {
+            builder.setAttribute(key: key, value: value)
+        }
+    }
+
     // MARK: - Startup
 
     func emitStartupSpan(data: StartupTimeData) {
         let endTime = now()
         let startTime = endTime.addingTimeInterval(-(data.totalTime.timeInterval ?? 0))
 
-        let builder = tracer()
-            .spanBuilder(spanName: prefixed(OTelSemanticConventions.SpanName.appStartup))
-            .setStartTime(time: startTime)
-            .setNoParent()
-            .setSpanKind(spanKind: .internal)
-
         let attrs = OTelSemanticConventions.Attribute.self
+        var sdkAttributes: [String: AttributeValue] = [:]
         if let ms = data.totalTime.milliseconds {
-            builder.setAttribute(key: attrs.startupTotalTimeMs, value: ms)
+            sdkAttributes[attrs.startupTotalTimeMs] = .int(ms)
         }
         if let ms = data.mainTime?.milliseconds {
-            builder.setAttribute(key: attrs.startupMainTimeMs, value: ms)
+            sdkAttributes[attrs.startupMainTimeMs] = .int(ms)
         }
         if let ms = data.preMainTime?.milliseconds {
-            builder.setAttribute(key: attrs.startupPremainTimeMs, value: ms)
+            sdkAttributes[attrs.startupPremainTimeMs] = .int(ms)
         }
-        builder.setAttribute(key: attrs.startupPrewarmed, value: data.appStartInfo.appStartedWithPrewarming)
+        sdkAttributes[attrs.startupPrewarmed] = .bool(data.appStartInfo.appStartedWithPrewarming)
+        addDeviceAttributes(to: &sdkAttributes)
 
-        applyDeviceAttributes(to: builder)
+        let merged = mergeOTelAttributes(
+            sdkSet: sdkAttributes,
+            sdkSetKeys: Self.startupSDKKeys,
+            provider: attributeProvider,
+            context: .startup(StartupContext())
+        )
+
+        let builder = makeBuilder(
+            spanName: prefixed(OTelSemanticConventions.SpanName.appStartup),
+            startTime: startTime
+        )
+        apply(merged, to: builder)
 
         let span = builder.startSpan()
         span.end(time: endTime)
     }
+
+    static let startupSDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.startupTotalTimeMs,
+        OTelSemanticConventions.Attribute.startupMainTimeMs,
+        OTelSemanticConventions.Attribute.startupPremainTimeMs,
+        OTelSemanticConventions.Attribute.startupPrewarmed,
+        OTelSemanticConventions.Attribute.osName,
+        OTelSemanticConventions.Attribute.osVersion,
+        OTelSemanticConventions.Attribute.deviceModel,
+    ]
 
     // MARK: - Screen TTI
 
@@ -111,10 +152,18 @@ final class OTelSpanEmitter {
                 ttiKey: OTelSemanticConventions.Attribute.screenTTIMs,
                 ttfrKey: OTelSemanticConventions.Attribute.screenTTFRMs
             ),
+            sdkSetKeys: Self.screenTTISDKKeys,
+            context: .screenTTI(ScreenContext(screenName: screenName)),
             identifier: screenName,
             metrics: metrics
         )
     }
+
+    static let screenTTISDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.screenName,
+        OTelSemanticConventions.Attribute.screenTTIMs,
+        OTelSemanticConventions.Attribute.screenTTFRMs,
+    ]
 
     // MARK: - Fragment TTI
 
@@ -126,10 +175,18 @@ final class OTelSpanEmitter {
                 ttiKey: OTelSemanticConventions.Attribute.fragmentTTIMs,
                 ttfrKey: OTelSemanticConventions.Attribute.fragmentTTFRMs
             ),
+            sdkSetKeys: Self.fragmentTTISDKKeys,
+            context: .fragmentTTI(FragmentContext(fragmentName: fragmentName)),
             identifier: fragmentName,
             metrics: metrics
         )
     }
+
+    static let fragmentTTISDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.fragmentName,
+        OTelSemanticConventions.Attribute.fragmentTTIMs,
+        OTelSemanticConventions.Attribute.fragmentTTFRMs,
+    ]
 
     /// Bundles the three attribute keys that vary between screen TTI and
     /// fragment TTI emission. Bundling keeps `emitTTISpan(...)` under
@@ -143,25 +200,33 @@ final class OTelSpanEmitter {
     private func emitTTISpan(
         spanName: String,
         keys: TTIAttributeKeys,
+        sdkSetKeys: Set<String>,
+        context: PerformanceSuiteSignalContext,
         identifier: String,
         metrics: TTIMetrics
     ) {
         let endTime = now()
         let startTime = endTime.addingTimeInterval(-(metrics.tti.timeInterval ?? 0))
 
-        let builder = tracer()
-            .spanBuilder(spanName: spanName)
-            .setStartTime(time: startTime)
-            .setNoParent()
-            .setSpanKind(spanKind: .internal)
-            .setAttribute(key: keys.nameKey, value: identifier)
-
+        var sdkAttributes: [String: AttributeValue] = [
+            keys.nameKey: .string(identifier),
+        ]
         if let ms = metrics.tti.milliseconds {
-            builder.setAttribute(key: keys.ttiKey, value: ms)
+            sdkAttributes[keys.ttiKey] = .int(ms)
         }
         if let ms = metrics.ttfr.milliseconds {
-            builder.setAttribute(key: keys.ttfrKey, value: ms)
+            sdkAttributes[keys.ttfrKey] = .int(ms)
         }
+
+        let merged = mergeOTelAttributes(
+            sdkSet: sdkAttributes,
+            sdkSetKeys: sdkSetKeys,
+            provider: attributeProvider,
+            context: context
+        )
+
+        let builder = makeBuilder(spanName: spanName, startTime: startTime)
+        apply(merged, to: builder)
 
         let span = builder.startSpan()
         span.end(time: endTime)
@@ -173,18 +238,36 @@ final class OTelSpanEmitter {
         let endTime = now()
         let startTime = endTime.addingTimeInterval(-(metrics.sessionDuration.timeInterval ?? 0))
 
-        let builder = tracer()
-            .spanBuilder(spanName: prefixed(OTelSemanticConventions.SpanName.screenRendering(screenName)))
-            .setStartTime(time: startTime)
-            .setNoParent()
-            .setSpanKind(spanKind: .internal)
-            .setAttribute(key: OTelSemanticConventions.Attribute.screenName, value: screenName)
+        var sdkAttributes: [String: AttributeValue] = [
+            OTelSemanticConventions.Attribute.screenName: .string(screenName),
+        ]
+        addRenderingAttributes(to: &sdkAttributes, metrics: metrics)
 
-        applyRenderingAttributes(to: builder, metrics: metrics)
+        let merged = mergeOTelAttributes(
+            sdkSet: sdkAttributes,
+            sdkSetKeys: Self.screenRenderingSDKKeys,
+            provider: attributeProvider,
+            context: .screenRendering(ScreenContext(screenName: screenName))
+        )
+
+        let builder = makeBuilder(
+            spanName: prefixed(OTelSemanticConventions.SpanName.screenRendering(screenName)),
+            startTime: startTime
+        )
+        apply(merged, to: builder)
 
         let span = builder.startSpan()
         span.end(time: endTime)
     }
+
+    static let screenRenderingSDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.screenName,
+        OTelSemanticConventions.Attribute.renderingTotalFrames,
+        OTelSemanticConventions.Attribute.renderingDroppedFrames,
+        OTelSemanticConventions.Attribute.renderingSlowFrames,
+        OTelSemanticConventions.Attribute.renderingFreezeTimeMs,
+        OTelSemanticConventions.Attribute.renderingSessionDurationMs,
+    ]
 
     // MARK: - App rendering
 
@@ -192,55 +275,114 @@ final class OTelSpanEmitter {
         let endTime = now()
         let startTime = endTime.addingTimeInterval(-(metrics.sessionDuration.timeInterval ?? 0))
 
-        let builder = tracer()
-            .spanBuilder(spanName: prefixed(OTelSemanticConventions.SpanName.appRendering))
-            .setStartTime(time: startTime)
-            .setNoParent()
-            .setSpanKind(spanKind: .internal)
+        var sdkAttributes: [String: AttributeValue] = [:]
+        addRenderingAttributes(to: &sdkAttributes, metrics: metrics)
 
-        applyRenderingAttributes(to: builder, metrics: metrics)
+        let merged = mergeOTelAttributes(
+            sdkSet: sdkAttributes,
+            sdkSetKeys: Self.appRenderingSDKKeys,
+            provider: attributeProvider,
+            context: .appRendering(AppRenderingContext())
+        )
+
+        let builder = makeBuilder(
+            spanName: prefixed(OTelSemanticConventions.SpanName.appRendering),
+            startTime: startTime
+        )
+        apply(merged, to: builder)
 
         let span = builder.startSpan()
         span.end(time: endTime)
     }
 
-    private func applyRenderingAttributes(to builder: SpanBuilder, metrics: RenderingMetrics) {
+    static let appRenderingSDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.renderingTotalFrames,
+        OTelSemanticConventions.Attribute.renderingDroppedFrames,
+        OTelSemanticConventions.Attribute.renderingSlowFrames,
+        OTelSemanticConventions.Attribute.renderingFreezeTimeMs,
+        OTelSemanticConventions.Attribute.renderingSessionDurationMs,
+    ]
+
+    private func addRenderingAttributes(to attributes: inout [String: AttributeValue], metrics: RenderingMetrics) {
         let attrs = OTelSemanticConventions.Attribute.self
-        builder.setAttribute(key: attrs.renderingTotalFrames, value: metrics.renderedFrames)
-        builder.setAttribute(key: attrs.renderingDroppedFrames, value: metrics.droppedFrames)
-        builder.setAttribute(key: attrs.renderingSlowFrames, value: metrics.slowFrames)
+        attributes[attrs.renderingTotalFrames] = .int(metrics.renderedFrames)
+        attributes[attrs.renderingDroppedFrames] = .int(metrics.droppedFrames)
+        attributes[attrs.renderingSlowFrames] = .int(metrics.slowFrames)
         if let ms = metrics.freezeTime.milliseconds {
-            builder.setAttribute(key: attrs.renderingFreezeTimeMs, value: ms)
+            attributes[attrs.renderingFreezeTimeMs] = .int(ms)
         }
         if let ms = metrics.sessionDuration.milliseconds {
-            builder.setAttribute(key: attrs.renderingSessionDurationMs, value: ms)
+            attributes[attrs.renderingSessionDurationMs] = .int(ms)
         }
     }
 
     // MARK: - Hangs
 
-    func emitHangSpan(info: HangInfo, type: String) {
+    /// Emits a hang span for a *fatal* hang. Constructs a
+    /// ``PerformanceSuiteSignalContext/fatalHang(_:)`` context so host
+    /// enrichment closures pattern-match the fatality at compile time.
+    func emitFatalHangSpan(info: HangInfo) {
+        emitHangSpan(
+            info: info,
+            type: OTelSemanticConventions.HangType.fatal,
+            context: .fatalHang(info)
+        )
+    }
+
+    /// Emits a hang span for a *non-fatal* hang. Constructs a
+    /// ``PerformanceSuiteSignalContext/nonFatalHang(_:)`` context so host
+    /// enrichment closures pattern-match the fatality at compile time.
+    func emitNonFatalHangSpan(info: HangInfo) {
+        emitHangSpan(
+            info: info,
+            type: OTelSemanticConventions.HangType.nonFatal,
+            context: .nonFatalHang(info)
+        )
+    }
+
+    private func emitHangSpan(
+        info: HangInfo,
+        type: String,
+        context: PerformanceSuiteSignalContext
+    ) {
         let endTime = now()
         let startTime = endTime.addingTimeInterval(-(info.duration.timeInterval ?? 0))
 
-        let builder = tracer()
-            .spanBuilder(spanName: prefixed(OTelSemanticConventions.SpanName.appHang))
-            .setStartTime(time: startTime)
-            .setNoParent()
-            .setSpanKind(spanKind: .internal)
-            .setAttribute(key: OTelSemanticConventions.Attribute.hangType, value: type)
-            .setAttribute(key: OTelSemanticConventions.Attribute.hangDuringStartup, value: info.duringStartup)
-
+        let attrs = OTelSemanticConventions.Attribute.self
+        var sdkAttributes: [String: AttributeValue] = [
+            attrs.hangType: .string(type),
+            attrs.hangDuringStartup: .bool(info.duringStartup),
+        ]
         if let ms = info.duration.milliseconds {
-            builder.setAttribute(key: OTelSemanticConventions.Attribute.hangDurationMs, value: ms)
+            sdkAttributes[attrs.hangDurationMs] = .int(ms)
         }
         if let topScreen = info.appRuntimeInfo.openedScreens.last {
-            builder.setAttribute(key: OTelSemanticConventions.Attribute.hangTopScreen, value: topScreen)
+            sdkAttributes[attrs.hangTopScreen] = .string(topScreen)
         }
+
+        let merged = mergeOTelAttributes(
+            sdkSet: sdkAttributes,
+            sdkSetKeys: Self.hangSDKKeys,
+            provider: attributeProvider,
+            context: context
+        )
+
+        let builder = makeBuilder(
+            spanName: prefixed(OTelSemanticConventions.SpanName.appHang),
+            startTime: startTime
+        )
+        apply(merged, to: builder)
 
         let span = builder.startSpan()
         span.end(time: endTime)
     }
+
+    static let hangSDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.hangType,
+        OTelSemanticConventions.Attribute.hangDuringStartup,
+        OTelSemanticConventions.Attribute.hangDurationMs,
+        OTelSemanticConventions.Attribute.hangTopScreen,
+    ]
 
     // MARK: - Watchdog termination
 
@@ -250,32 +392,49 @@ final class OTelSpanEmitter {
         // the moment of detection.
         let pointInTime = now()
 
-        let builder = tracer()
-            .spanBuilder(spanName: prefixed(OTelSemanticConventions.SpanName.appWatchdogTermination))
-            .setStartTime(time: pointInTime)
-            .setNoParent()
-            .setSpanKind(spanKind: .internal)
-
         let attrs = OTelSemanticConventions.Attribute.self
-        builder.setAttribute(key: attrs.appState, value: stringFrom(applicationState: data.applicationState))
+        var sdkAttributes: [String: AttributeValue] = [
+            attrs.appState: .string(stringFrom(applicationState: data.applicationState)),
+            attrs.deviceRamMb: .int(Int(physicalMemoryMb())),
+        ]
         if let warnings = data.memoryWarnings {
-            builder.setAttribute(key: attrs.memoryWarningsCount, value: warnings)
+            sdkAttributes[attrs.memoryWarningsCount] = .int(warnings)
         }
-        builder.setAttribute(key: attrs.deviceRamMb, value: Int(physicalMemoryMb()))
+        addDeviceAttributes(to: &sdkAttributes)
 
-        applyDeviceAttributes(to: builder)
+        let merged = mergeOTelAttributes(
+            sdkSet: sdkAttributes,
+            sdkSetKeys: Self.watchdogTerminationSDKKeys,
+            provider: attributeProvider,
+            context: .watchdogTermination(data)
+        )
+
+        let builder = makeBuilder(
+            spanName: prefixed(OTelSemanticConventions.SpanName.appWatchdogTermination),
+            startTime: pointInTime
+        )
+        apply(merged, to: builder)
 
         let span = builder.startSpan()
         span.end(time: pointInTime)
     }
 
+    static let watchdogTerminationSDKKeys: Set<String> = [
+        OTelSemanticConventions.Attribute.appState,
+        OTelSemanticConventions.Attribute.memoryWarningsCount,
+        OTelSemanticConventions.Attribute.deviceRamMb,
+        OTelSemanticConventions.Attribute.osName,
+        OTelSemanticConventions.Attribute.osVersion,
+        OTelSemanticConventions.Attribute.deviceModel,
+    ]
+
     // MARK: - Device / OS attributes
 
-    private func applyDeviceAttributes(to builder: SpanBuilder) {
+    private func addDeviceAttributes(to attributes: inout [String: AttributeValue]) {
         let attrs = OTelSemanticConventions.Attribute.self
-        builder.setAttribute(key: attrs.osName, value: OTelSemanticConventions.osNameValue)
-        builder.setAttribute(key: attrs.osVersion, value: UIDevice.current.systemVersion)
-        builder.setAttribute(key: attrs.deviceModel, value: deviceModelCode())
+        attributes[attrs.osName] = .string(OTelSemanticConventions.osNameValue)
+        attributes[attrs.osVersion] = .string(UIDevice.current.systemVersion)
+        attributes[attrs.deviceModel] = .string(deviceModelCode())
     }
 
     /// Hardware model code such as `"iPhone15,3"` (vs. the marketing name

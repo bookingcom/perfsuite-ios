@@ -94,19 +94,27 @@ public final class OTelInstrumenter<Screen, Fragment>:
     ///     into `"bookingcom.app-startup"`. Useful when multiple apps share an
     ///     OTel pipeline and need namespaced span names. `nil` (the default)
     ///     emits unprefixed names.
+    ///   - attributeProvider: Optional closure invoked once per emission with
+    ///     the matching ``PerformanceSuiteSignalContext``. The returned
+    ///     attributes are merged onto the span (or log record) via
+    ///     ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``.
+    ///     SDK-set semantic-convention keys win on collision; host attributes
+    ///     matching SDK-reserved keys are silently dropped at the merge.
     public init(
         screenIdentifier: ((UIViewController) -> Screen?)? = nil,
         tracerProvider: (any TracerProvider)? = nil,
         instrumentationName: String = OTelSemanticConventions.defaultInstrumentationName,
         instrumentationVersion: String? = nil,
-        spanNamePrefix: String? = nil
+        spanNamePrefix: String? = nil,
+        attributeProvider: OTelAttributeProvider? = nil
     ) {
         self._screenIdentifier = screenIdentifier
         self.emitter = OTelSpanEmitter(
             tracerProvider: tracerProvider,
             instrumentationName: instrumentationName,
             instrumentationVersion: instrumentationVersion,
-            spanNamePrefix: spanNamePrefix
+            spanNamePrefix: spanNamePrefix,
+            attributeProvider: attributeProvider
         )
     }
 
@@ -117,6 +125,7 @@ public final class OTelInstrumenter<Screen, Fragment>:
         instrumentationName: String,
         instrumentationVersion: String?,
         spanNamePrefix: String? = nil,
+        attributeProvider: OTelAttributeProvider? = nil,
         now: @escaping () -> Date
     ) {
         self._screenIdentifier = screenIdentifier
@@ -125,6 +134,7 @@ public final class OTelInstrumenter<Screen, Fragment>:
             instrumentationName: instrumentationName,
             instrumentationVersion: instrumentationVersion,
             spanNamePrefix: spanNamePrefix,
+            attributeProvider: attributeProvider,
             now: now
         )
     }
@@ -183,16 +193,16 @@ public final class OTelInstrumenter<Screen, Fragment>:
     // MARK: - HangsReceiver
 
     public func fatalHangReceived(info: HangInfo) {
-        emitter.emitHangSpan(info: info, type: OTelSemanticConventions.HangType.fatal)
+        emitter.emitFatalHangSpan(info: info)
     }
 
     public func nonFatalHangReceived(info: HangInfo) {
-        emitter.emitHangSpan(info: info, type: OTelSemanticConventions.HangType.nonFatal)
+        emitter.emitNonFatalHangSpan(info: info)
     }
 
     public func hangStarted(info: HangInfo) {
         // `hangStarted` is an in-progress signal; no completed span to record.
-        // Phase 2 (live spans) will turn this into a span-start event.
+        // A future live-spans iteration will turn this into a span-start event.
     }
 
     // MARK: - WatchdogTerminationsReceiver

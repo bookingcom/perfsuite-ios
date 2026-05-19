@@ -66,12 +66,14 @@ public final class OTelInstrumenter<Screen, Fragment>:
     AppRenderingMetricsReceiver,
     StartupTimeReceiver,
     HangsReceiver,
-    WatchdogTerminationsReceiver {
+    WatchdogTerminationsReceiver,
+    ViewControllerLeaksReceiver {
     public typealias ScreenIdentifier = Screen
     public typealias FragmentIdentifier = Fragment
 
     private let _screenIdentifier: ((UIViewController) -> Screen?)?
     private let emitter: OTelSpanEmitter
+    private let logEmitter: OTelLogEmitter
 
     /// - Parameters:
     ///   - screenIdentifier: Optional closure to map view controllers to
@@ -85,6 +87,10 @@ public final class OTelInstrumenter<Screen, Fragment>:
     ///   - tracerProvider: Inject a custom provider for tests or special
     ///     setups. When `nil`, the global `OpenTelemetry.instance.tracerProvider`
     ///     is resolved at first emission.
+    ///   - loggerProvider: Same shape as `tracerProvider` but for OTel log
+    ///     records (currently used only by view-controller leak emission).
+    ///     Lazily resolved at first emission so a late-registered global
+    ///     provider (e.g. Embrace) still wins.
     ///   - instrumentationName: Reported on every span. Backends use this to
     ///     filter PerformanceSuite spans. Defaults to `"perfsuite-ios"`.
     ///   - instrumentationVersion: Optional version string reported alongside
@@ -94,30 +100,25 @@ public final class OTelInstrumenter<Screen, Fragment>:
     ///     into `"bookingcom.app-startup"`. Useful when multiple apps share an
     ///     OTel pipeline and need namespaced span names. `nil` (the default)
     ///     emits unprefixed names.
+    ///   - attributeProvider: Optional closure invoked once per emission with
+    ///     the matching ``PerformanceSuiteSignalContext``. The returned
+    ///     attributes are merged onto the span (or log record) via
+    ///     ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``.
+    ///     SDK-set semantic-convention keys win on collision; host attributes
+    ///     matching SDK-reserved keys are silently dropped at the merge.
+    ///   - now: Clock function used to stamp emitted spans and log records.
+    ///     Defaults to `Date.init` (the system clock); tests inject a
+    ///     deterministic closure so timestamp assertions can compare exact
+    ///     values.
     public init(
         screenIdentifier: ((UIViewController) -> Screen?)? = nil,
         tracerProvider: (any TracerProvider)? = nil,
+        loggerProvider: (any LoggerProvider)? = nil,
         instrumentationName: String = OTelSemanticConventions.defaultInstrumentationName,
         instrumentationVersion: String? = nil,
-        spanNamePrefix: String? = nil
-    ) {
-        self._screenIdentifier = screenIdentifier
-        self.emitter = OTelSpanEmitter(
-            tracerProvider: tracerProvider,
-            instrumentationName: instrumentationName,
-            instrumentationVersion: instrumentationVersion,
-            spanNamePrefix: spanNamePrefix
-        )
-    }
-
-    /// Test-only initializer that allows injecting a deterministic clock.
-    init(
-        screenIdentifier: ((UIViewController) -> Screen?)?,
-        tracerProvider: (any TracerProvider)?,
-        instrumentationName: String,
-        instrumentationVersion: String?,
         spanNamePrefix: String? = nil,
-        now: @escaping () -> Date
+        attributeProvider: OTelAttributeProvider? = nil,
+        now: @escaping () -> Date = Date.init
     ) {
         self._screenIdentifier = screenIdentifier
         self.emitter = OTelSpanEmitter(
@@ -125,6 +126,13 @@ public final class OTelInstrumenter<Screen, Fragment>:
             instrumentationName: instrumentationName,
             instrumentationVersion: instrumentationVersion,
             spanNamePrefix: spanNamePrefix,
+            attributeProvider: attributeProvider,
+            now: now
+        )
+        self.logEmitter = OTelLogEmitter(
+            loggerProvider: loggerProvider,
+            instrumentationName: instrumentationName,
+            attributeProvider: attributeProvider,
             now: now
         )
     }
@@ -183,16 +191,16 @@ public final class OTelInstrumenter<Screen, Fragment>:
     // MARK: - HangsReceiver
 
     public func fatalHangReceived(info: HangInfo) {
-        emitter.emitHangSpan(info: info, type: OTelSemanticConventions.HangType.fatal)
+        emitter.emitFatalHangSpan(info: info)
     }
 
     public func nonFatalHangReceived(info: HangInfo) {
-        emitter.emitHangSpan(info: info, type: OTelSemanticConventions.HangType.nonFatal)
+        emitter.emitNonFatalHangSpan(info: info)
     }
 
     public func hangStarted(info: HangInfo) {
         // `hangStarted` is an in-progress signal; no completed span to record.
-        // Phase 2 (live spans) will turn this into a span-start event.
+        // A future live-spans iteration will turn this into a span-start event.
     }
 
     // MARK: - WatchdogTerminationsReceiver
@@ -200,6 +208,21 @@ public final class OTelInstrumenter<Screen, Fragment>:
     public func watchdogTerminationReceived(_ data: WatchdogTerminationData) {
         emitter.emitWatchdogTerminationSpan(data: data)
     }
+
+    // MARK: - ViewControllerLeaksReceiver
+
+    public func viewControllerLeakReceived(viewController: UIViewController) {
+        logEmitter.emitViewControllerLeakLog(
+            viewController: viewController,
+            appStartedWithPrewarming: PerformanceMonitoring.appStartInfo.appStartedWithPrewarming
+        )
+    }
+
+    // No `shouldTrack(viewController:)` override — picks up the protocol
+    // extension default (`true`). Per-VC opt-out is wired chain-wide through
+    // `MultiViewControllerLeaksReceiver`'s `shouldTrack:` predicate, not
+    // per-receiver, so that squeak and OTel pipelines stay in lockstep when
+    // a host filter (e.g. `UINavigationController` exclusion) is applied.
 
     // MARK: - Identifier conversion
 

@@ -17,6 +17,34 @@ let package = Package(
         .library(
             name: "PerformanceSuiteOTel",
             targets: ["PerformanceSuiteOTel"]),
+
+        // Explicit dynamic-flavor products. The default products above are
+        // implicitly static, which means each consumer that links them ends up
+        // with its own copy of the targets' object code and Swift module-level
+        // static state. Consumers that mix several of these products (e.g. an
+        // app framework that uses `PerformanceSuiteCrashlytics` and a sibling
+        // framework that uses `PerformanceSuiteOTel`) can therefore see the
+        // same `PerformanceMonitoring` enum's static storage duplicated across
+        // binaries, breaking single-source-of-truth assumptions.
+        //
+        // The `-Dynamic` flavors expose the same targets as `type: .dynamic`
+        // libraries, so consumers that want shared state across binaries can
+        // opt in without breaking existing setups that rely on static linking.
+        // This mirrors how `apollographql/apollo-ios` ships both a default
+        // (static) `Apollo` library and a parallel `Apollo-Dynamic` flavor.
+        .library(
+            name: "PerformanceSuite-Dynamic",
+            type: .dynamic,
+            targets: ["PerformanceSuite"]),
+        .library(
+            name: "PerformanceSuiteCrashlytics-Dynamic",
+            type: .dynamic,
+            targets: ["PerformanceSuiteCrashlytics"]),
+        .library(
+            name: "PerformanceSuiteOTel-Dynamic",
+            type: .dynamic,
+            targets: ["PerformanceSuiteOTel"]),
+
         .executable(
             name: "PerformanceApp",
             targets: ["PerformanceApp"]

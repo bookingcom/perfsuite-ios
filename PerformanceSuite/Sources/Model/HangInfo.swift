@@ -40,6 +40,26 @@ public struct HangInfo: Codable {
     /// You may want to ignore startup non-fatal hangs, because those events are measured with startup time.
     public let duringStartup: Bool
 
+    /// Wall-clock moment when the hang was first detected, captured synchronously inside the
+    /// hang reporter at the moment a `HangInfo` is constructed. Combined with `duration`, this
+    /// gives the hang a wall-clock window — the start being `detectedAt`, the end being
+    /// `detectedAt + duration`. Persists across launches via `Codable`, so a fatal hang detected
+    /// on the next launch carries the *previous* session's wall-clock timestamp.
+    ///
+    /// `nil` when decoding a `HangInfo` blob persisted by an older release that does not
+    /// contain this key.
+    public let detectedAt: Date?
+
+    /// Application-defined session identifier captured synchronously inside the hang reporter at
+    /// hang-detection time, via the `sessionIdProvider` closure passed to
+    /// `PerformanceMonitoring.enable(...)`. Persists across launches via `Codable`, so a fatal
+    /// hang detected on the next launch carries the *previous* session's id.
+    ///
+    /// `nil` when no session-id provider was supplied, when the provider returned `nil` at
+    /// detection time, or when decoding a `HangInfo` blob persisted by an older release that
+    /// does not contain this key.
+    public let sessionId: String?
+
     /// Store milliseconds to make it Codable
     private var durationInMilliseconds: Int
 
@@ -60,7 +80,9 @@ public struct HangInfo: Codable {
         appStartInfo: AppStartInfo,
         appRuntimeInfo: AppRuntimeInfo,
         duringStartup: Bool,
-        duration: DispatchTimeInterval
+        duration: DispatchTimeInterval,
+        detectedAt: Date? = nil,
+        sessionId: String? = nil
     ) {
         self.callStack = callStack
         self.architecture = architecture
@@ -69,9 +91,17 @@ public struct HangInfo: Codable {
         self.appRuntimeInfo = appRuntimeInfo
         self.duringStartup = duringStartup
         self.durationInMilliseconds = duration.milliseconds ?? 0
+        self.detectedAt = detectedAt
+        self.sessionId = sessionId
     }
 
-    public static func with(callStack: String, duringStartup: Bool, duration: DispatchTimeInterval) -> HangInfo {
+    public static func with(
+        callStack: String,
+        duringStartup: Bool,
+        duration: DispatchTimeInterval,
+        detectedAt: Date? = nil,
+        sessionId: String? = nil
+    ) -> HangInfo {
         return HangInfo(
             callStack: callStack,
             architecture: currentArchitecture ?? unknownKeyword,
@@ -79,7 +109,9 @@ public struct HangInfo: Codable {
             appStartInfo: AppInfoHolder.appStartInfo,
             appRuntimeInfo: AppInfoHolder.appRuntimeInfo,
             duringStartup: duringStartup,
-            duration: duration)
+            duration: duration,
+            detectedAt: detectedAt,
+            sessionId: sessionId)
     }
 
 

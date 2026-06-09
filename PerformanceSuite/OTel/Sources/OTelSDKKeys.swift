@@ -41,6 +41,7 @@ enum OTelSDKKeys {
         OTelSemanticConventions.Attribute.renderingSlowFrames,
         OTelSemanticConventions.Attribute.renderingFreezeTimeMs,
         OTelSemanticConventions.Attribute.renderingSessionDurationMs,
+        OTelSemanticConventions.Attribute.appSessionDurationMs,
     ]
 
     static let hang: Set<String> = [
@@ -48,6 +49,7 @@ enum OTelSDKKeys {
         OTelSemanticConventions.Attribute.hangDuringStartup,
         OTelSemanticConventions.Attribute.hangDurationMs,
         OTelSemanticConventions.Attribute.hangTopScreen,
+        OTelSemanticConventions.Attribute.appSessionId,
     ]
 
     static let watchdogTermination: Set<String> = [

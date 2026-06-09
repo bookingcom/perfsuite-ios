@@ -221,7 +221,9 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
 
         XCTAssertEqual(spy.captures.map(\.kind), [.appRendering])
     }
@@ -279,7 +281,9 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         spy.attributesToReturn = ["EXPS0": .string("a"), "EXPS1": .string("b")]
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
 
         let builder = try XCTUnwrap(provider.tracer.lastBuilder)
         XCTAssertEqual(builder.attributes["EXPS0"]?.stringValue, "a")
@@ -297,7 +301,9 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         ]
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 4_000))
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
 
         let builder = try XCTUnwrap(provider.tracer.lastBuilder)
         XCTAssertEqual(
@@ -320,7 +326,9 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
         instrumenter.startupTimeReceived(startupData(prewarmed: false))
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
         instrumenter.ttiMetricsReceived(metrics: metrics(tti: 800), screen: .homescreen)
 
         XCTAssertEqual(spy.captures.map(\.kind), [.startup, .appRendering, .screenTTI])

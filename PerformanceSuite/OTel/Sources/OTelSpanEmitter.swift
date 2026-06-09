@@ -21,31 +21,27 @@ import PerformanceSuite
 /// and identifier conversion.
 ///
 /// Each per-signal `emit*Span(...)` method shapes the SDK attribute dictionary
-/// for its signal, then hands off to ``emitSpan(spanName:durationInterval:sdkAttributes:sdkSetKeys:context:)``,
-/// which owns the whole timing → merge → build → apply → finalise pipeline.
-/// Centralising that pipeline removes the boilerplate that would otherwise be
-/// duplicated across every signal.
+/// for its signal, then hands off to the shared `emitSpan` pipeline, which
+/// applies the `shouldEmit` gate, merges host attributes, and builds the span.
 ///
-/// Design points:
+/// Behaviour:
 ///
 /// * The `TracerProvider` is **lazily resolved at first emission**, not at
-///   construction. This is essential because PerformanceSuite typically
-///   initialises before the OTel SDK (Embrace) registers the global provider —
-///   eagerly capturing `OpenTelemetry.instance.tracerProvider` at init time
-///   would freeze the no-op `DefaultTracerProvider` and silently drop every
-///   span.
+///   construction — PerformanceSuite typically initialises before the OTel SDK
+///   registers the global provider.
 /// * `setNoParent()` is called on every span. PerformanceSuite metrics are
-///   leaf measurements with no caller-scoped active span; explicitly making
-///   them root spans avoids accidental parent linkage to whatever happens to
-///   be active on the queue at emit time.
-/// * Span timing is computed as `(now - duration, now)` so that backends see
-///   wall-clock-aligned spans and a single batch retains causal ordering.
-///   Watchdog termination passes `durationInterval: 0` to record a
-///   zero-length point span (start == end) — the natural shape for events
-///   detected on the next launch with no recoverable duration.
+///   leaf measurements with no caller-scoped active span.
+/// * Span timing is supplied by the per-signal caller as an explicit
+///   `(startTime, endTime)` pair. Most callers compute it from a duration via
+///   `nowWindow(durationInterval:)`. The hang emitter passes
+///   `(info.detectedAt, info.detectedAt + info.duration)` when `detectedAt` is
+///   non-nil; the per-session app-rendering emitter passes the
+///   `didBecomeActive` / `didEnterBackground` timestamps.
 /// * Attributes are merged through the shared
-///   ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)`` helper so
-///   the SDK-key guard runs uniformly across spans and log records.
+///   ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)`` helper.
+/// * The optional `shouldEmit` closure is invoked on every emission before
+///   the merge call. Returning `false` short-circuits the emission — no span
+///   is built, no provider attributes are evaluated, no tracer is resolved.
 final class OTelSpanEmitter {
 
     private let tracerProvider: (any TracerProvider)?
@@ -53,6 +49,7 @@ final class OTelSpanEmitter {
     private let instrumentationVersion: String?
     private let spanNamePrefix: String?
     private let attributeProvider: OTelAttributeProvider?
+    private let shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)?
     private let now: () -> Date
 
     init(
@@ -61,6 +58,7 @@ final class OTelSpanEmitter {
         instrumentationVersion: String?,
         spanNamePrefix: String? = nil,
         attributeProvider: OTelAttributeProvider? = nil,
+        shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.tracerProvider = tracerProvider
@@ -68,10 +66,11 @@ final class OTelSpanEmitter {
         self.instrumentationVersion = instrumentationVersion
         self.spanNamePrefix = spanNamePrefix
         self.attributeProvider = attributeProvider
+        self.shouldEmit = shouldEmit
         self.now = now
     }
 
-    private func prefixed(_ name: String) -> String {
+    func prefixed(_ name: String) -> String {
         guard let spanNamePrefix, !spanNamePrefix.isEmpty else { return name }
         return "\(spanNamePrefix).\(name)"
     }
@@ -84,27 +83,37 @@ final class OTelSpanEmitter {
         )
     }
 
-    // MARK: - Shared span pipeline
-
-    /// Owns the complete timing + merge + builder + apply + finalise pipeline
-    /// for every span emission. Per-signal methods shape `sdkAttributes` /
-    /// `sdkSetKeys` / `context` and delegate the rest here.
-    ///
-    /// `durationInterval` of 0 produces a zero-length point span (start ==
-    /// end) — used by ``emitWatchdogTerminationSpan(data:)``.
-    private func emitSpan(
-        spanName: String,
-        durationInterval: TimeInterval,
-        sdkAttributes: [String: AttributeValue],
-        sdkSetKeys: Set<String>,
-        context: PerformanceSuiteSignalContext
-    ) {
+    /// Builds an `(endTime = now, startTime = endTime - durationInterval)`
+    /// window. Used by signal types whose payload carries a duration but no
+    /// explicit start timestamp.
+    private func nowWindow(durationInterval: TimeInterval) -> (start: Date, end: Date) {
         let endTime = now()
         let startTime = endTime.addingTimeInterval(-durationInterval)
+        return (startTime, endTime)
+    }
+
+    // MARK: - Shared span pipeline
+
+    /// Owns the complete gate + merge + builder + apply + finalise pipeline
+    /// for every span emission. Per-signal methods shape `attributes` (the
+    /// SDK-set surface plus its reserved-key set) and the `(startTime, endTime)`
+    /// pair, then delegate the rest here.
+    ///
+    /// Passing `startTime == endTime` produces a zero-length point span — used
+    /// by ``emitWatchdogTerminationSpan(data:)`` since watchdog terminations
+    /// are detected on the next launch with no recoverable duration.
+    func emitSpan(
+        spanName: String,
+        startTime: Date,
+        endTime: Date,
+        attributes: SDKAttributeSet,
+        context: PerformanceSuiteSignalContext
+    ) {
+        if let shouldEmit, !shouldEmit(context) { return }
 
         let merged = mergeOTelAttributes(
-            sdkSet: sdkAttributes,
-            sdkSetKeys: sdkSetKeys,
+            sdkSet: attributes.values,
+            sdkSetKeys: attributes.reservedKeys,
             provider: attributeProvider,
             context: context
         )
@@ -138,12 +147,13 @@ final class OTelSpanEmitter {
         }
         sdkAttributes[attrs.startupPrewarmed] = .bool(data.appStartInfo.appStartedWithPrewarming)
 
+        let window = nowWindow(durationInterval: data.totalTime.timeInterval ?? 0)
         emitSpan(
             spanName: prefixed(OTelSemanticConventions.SpanName.appStartup),
-            durationInterval: data.totalTime.timeInterval ?? 0,
-            sdkAttributes: sdkAttributes,
-            sdkSetKeys: OTelSDKKeys.startup,
-            context: .startup(StartupContext())
+            startTime: window.start,
+            endTime: window.end,
+            attributes: SDKAttributeSet(values: sdkAttributes, reservedKeys: OTelSDKKeys.startup),
+            context: .startup(data)
         )
     }
 
@@ -195,11 +205,12 @@ final class OTelSpanEmitter {
         if let ms = metrics.ttfr.milliseconds {
             sdkAttributes[keys.ttfrKey] = .int(ms)
         }
+        let window = nowWindow(durationInterval: metrics.tti.timeInterval ?? 0)
         emitSpan(
             spanName: spanName,
-            durationInterval: metrics.tti.timeInterval ?? 0,
-            sdkAttributes: sdkAttributes,
-            sdkSetKeys: keys.allKeys,
+            startTime: window.start,
+            endTime: window.end,
+            attributes: SDKAttributeSet(values: sdkAttributes, reservedKeys: keys.allKeys),
             context: context
         )
     }
@@ -211,30 +222,19 @@ final class OTelSpanEmitter {
             OTelSemanticConventions.Attribute.screenName: .string(screenName),
         ]
         addRenderingAttributes(to: &sdkAttributes, metrics: metrics)
+        let window = nowWindow(durationInterval: metrics.sessionDuration.timeInterval ?? 0)
         emitSpan(
             spanName: prefixed(OTelSemanticConventions.SpanName.screenRendering(screenName)),
-            durationInterval: metrics.sessionDuration.timeInterval ?? 0,
-            sdkAttributes: sdkAttributes,
-            sdkSetKeys: OTelSDKKeys.screenRendering,
+            startTime: window.start,
+            endTime: window.end,
+            attributes: SDKAttributeSet(values: sdkAttributes, reservedKeys: OTelSDKKeys.screenRendering),
             context: .screenRendering(ScreenContext(screenName: screenName))
         )
     }
 
-    // MARK: - App rendering
+    // MARK: - Rendering attributes (shared helper)
 
-    func emitAppRenderingSpan(metrics: RenderingMetrics) {
-        var sdkAttributes: [String: AttributeValue] = [:]
-        addRenderingAttributes(to: &sdkAttributes, metrics: metrics)
-        emitSpan(
-            spanName: prefixed(OTelSemanticConventions.SpanName.appRendering),
-            durationInterval: metrics.sessionDuration.timeInterval ?? 0,
-            sdkAttributes: sdkAttributes,
-            sdkSetKeys: OTelSDKKeys.appRendering,
-            context: .appRendering(AppRenderingContext())
-        )
-    }
-
-    private func addRenderingAttributes(to attributes: inout [String: AttributeValue], metrics: RenderingMetrics) {
+    func addRenderingAttributes(to attributes: inout [String: AttributeValue], metrics: RenderingMetrics) {
         let attrs = OTelSemanticConventions.Attribute.self
         attributes[attrs.renderingTotalFrames] = .int(metrics.renderedFrames)
         attributes[attrs.renderingDroppedFrames] = .int(metrics.droppedFrames)
@@ -287,11 +287,29 @@ final class OTelSpanEmitter {
         if let topScreen = info.appRuntimeInfo.openedScreens.last {
             sdkAttributes[attrs.hangTopScreen] = .string(topScreen)
         }
+        if let sessionId = info.sessionId {
+            sdkAttributes[attrs.appSessionId] = .string(sessionId)
+        }
+
+        // Anchor the span window on `info.detectedAt` when available; fall
+        // back to `now() - duration` when nil.
+        let durationInterval = info.duration.timeInterval ?? 0
+        let startTime: Date
+        let endTime: Date
+        if let detectedAt = info.detectedAt {
+            startTime = detectedAt
+            endTime = detectedAt.addingTimeInterval(durationInterval)
+        } else {
+            let window = nowWindow(durationInterval: durationInterval)
+            startTime = window.start
+            endTime = window.end
+        }
+
         emitSpan(
             spanName: prefixed(OTelSemanticConventions.SpanName.appHang),
-            durationInterval: info.duration.timeInterval ?? 0,
-            sdkAttributes: sdkAttributes,
-            sdkSetKeys: OTelSDKKeys.hang,
+            startTime: startTime,
+            endTime: endTime,
+            attributes: SDKAttributeSet(values: sdkAttributes, reservedKeys: OTelSDKKeys.hang),
             context: context
         )
     }
@@ -300,35 +318,27 @@ final class OTelSpanEmitter {
 
     func emitWatchdogTerminationSpan(data: WatchdogTerminationData) {
         // Watchdog terminations are detected on the *next* launch. There is no
-        // meaningful duration to compute — `durationInterval: 0` records a
-        // zero-length point span at the moment of detection.
+        // meaningful duration to compute — emit a zero-length point span at
+        // the moment of detection.
         let attrs = OTelSemanticConventions.Attribute.self
         var sdkAttributes: [String: AttributeValue] = [:]
         if let warnings = data.memoryWarnings {
             sdkAttributes[attrs.memoryWarningsCount] = .int(warnings)
         }
+        let timestamp = now()
         emitSpan(
             spanName: prefixed(OTelSemanticConventions.SpanName.appWatchdogTermination),
-            durationInterval: 0,
-            sdkAttributes: sdkAttributes,
-            sdkSetKeys: OTelSDKKeys.watchdogTermination,
+            startTime: timestamp,
+            endTime: timestamp,
+            attributes: SDKAttributeSet(values: sdkAttributes, reservedKeys: OTelSDKKeys.watchdogTermination),
             context: .watchdogTermination(data)
         )
     }
 
     // MARK: - Helper types
-
-    /// Bundles the three attribute keys that vary between screen TTI and
-    /// fragment TTI emission, plus exposes them as a `Set<String>` for the
-    /// merge guard. Keeps `emitTTISpan(...)` under SwiftLint's 5-parameter
-    /// limit and makes the call sites self-documenting.
-    private struct TTIAttributeKeys {
-        let nameKey: String
-        let ttiKey: String
-        let ttfrKey: String
-
-        var allKeys: Set<String> { [nameKey, ttiKey, ttfrKey] }
-    }
+    //
+    // ``SDKAttributeSet`` and ``TTIAttributeKeys`` live in
+    // `OTelSpanEmitter+Helpers.swift`.
 }
 
 // We re-use `DispatchTimeInterval.timeInterval` and `DispatchTimeInterval.milliseconds`

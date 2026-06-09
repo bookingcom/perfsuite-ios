@@ -29,13 +29,21 @@ final class PerformanceSuiteSignalContextTests: XCTestCase {
             memoryWarnings: 0
         )
         let viewController = UIViewController()
+        let startup = StartupTimeData(
+            totalTime: .milliseconds(1_500),
+            preMainTime: .milliseconds(200),
+            mainTime: .milliseconds(1_300),
+            totalBeforeViewControllerTime: .milliseconds(1_400),
+            mainBeforeViewControllerTime: .milliseconds(1_200),
+            appStartInfo: .empty
+        )
 
         let cases: [(PerformanceSuiteSignalContext, PerformanceSuiteSignalKind)] = [
-            (.startup(StartupContext()), .startup),
+            (.startup(startup), .startup),
             (.screenTTI(ScreenContext(screenName: "home")), .screenTTI),
             (.fragmentTTI(FragmentContext(fragmentName: "header")), .fragmentTTI),
             (.screenRendering(ScreenContext(screenName: "home")), .screenRendering),
-            (.appRendering(AppRenderingContext()), .appRendering),
+            (.appRendering(AppRenderingContext(sessionStartedAt: Date(timeIntervalSince1970: 1), sessionEndedAt: Date(timeIntervalSince1970: 2))), .appRendering),
             (.fatalHang(hangInfo), .fatalHang),
             (.nonFatalHang(hangInfo), .nonFatalHang),
             (.watchdogTermination(watchdog), .watchdogTermination),
@@ -64,12 +72,43 @@ final class PerformanceSuiteSignalContextTests: XCTestCase {
     }
 
     func testProjectionStructsAreEquatable() {
-        XCTAssertEqual(StartupContext(), StartupContext())
-        XCTAssertEqual(AppRenderingContext(), AppRenderingContext())
+        XCTAssertEqual(
+            AppRenderingContext(sessionStartedAt: Date(timeIntervalSince1970: 1), sessionEndedAt: Date(timeIntervalSince1970: 2)),
+            AppRenderingContext(sessionStartedAt: Date(timeIntervalSince1970: 1), sessionEndedAt: Date(timeIntervalSince1970: 2))
+        )
+        XCTAssertNotEqual(
+            AppRenderingContext(sessionStartedAt: Date(timeIntervalSince1970: 1), sessionEndedAt: Date(timeIntervalSince1970: 2)),
+            AppRenderingContext(sessionStartedAt: Date(timeIntervalSince1970: 3), sessionEndedAt: Date(timeIntervalSince1970: 4))
+        )
         XCTAssertEqual(ScreenContext(screenName: "home"), ScreenContext(screenName: "home"))
         XCTAssertNotEqual(ScreenContext(screenName: "home"), ScreenContext(screenName: "search"))
         XCTAssertEqual(FragmentContext(fragmentName: "header"), FragmentContext(fragmentName: "header"))
         XCTAssertNotEqual(FragmentContext(fragmentName: "header"), FragmentContext(fragmentName: "footer"))
+    }
+
+    func testStartupCaseCarriesStartupTimeDataDirectly() {
+        // `.startup` carries the SDK's `StartupTimeData` payload directly,
+        // matching the existing pattern for `.fatalHang(HangInfo)` and
+        // `.watchdogTermination(WatchdogTerminationData)`. Hosts pattern-match
+        // the bound `StartupTimeData` to read every public field
+        // (`totalTime`, `appStartInfo.appStartedWithPrewarming`, etc.) without
+        // upstream PRs to widen a curated projection.
+        let data = StartupTimeData(
+            totalTime: .milliseconds(2_000),
+            preMainTime: .milliseconds(300),
+            mainTime: .milliseconds(1_700),
+            totalBeforeViewControllerTime: .milliseconds(1_900),
+            mainBeforeViewControllerTime: .milliseconds(1_600),
+            appStartInfo: AppStartInfo(appStartedWithPrewarming: true)
+        )
+        let context = PerformanceSuiteSignalContext.startup(data)
+
+        if case .startup(let bound) = context {
+            XCTAssertEqual(bound.totalTime.milliseconds, 2_000)
+            XCTAssertEqual(bound.appStartInfo.appStartedWithPrewarming, true)
+        } else {
+            XCTFail("Expected .startup case to bind the supplied StartupTimeData")
+        }
     }
 
     func testScreenContextScreenNameIsNonOptional() {

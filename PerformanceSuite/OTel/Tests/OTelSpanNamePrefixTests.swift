@@ -67,7 +67,9 @@ final class OTelSpanNamePrefixTests: XCTestCase {
         instrumenter.renderingMetricsReceived(metrics: rendering, screen: .homescreen)
         XCTAssertEqual(provider.tracer.builders.last?.spanName, "bookingcom.screen-rendering.homescreen")
 
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: rendering)
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
         XCTAssertEqual(provider.tracer.builders.last?.spanName, "bookingcom.app-rendering")
 
         let hangInfo = HangInfo.with(callStack: "stack", duringStartup: false, duration: .milliseconds(2_500))

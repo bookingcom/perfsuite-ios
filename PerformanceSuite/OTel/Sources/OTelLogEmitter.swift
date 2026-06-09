@@ -39,17 +39,20 @@ final class OTelLogEmitter {
     private let loggerProvider: (any LoggerProvider)?
     private let instrumentationName: String
     private let attributeProvider: OTelAttributeProvider?
+    private let shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)?
     private let now: () -> Date
 
     init(
         loggerProvider: (any LoggerProvider)?,
         instrumentationName: String,
         attributeProvider: OTelAttributeProvider? = nil,
+        shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.loggerProvider = loggerProvider
         self.instrumentationName = instrumentationName
         self.attributeProvider = attributeProvider
+        self.shouldEmit = shouldEmit
         self.now = now
     }
 
@@ -67,10 +70,16 @@ final class OTelLogEmitter {
     /// the class-name attribute is refined via ``RootViewIntrospectable`` when
     /// available so SwiftUI hosting controllers carry the meaningful root-view
     /// type instead of `UIHostingController<…>`.
+    ///
+    /// The optional `shouldEmit` closure on ``OTelInstrumenter`` is checked
+    /// before any work happens; returning `false` short-circuits the emission.
     func emitViewControllerLeakLog(
         viewController: UIViewController,
         appStartedWithPrewarming: Bool
     ) {
+        let context = PerformanceSuiteSignalContext.viewControllerLeak(viewController)
+        if let shouldEmit, !shouldEmit(context) { return }
+
         let attrs = OTelSemanticConventions.Attribute.self
         let sdkAttributes: [String: AttributeValue] = [
             attrs.viewControllerClassName: .string(className(of: viewController)),
@@ -82,7 +91,7 @@ final class OTelLogEmitter {
             sdkSet: sdkAttributes,
             sdkSetKeys: OTelSDKKeys.viewControllerLeak,
             provider: attributeProvider,
-            context: .viewControllerLeak(viewController)
+            context: context
         )
 
         let timestamp = now()

@@ -69,6 +69,11 @@ public enum OTelSemanticConventions {
         public static let hangDuringStartup = "hang.during_startup"
         public static let hangTopScreen = "hang.top_screen"
 
+        // App session — set on per-session app-rendering spans and on hang
+        // spans (sourced from `HangInfo.sessionId`).
+        public static let appSessionId = "app.session.id"
+        public static let appSessionDurationMs = "app.session.duration.ms"
+
         // Watchdog termination
         public static let appState = "app.state"
         public static let memoryWarningsCount = "memory.warnings_count"

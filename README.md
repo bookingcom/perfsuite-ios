@@ -143,7 +143,10 @@ try PerformanceMonitoring.enable(
     // you may pass your own key-value storage
     storage: KeyValueStorage.default,
     // you may pass a flag if app did crash from Crashlytics
-    didCrashPreviously: didCrashPreviously
+    didCrashPreviously: didCrashPreviously,
+    // optional: stamps `HangInfo.sessionId` at hang detection so a fatal hang
+    // detected on the next launch carries the previous session's id.
+    sessionIdProvider: { Embrace.client?.currentSessionId() }
 )
 
 ```
@@ -325,7 +328,19 @@ let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
         case .nonFatalHang, .viewControllerLeak:
             // In-session events; current-session state is appropriate.
             return currentSessionExperimentBuckets()
-        case .startup, .appRendering:
+        case .startup(let data):
+            // `.startup` carries the SDK's `StartupTimeData` payload directly,
+            // so closures can read every public field without an upstream PR
+            // — for example, weight prewarmed startups differently or read
+            // `data.totalTime.milliseconds` on the host side.
+            var attrs: [String: AttributeValue] = [
+                "app.low_power_mode": .bool(ProcessInfo.processInfo.isLowPowerModeEnabled),
+            ]
+            if data.appStartInfo.appStartedWithPrewarming {
+                attrs["app.startup.bucket"] = .string("prewarmed")
+            }
+            return attrs
+        case .appRendering:
             return ["app.low_power_mode": .bool(ProcessInfo.processInfo.isLowPowerModeEnabled)]
         case .screenTTI, .screenRendering, .fragmentTTI:
             return [:]
@@ -334,7 +349,7 @@ let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
 )
 ```
 
-`PerformanceSuiteSignalContext` is a hybrid enum: hang / watchdog / leak cases carry the SDK's own public payload type directly (`HangInfo`, `WatchdogTerminationData`, `UIViewController`); TTI / rendering / startup cases carry small generic-erased projection structs (`ScreenContext`, `FragmentContext`, `StartupContext`, `AppRenderingContext`). Pattern-bind the payload on the cases that have one — for example `case .fatalHang(let info):` exposes every public field of `HangInfo` (`callStack`, `duration`, `appRuntimeInfo`, …) without requiring an upstream PR to widen a curated projection.
+`PerformanceSuiteSignalContext` is a hybrid enum: `.startup` / `.fatalHang` / `.nonFatalHang` / `.watchdogTermination` / `.viewControllerLeak` cases carry the SDK's own public payload type directly (`StartupTimeData`, `HangInfo`, `WatchdogTerminationData`, `UIViewController`); TTI / rendering cases carry small generic-erased projection structs (`ScreenContext`, `FragmentContext`, `AppRenderingContext`). Pattern-bind the payload on the cases that have one — for example `case .fatalHang(let info):` exposes every public field of `HangInfo` (`callStack`, `duration`, `appRuntimeInfo`, `detectedAt`, `sessionId`, …) without requiring an upstream PR to widen a curated projection.
 
 Splitting fatal and non-fatal hang dispatch into distinct enum cases makes the emitter pick the right one at construction time — mis-threading fatality is a compile-time error rather than a silent default. Host enrichment closures get the same guarantee through exhaustive switches.
 
@@ -355,13 +370,57 @@ let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
 )
 ```
 
+### Filtering emissions
+
+`OTelInstrumenter.init` accepts an optional `shouldEmit:` closure invoked **before any work happens** on every span and log emission — no provider attributes evaluated, no tracer or logger resolved, no span built. Returning `false` short-circuits the emission. Pattern-matching against the typed signal payload reads naturally:
+
+```swift
+let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
+    shouldEmit: { context in
+        switch context {
+        case .startup(let data):
+            return !data.appStartInfo.appStartedWithPrewarming
+        default:
+            return true
+        }
+    }
+)
+```
+
+`shouldEmit` is independent of `attributeProvider`: a signal that the gate suppresses is never handed to the provider either. Use `shouldEmit` for binary keep-or-drop decisions and `attributeProvider` for adding host context to signals you do want to emit.
+
+### App rendering: one span per app-foreground session
+
+`OTelInstrumenter` aggregates the SDK's throttled `appRenderingMetricsReceived(metrics:)` callbacks into a single OTel `app-rendering` span per app-foreground session. The span's window is `UIApplication.didBecomeActiveNotification → UIApplication.didEnterBackgroundNotification`, with rendering counters (`rendering.dropped_frames`, `rendering.freeze_time.ms`, `rendering.total_frames`, `rendering.session_duration.ms`) summed across every chunk that arrived inside the window. The span also carries `app.session.duration.ms` equal to the wall-clock `sessionEndedAt - sessionStartedAt`.
+
+`didEnterBackground` is the boundary, not `willResignActive` — the latter fires for transient interruptions (control-centre swipes, incoming-call banners, app-switcher previews) that would otherwise split a single user session into many tiny spans.
+
+### Hangs and previous-session correlation
+
+`HangInfo` exposes two optional fields that let backends correlate a fatal hang detected on the next launch with the *previous* session that produced it:
+
+* `HangInfo.detectedAt: Date?` — wall-clock moment of detection, captured synchronously inside the hang reporter when the `HangInfo` is constructed. When set, `OTelInstrumenter` uses `(detectedAt, detectedAt + duration)` as the hang span's window.
+
+* `HangInfo.sessionId: String?` — application-defined session identifier. Plumbed through `PerformanceMonitoring.enable(sessionIdProvider:)`:
+
+```swift
+try PerformanceMonitoring.enable(
+    config: config,
+    sessionIdProvider: { Embrace.client?.currentSessionId() }
+)
+```
+
+The closure is invoked synchronously at hang detection. When non-`nil`, `OTelInstrumenter` surfaces the captured value as the `app.session.id` attribute on hang spans (reserved in `OTelSDKKeys.hang` so a host `attributeProvider` cannot overwrite it).
+
+Both fields decode as `nil` when absent from persisted JSON.
+
 ### Semantic conventions
 
 Span names, log bodies, and attribute keys are exposed as constants on `OTelSemanticConventions` (e.g. `OTelSemanticConventions.SpanName.appStartup`, `OTelSemanticConventions.Attribute.screenTTIMs`, `OTelSemanticConventions.LogBody.viewControllerLeak`). Backend dashboards can target these without grepping the source. The full list:
 
 - **Span names**: `app-startup`, `screen-tti.<name>`, `fragment-tti.<name>`, `screen-rendering.<name>`, `app-rendering`, `app-hang`, `app-watchdog-termination`.
 - **Log bodies**: `view_controller_leak`.
-- **Span attributes**: startup timing, screen / fragment TTI, rendering frame counts and freeze time, hang type / duration / top screen, watchdog termination state and memory.
+- **Span attributes**: startup timing, screen / fragment TTI, rendering frame counts and freeze time, hang type / duration / top screen, watchdog termination state and memory. Hang spans additionally carry `app.session.id` when ``HangInfo.sessionId`` is supplied via the `sessionIdProvider` closure on `PerformanceMonitoring.enable(...)`. App-rendering spans carry `app.session.duration.ms` (wall-clock `didEnterBackground - didBecomeActive`).
 - **Log attributes** (view-controller leaks): `vc.class_name`, `vc.identifier`, `app.startup.prewarmed`.
 
 ## How to reproduce metrics?

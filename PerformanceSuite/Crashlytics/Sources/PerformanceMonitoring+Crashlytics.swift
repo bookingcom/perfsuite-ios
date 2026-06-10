@@ -24,6 +24,7 @@ extension PerformanceMonitoring {
     ///   - storage: Simple key/value storage which we use to store some simple objects, by default `UserDefaults` is used.
     ///   - experiments: Feature flags that can be used to enable/disable some experimentation features inside PerformanceSuite. Is used for A/B testing in production.
     ///   - crashlyticsEnabledInDebug: If `false`, we won't report anything to Crashlytics if `DEBUG` is true.
+    ///   - sessionIdProvider: Optional closure that returns the application's current session identifier. Forwarded to `enable(...)` — see its documentation for the full semantics. Used to stamp `HangInfo.sessionId` so fatal hangs detected on the next launch carry the previous session's id.
     ///   **NB:** *Make sure that `FirebaseApp.configure() is called before calling this method! App will crash otherwise.*`
     public static func enableWithCrashlyticsSupport(
         config: Config = [],
@@ -31,6 +32,7 @@ extension PerformanceMonitoring {
         storage: Storage = UserDefaults.standard,
         experiments: Experiments = Experiments(),
         crashlyticsEnabledInDebug: Bool = true,
+        sessionIdProvider: (() -> String?)? = nil
     ) throws {
         #if DEBUG
         let crashlyticsEnabled = crashlyticsEnabledInDebug
@@ -54,9 +56,19 @@ extension PerformanceMonitoring {
                 }
             }
 
-            try PerformanceMonitoring.enable(config: wrappedConfig, storage: storage, didCrashPreviously: didCrashPreviously, experiments: experiments)
+            try PerformanceMonitoring.enable(
+                config: wrappedConfig,
+                storage: storage,
+                didCrashPreviously: didCrashPreviously,
+                experiments: experiments,
+                sessionIdProvider: sessionIdProvider)
         } else {
-            try PerformanceMonitoring.enable(config: config, storage: storage, didCrashPreviously: false, experiments: experiments)
+            try PerformanceMonitoring.enable(
+                config: config,
+                storage: storage,
+                didCrashPreviously: false,
+                experiments: experiments,
+                sessionIdProvider: sessionIdProvider)
         }
     }
 }

@@ -170,12 +170,7 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
     // MARK: - Time utils
 
     private static func processStartTime() -> TimeInterval {
-        var kinfo = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.stride
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
-        sysctl(&mib, u_int(mib.count), &kinfo, &size, nil, 0)
-        let startTime = kinfo.kp_proc.p_starttime
-        return TimeInterval(startTime.tv_sec) + TimeInterval(startTime.tv_usec) / 1e6
+        readProcessStartTime()
     }
 
     private static func currentTime() -> TimeInterval {

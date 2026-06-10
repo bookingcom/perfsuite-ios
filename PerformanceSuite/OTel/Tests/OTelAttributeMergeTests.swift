@@ -20,7 +20,12 @@ import XCTest
 /// don't repeat the malicious-host scenario.
 final class OTelAttributeMergeTests: XCTestCase {
 
-    private let context: PerformanceSuiteSignalContext = .appRendering(AppRenderingContext())
+    private let context: PerformanceSuiteSignalContext = .appRendering(
+        AppRenderingContext(
+            sessionStartedAt: Date(timeIntervalSince1970: 0),
+            sessionEndedAt: Date(timeIntervalSince1970: 1)
+        )
+    )
 
     func testReturnsSDKSetUnchangedWhenProviderIsNil() {
         let sdkSet: [String: AttributeValue] = [

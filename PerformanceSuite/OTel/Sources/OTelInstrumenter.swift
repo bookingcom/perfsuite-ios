@@ -74,6 +74,7 @@ public final class OTelInstrumenter<Screen, Fragment>:
     private let _screenIdentifier: ((UIViewController) -> Screen?)?
     private let emitter: OTelSpanEmitter
     private let logEmitter: OTelLogEmitter
+    private let appRenderingAccumulator: AppRenderingSessionAccumulator
 
     /// - Parameters:
     ///   - screenIdentifier: Optional closure to map view controllers to
@@ -106,6 +107,23 @@ public final class OTelInstrumenter<Screen, Fragment>:
     ///     ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``.
     ///     SDK-set semantic-convention keys win on collision; host attributes
     ///     matching SDK-reserved keys are silently dropped at the merge.
+    ///   - shouldEmit: Optional closure invoked once per emission with the
+    ///     matching ``PerformanceSuiteSignalContext``, before any work
+    ///     happens (no provider attributes evaluated, no tracer / logger
+    ///     resolved, no span built). Returning `false` short-circuits the
+    ///     emission. Pattern-matching against the typed signal payload reads
+    ///     naturally:
+    ///
+    ///     ```swift
+    ///     shouldEmit: { context in
+    ///         switch context {
+    ///         case .startup(let data):
+    ///             return !data.appStartInfo.appStartedWithPrewarming
+    ///         default:
+    ///             return true
+    ///         }
+    ///     }
+    ///     ```
     ///   - now: Clock function used to stamp emitted spans and log records.
     ///     Defaults to `Date.init` (the system clock); tests inject a
     ///     deterministic closure so timestamp assertions can compare exact
@@ -118,21 +136,29 @@ public final class OTelInstrumenter<Screen, Fragment>:
         instrumentationVersion: String? = nil,
         spanNamePrefix: String? = nil,
         attributeProvider: OTelAttributeProvider? = nil,
+        shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self._screenIdentifier = screenIdentifier
-        self.emitter = OTelSpanEmitter(
+        let emitter = OTelSpanEmitter(
             tracerProvider: tracerProvider,
             instrumentationName: instrumentationName,
             instrumentationVersion: instrumentationVersion,
             spanNamePrefix: spanNamePrefix,
             attributeProvider: attributeProvider,
+            shouldEmit: shouldEmit,
             now: now
         )
+        self.emitter = emitter
         self.logEmitter = OTelLogEmitter(
             loggerProvider: loggerProvider,
             instrumentationName: instrumentationName,
             attributeProvider: attributeProvider,
+            shouldEmit: shouldEmit,
+            now: now
+        )
+        self.appRenderingAccumulator = AppRenderingSessionAccumulator(
+            emitter: emitter,
             now: now
         )
     }
@@ -176,7 +202,7 @@ public final class OTelInstrumenter<Screen, Fragment>:
     // MARK: - AppRenderingMetricsReceiver
 
     public func appRenderingMetricsReceived(metrics: RenderingMetrics) {
-        emitter.emitAppRenderingSpan(metrics: metrics)
+        appRenderingAccumulator.appRenderingMetricsReceived(metrics: metrics)
     }
 
     // MARK: - StartupTimeReceiver
@@ -200,7 +226,6 @@ public final class OTelInstrumenter<Screen, Fragment>:
 
     public func hangStarted(info: HangInfo) {
         // `hangStarted` is an in-progress signal; no completed span to record.
-        // A future live-spans iteration will turn this into a span-start event.
     }
 
     // MARK: - WatchdogTerminationsReceiver

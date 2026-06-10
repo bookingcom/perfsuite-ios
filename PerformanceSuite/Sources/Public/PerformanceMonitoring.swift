@@ -35,13 +35,15 @@ public enum PerformanceMonitoring {
     ///   - storage: Simple key/value storage which we use to store some simple objects, by default `UserDefaults` is used.
     ///   - didCrashPreviously: flag if app crashed during previous launch. For example, you can pass `FIRCrashlytics.crashlytics.didCrashDuringPreviousExecution` if you use Firebase for crash reporting. If you pass `false`, all the crashes will be considered as memory terminations.
     ///   - experiments: Feature flags that can be used to enable/disable some experimentation features inside PerformanceSuite. Is used for A/B testing in production.
+    ///   - sessionIdProvider: Optional closure that returns the application's current session identifier. When supplied, the closure is called synchronously by the hang reporter at the moment a hang is detected, and the returned string is persisted as part of `HangInfo.sessionId`. A fatal hang detected on the next launch therefore carries the *previous* session's id, which lets backends correlate the fatal hang with that session's other telemetry.
     ///   NB: If you use `FIRCrashlytics.crashlytics.didCrashDuringPreviousExecution`, do not forget, to call FirebaseApp.configure() before that,
     ///   otherwise it will be always `false`.
     public static func enable(
         config: Config = [],
         storage: Storage = UserDefaults.standard,
         didCrashPreviously: Bool = false,
-        experiments: Experiments = Experiments()
+        experiments: Experiments = Experiments(),
+        sessionIdProvider: (() -> String?)? = nil
     ) throws {
         lock.lock()
         defer {
@@ -55,7 +57,11 @@ public enum PerformanceMonitoring {
             return
         }
 
-        let (vcObservers, appReporters) = makeObservers(config: config, storage: storage, didCrashPreviously: didCrashPreviously)
+        let (vcObservers, appReporters) = makeObservers(
+            config: config,
+            storage: storage,
+            didCrashPreviously: didCrashPreviously,
+            sessionIdProvider: sessionIdProvider)
         if !vcObservers.isEmpty {
             let observersCollection = ViewControllerObserverCollection(observers: vcObservers)
             try ViewControllerSubscriber().subscribeObserver(observersCollection)
@@ -114,6 +120,15 @@ public enum PerformanceMonitoring {
     /// The information about the recent app start
     public static var appStartInfo: AppStartInfo {
         return AppInfoHolder.appStartInfo
+    }
+
+    /// Wall-clock moment when the current process was started, read from the
+    /// kernel via `sysctl(kern.proc.pid)`. Stable for the lifetime of the
+    /// process and independent of when the consumer initialises
+    /// `PerformanceSuite`, so it works as a launch-time anchor even for
+    /// hosts that defer initialisation past `didFinishLaunching`.
+    public static var processStartTime: Date {
+        return Date(timeIntervalSince1970: readProcessStartTime())
     }
 
     private static func makeTTIObserverFactory<T: TTIMetricsReceiver>(metricsReceiver: T) -> any ViewControllerObserver {
@@ -197,6 +212,7 @@ public enum PerformanceMonitoring {
     private static func appendHangObservers(
         config: Config,
         dependencies: TerminationDependencies,
+        sessionIdProvider: (() -> String?)?,
         appReporters: inout [AppMetricsReporter]
     ) -> DidHangPreviouslyProvider? {
         guard let hangsReceiver = config.hangsReceiver else {
@@ -211,6 +227,7 @@ public enum PerformanceMonitoring {
                                             detectionTimerInterval: detectionTimerInterval,
                                             hangThreshold: hangTreshold,
                                             didCrashPreviously: dependencies.didCrashPreviously,
+                                            sessionIdProvider: sessionIdProvider,
                                             receiver: hangsReceiver)
             appReporters.append(hangReporter)
 
@@ -265,7 +282,12 @@ public enum PerformanceMonitoring {
         appReporters.append(fragmentTTIReporter)
     }
 
-    private static func makeObservers(config: Config, storage: Storage, didCrashPreviously: Bool) -> (
+    private static func makeObservers(
+        config: Config,
+        storage: Storage,
+        didCrashPreviously: Bool,
+        sessionIdProvider: (() -> String?)?
+    ) -> (
         [ViewControllerObserver], [AppMetricsReporter]
     ) {
         var vcObservers = [ViewControllerObserver]()
@@ -279,6 +301,7 @@ public enum PerformanceMonitoring {
         let didHangPreviouslyProvider = appendHangObservers(
             config: config,
             dependencies: deps,
+            sessionIdProvider: sessionIdProvider,
             appReporters: &appReporters
         )
         appendWatchdogTerminationsObserver(

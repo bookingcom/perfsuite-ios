@@ -201,7 +201,9 @@ final class OTelInstrumenterTests: XCTestCase {
         let provider = MockTracerProvider()
         let instrumenter = makeInstrumenter(provider: provider)
 
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 2_000))
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
 
         let builder = try XCTUnwrap(provider.tracer.lastBuilder)
         XCTAssertEqual(builder.spanName, "app-rendering")
@@ -301,7 +303,9 @@ final class OTelInstrumenterTests: XCTestCase {
         let instrumenter = makeInstrumenter(provider: provider)
 
         instrumenter.startupTimeReceived(startupData(prewarmed: false))
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
+        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
 
         XCTAssertEqual(provider.getCalls.count, 2,
                        "Each emit should resolve the provider, not cache the tracer at init time")

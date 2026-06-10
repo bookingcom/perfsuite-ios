@@ -39,30 +39,23 @@ public enum PerformanceSuiteSignalKind: String, CaseIterable, Sendable {
 /// Context handed to ``OTelAttributeProvider`` immediately before each
 /// PerformanceSuite signal is emitted as an OTel span or log record.
 ///
-/// Each case carries the *most-direct usable payload* for its signal:
+/// Each case carries the most-direct usable payload for its signal:
 ///
-/// - **Generic-erased projections** (`startup`, `screenTTI`, `fragmentTTI`,
+/// - **Generic-erased projections** (`screenTTI`, `fragmentTTI`,
 ///   `screenRendering`, `appRendering`) carry a small projection struct.
 ///   These signals are generic over the host's `Screen` / `Fragment` types in
 ///   `PerformanceSuite`, and the projection erases those generic parameters
 ///   so ``OTelAttributeProvider``'s closure type stays non-generic.
 ///
-/// - **Direct SDK payloads** (`fatalHang`, `nonFatalHang`,
+/// - **Direct SDK payloads** (`startup`, `fatalHang`, `nonFatalHang`,
 ///   `watchdogTermination`, `viewControllerLeak`) carry the SDK's own public
-///   types (`HangInfo`, `WatchdogTerminationData`, `UIViewController`). These
-///   are already part of `PerformanceSuite`'s public receiver-protocol surface,
-///   so re-exposing them here costs nothing — and downstream consumers can
-///   read every public field perfsuite-ios already exposes without needing an
-///   upstream PR to widen a curated projection.
-///
-/// Splitting `fatalHang` and `nonFatalHang` into distinct cases (rather than a
-/// single `hang(info, isFatal: Bool)` shape) makes the emitter pick the right
-/// case at construction time — mis-threading fatality is a compile-time error
-/// rather than a silent default. Host enrichment closures get the same
-/// guarantee through exhaustive switches.
+///   types (`StartupTimeData`, `HangInfo`, `WatchdogTerminationData`,
+///   `UIViewController`). Hosts can read every public field of the bound
+///   payload — for example, a `shouldEmit` filter that drops prewarmed
+///   startups can read `data.appStartInfo.appStartedWithPrewarming` directly.
 public enum PerformanceSuiteSignalContext {
 
-    case startup(StartupContext)
+    case startup(StartupTimeData)
     case screenTTI(ScreenContext)
     case fragmentTTI(FragmentContext)
     case screenRendering(ScreenContext)
@@ -91,27 +84,19 @@ public enum PerformanceSuiteSignalContext {
 }
 
 // MARK: - Generic-erased projection structs
-//
-// Only signals whose SDK input is generic over the consumer's Screen / Fragment
-// types need a projection layer — the projection erases those generic
-// parameters so OTelAttributeProvider's closure type stays non-generic. Hang /
-// watchdog / view-controller-leak signals have no generic parameters, so they
-// carry the SDK's own public payload type directly (HangInfo /
-// WatchdogTerminationData / UIViewController) — no projection needed.
 
-/// Carried by ``PerformanceSuiteSignalContext/startup(_:)``. Currently empty;
-/// reserved for additive growth (e.g. future `coldStart: Bool`,
-/// `prewarmed: Bool`). Separate from ``AppRenderingContext`` so each signal
-/// evolves independently.
-public struct StartupContext: Sendable, Equatable {
-    public init() {}
-}
-
-/// Carried by ``PerformanceSuiteSignalContext/appRendering(_:)``. Currently
-/// empty; separate from ``StartupContext`` so a future `StartupContext.coldStart`
-/// doesn't silently appear on the `.appRendering` arm with the wrong semantics.
+/// Carried by ``PerformanceSuiteSignalContext/appRendering(_:)``. Holds the
+/// wall-clock window of the app-foreground session being emitted —
+/// `sessionStartedAt` is captured at `UIApplication.didBecomeActiveNotification`,
+/// `sessionEndedAt` at `UIApplication.didEnterBackgroundNotification`.
 public struct AppRenderingContext: Sendable, Equatable {
-    public init() {}
+    public let sessionStartedAt: Date
+    public let sessionEndedAt: Date
+
+    public init(sessionStartedAt: Date, sessionEndedAt: Date) {
+        self.sessionStartedAt = sessionStartedAt
+        self.sessionEndedAt = sessionEndedAt
+    }
 }
 
 /// Carried by ``PerformanceSuiteSignalContext/screenTTI(_:)`` and
@@ -145,12 +130,8 @@ public struct FragmentContext: Sendable, Equatable {
 /// Closure invoked once per OTel span (or log record) emission, receiving the
 /// matching ``PerformanceSuiteSignalContext`` for the signal about to be
 /// emitted. Returns extra `[String: AttributeValue]` to merge onto the span /
-/// record.
-///
-/// SDK-set semantic-convention keys win in case of collision — host attributes
-/// matching a key the SDK reserves for the current signal are silently dropped
-/// at the merge boundary (see ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``).
-/// This guarantees the `screen.tti.ms` / `hang.duration.ms` / etc. semantic
-/// guarantees never get clobbered by host code.
+/// record. Host attributes matching a key the SDK reserves for the current
+/// signal are silently dropped at the merge boundary
+/// (see ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``).
 public typealias OTelAttributeProvider =
     (PerformanceSuiteSignalContext) -> [String: AttributeValue]

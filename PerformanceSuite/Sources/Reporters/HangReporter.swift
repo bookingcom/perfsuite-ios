@@ -75,6 +75,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
     private let detectionTimerInterval: DispatchTimeInterval
     private let didCrashPreviously: Bool
     private let enabledInDebug: Bool
+    private let sessionIdProvider: (() -> String?)?
 
     private var lastMainThreadDate: DispatchTime
     private var isSuspended = false
@@ -97,6 +98,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         hangThreshold: DispatchTimeInterval,
         didCrashPreviously: Bool = false,
         enabledInDebug: Bool = false,
+        sessionIdProvider: (() -> String?)? = nil,
         receiver: HangsReceiver
     ) {
         self.timeProvider = timeProvider
@@ -107,6 +109,7 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
         self.hangThreshold = hangThreshold
         self.didCrashPreviously = didCrashPreviously
         self.enabledInDebug = enabledInDebug
+        self.sessionIdProvider = sessionIdProvider
         self.receiver = receiver
         self.lastMainThreadDate = timeProvider.now()
         self.detectionTimer = DispatchSource.makeTimerSource(flags: .strict, queue: workingQueue)
@@ -228,7 +231,15 @@ final class HangReporter: AppMetricsReporter, DidHangPreviouslyProvider {
 #else
                 callStack = ""
 #endif
-                let info = HangInfo.with(callStack: callStack, duringStartup: startupIsHappening, duration: currentHangInterval)
+                // Capture wall-clock and session id synchronously at detection.
+                let detectedAt = Date()
+                let sessionId = sessionIdProvider?()
+                let info = HangInfo.with(
+                    callStack: callStack,
+                    duringStartup: startupIsHappening,
+                    duration: currentHangInterval,
+                    detectedAt: detectedAt,
+                    sessionId: sessionId)
                 store(hangInfo: info)
 
 #if DEBUG

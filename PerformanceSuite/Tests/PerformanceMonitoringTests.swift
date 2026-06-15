@@ -25,22 +25,18 @@ final class PerformanceMonitoringTests: XCTestCase {
         StartupTimeReporter.forgetMainStartedForTests()
     }
 
-    // Disabled: flaky on CI due to timing sensitivity — the swizzled onInit
-    // callback depends on UIViewController allocation timing which varies
-    // across simulator runtimes and CI load. Fails intermittently on
-    // with "Exceeded timeout of 20 seconds".
-    func disabled_testIntegration() throws {
+    func testIntegration() throws {
         PerformanceMonitoring.onMainStarted()
         try PerformanceMonitoring.enable(config: .all(receiver: self))
 
-        let exp = expectation(description: "onInit")
-        onInitExpectation = exp
-        let vc = UIViewController()
-        wait(for: [exp], timeout: 20) // increase timeout as it is very slow on CI
-        _ = vc
+        var onInitCalled = false
+        onInitHandler = { onInitCalled = true }
 
-        // simulate vc appearance to generate more performance events
-        // checking there are no crashes
+        let vc = UIViewController()
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
+        XCTAssertTrue(onInitCalled)
+
         _ = vc.view
         vc.beginAppearanceTransition(true, animated: false)
         vc.endAppearanceTransition()
@@ -53,15 +49,14 @@ final class PerformanceMonitoringTests: XCTestCase {
 
         try PerformanceMonitoring.disable()
 
-        let exp2 = expectation(description: "onInit2")
-        exp2.isInverted = true
-        onInitExpectation = exp2
+        onInitCalled = false
         let vc2 = UIViewController()
-        wait(for: [exp2], timeout: 5)
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.sync { }
+        XCTAssertFalse(onInitCalled)
         _ = vc2
 
-        let appStartInfo = PerformanceMonitoring.appStartInfo
-        XCTAssertFalse(appStartInfo.appStartedWithPrewarming)
+        XCTAssertFalse(PerformanceMonitoring.appStartInfo.appStartedWithPrewarming)
     }
 
     func testPrewarming() throws {
@@ -122,7 +117,7 @@ final class PerformanceMonitoringTests: XCTestCase {
         return "hang_type"
     }
 
-    private var onInitExpectation: XCTestExpectation?
+    private var onInitHandler: (() -> Void)?
 }
 
 extension PerformanceMonitoringTests: PerformanceSuiteMetricsReceiver {
@@ -164,7 +159,7 @@ extension PerformanceMonitoringTests: PerformanceSuiteMetricsReceiver {
     }
 
     func onInit(screen: String) {
-        onInitExpectation?.fulfill()
+        onInitHandler?()
     }
 
     func onViewDidLoad(screen: String) {

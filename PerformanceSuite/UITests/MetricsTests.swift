@@ -76,11 +76,17 @@ class MetricsTests: BaseTests {
         assertNoMessages(aftMessage)
 
         app.staticTexts["Freeze Time"].tap()
-        waitForMessage { $0 == aftMessage }
 
-        let foundMessage = try XCTUnwrap(client.messages.first(where: { $0 == aftMessage }))
-        if case .appFreezeTime(let duration) = foundMessage {
-            XCTAssertGreaterThan(duration, 2000)
+        // The throttle in AppRenderingReporter may emit several short reports
+        // while the freeze unfolds (especially under a smaller throttle in
+        // tests), so wait for the *accumulated* freeze time across all
+        // appFreezeTime messages to exceed our 2s threshold.
+        waitForCondition {
+            let total = self.client.messages.reduce(0) { acc, msg in
+                if case .appFreezeTime(let duration) = msg { return acc + duration }
+                return acc
+            }
+            return total > 2000
         }
     }
 }

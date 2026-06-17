@@ -161,10 +161,6 @@ jobs:
 
   ui-tests:
     runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        suite: [TerminationTests, MetricsTests]
     steps:
       - name: Set Xcode version
         uses: maxim-lobanov/setup-xcode@v1
@@ -193,21 +189,20 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: DerivedData
-          key: ${{ runner.os }}-deriveddata-ui-${{ matrix.suite }}-${{ hashFiles('Podfile.lock') }}
+          key: ${{ runner.os }}-deriveddata-ui-${{ hashFiles('Podfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-deriveddata-ui-${{ matrix.suite }}-
+            ${{ runner.os }}-deriveddata-ui-
 
       - name: Run UI Tests
         env:
           scheme: UITests
           destination: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.4.1
           workspace: Project.xcworkspace
-          suite: ${{ matrix.suite }}
         timeout-minutes: 30
         run: |
           set -e
-          echo "Starting UI tests with destination: $destination, suite: $suite"
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UITestResults.xcresult -only-testing:"PerformanceSuite-UI-UITests/$suite"
+          echo "Starting UI tests with destination: $destination"
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UITestResults.xcresult SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) PERFORMANCE_TESTS'
           echo "UI tests completed successfully"
 
       - name: Save DerivedData
@@ -215,13 +210,13 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: DerivedData
-          key: ${{ runner.os }}-deriveddata-ui-${{ matrix.suite }}-${{ hashFiles('Podfile.lock') }}
+          key: ${{ runner.os }}-deriveddata-ui-${{ hashFiles('Podfile.lock') }}
 
       - name: Upload UI Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ui-test-results-${{ matrix.suite }}
+          name: ui-test-results
           path: UITestResults.xcresult
           retention-days: 30
 

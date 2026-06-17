@@ -1,11 +1,11 @@
 name: Tests
 
-on: 
+on:
   push:
-    branches: 
+    branches:
       - main
   pull_request:
-    branches: 
+    branches:
       - '*'
 jobs:
   swiftpm-build:
@@ -18,8 +18,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache Pods
+        id: cache-pods
+        uses: actions/cache@v4
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
       # we need pods to download SwiftLint
       - name: Install CocoaPods
+        if: steps.cache-pods.outputs.cache-hit != 'true'
         run: |
           pod install
 
@@ -32,13 +42,35 @@ jobs:
         run: |
           rm -rf Project.xcodeproj
           rm -rf Project.xcworkspace
+
+      # DerivedData cache: keyed on Podfile.lock so the cache survives across
+      # source-only commits — xcodebuild incremental handles whatever changed
+      # since this baseline. Save runs only on push to main; PRs consume but
+      # don't overwrite.
+      - name: Restore DerivedData
+        id: cache-deriveddata
+        uses: actions/cache/restore@v4
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-deriveddata-spm-${{ hashFiles('Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-spm-
+
       - name: Compile
         run: |
-          xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS'
-          xcodebuild -scheme PerformanceSuiteCrashlytics -destination 'generic/platform=iOS'
-          xcodebuild -scheme PerformanceSuiteOTel -destination 'generic/platform=iOS'
-          xcodebuild -scheme PerformanceApp -destination 'generic/platform=iOS'
-      # restore removed files just in case it is needed for the further steps    
+          xcodebuild -scheme PerformanceSuite -destination 'generic/platform=iOS' -derivedDataPath DerivedData
+          xcodebuild -scheme PerformanceSuiteCrashlytics -destination 'generic/platform=iOS' -derivedDataPath DerivedData
+          xcodebuild -scheme PerformanceSuiteOTel -destination 'generic/platform=iOS' -derivedDataPath DerivedData
+          xcodebuild -scheme PerformanceApp -destination 'generic/platform=iOS' -derivedDataPath DerivedData
+
+      - name: Save DerivedData
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache-deriveddata.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-deriveddata-spm-${{ hashFiles('Podfile.lock') }}
+
+      # restore removed files just in case it is needed for the further steps
       - name: Restore workspace
         run: |
           git checkout -- Project.xcodeproj
@@ -52,10 +84,29 @@ jobs:
           xcode-version: 26.0
       - name: Checkout
         uses: actions/checkout@v4
-      
+
+      - name: Cache Pods
+        id: cache-pods
+        uses: actions/cache@v4
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
       - name: Install CocoaPods
+        if: steps.cache-pods.outputs.cache-hit != 'true'
         run: |
           pod install
+
+      - name: Restore DerivedData
+        id: cache-deriveddata
+        uses: actions/cache/restore@v4
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-deriveddata-unit-${{ hashFiles('Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-unit-
 
       - name: Run Unit Tests
         env:
@@ -68,7 +119,14 @@ jobs:
           echo "Starting unit tests with destination: $destination"
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UnitTestResults.xcresult
           echo "Unit tests completed successfully"
-      
+
+      - name: Save DerivedData
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache-deriveddata.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-deriveddata-unit-${{ hashFiles('Podfile.lock') }}
+
       - name: Upload Unit Test Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -76,7 +134,7 @@ jobs:
           name: unit-test-results
           path: UnitTestResults.xcresult
           retention-days: 30
-      
+
       - name: Slather
         env:
           scheme: UnitTests
@@ -116,9 +174,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache Pods
+        id: cache-pods
+        uses: actions/cache@v4
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
       - name: Install CocoaPods
+        if: steps.cache-pods.outputs.cache-hit != 'true'
         run: |
           pod install
+
+      - name: Restore DerivedData
+        id: cache-deriveddata
+        uses: actions/cache/restore@v4
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-deriveddata-ui-${{ matrix.suite }}-${{ hashFiles('Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-ui-${{ matrix.suite }}-
 
       - name: Run UI Tests
         env:
@@ -130,8 +207,15 @@ jobs:
         run: |
           set -e
           echo "Starting UI tests with destination: $destination, suite: $suite"
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -resultBundlePath UITestResults.xcresult -only-testing:"PerformanceSuite-UI-UITests/$suite"
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UITestResults.xcresult -only-testing:"PerformanceSuite-UI-UITests/$suite"
           echo "UI tests completed successfully"
+
+      - name: Save DerivedData
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache-deriveddata.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: DerivedData
+          key: ${{ runner.os }}-deriveddata-ui-${{ matrix.suite }}-${{ hashFiles('Podfile.lock') }}
 
       - name: Upload UI Test Results
         uses: actions/upload-artifact@v4

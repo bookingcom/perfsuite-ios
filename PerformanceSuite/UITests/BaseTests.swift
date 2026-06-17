@@ -50,16 +50,26 @@ class BaseTests: XCTestCase {
     }
 
     func waitForMessage(_ checker: @escaping (Message) -> Bool) {
-        let exp = expectation(description: "wait for message")
+        waitForCondition { [weak self] in
+            self?.client.messages.contains(where: checker) ?? false
+        }
+    }
+
+    /// Polls `check` every 0.1s up to the timeout, fulfilling when it returns
+    /// true. Useful when the success condition is a function of all received
+    /// messages (e.g. an accumulated total) rather than the presence of a
+    /// single message.
+    func waitForCondition(timeout: TimeInterval = 180, _ check: @escaping () -> Bool) {
+        let exp = expectation(description: "wait for condition")
         var fired = false
-        waitingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, !fired else { return }
-            if self.client.messages.contains(where: checker) {
+        waitingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            guard !fired else { return }
+            if check() {
                 exp.fulfill()
                 fired = true
             }
         }
 
-        wait(for: [exp], timeout: 180)
+        wait(for: [exp], timeout: timeout)
     }
 }

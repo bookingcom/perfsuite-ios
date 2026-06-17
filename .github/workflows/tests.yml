@@ -207,7 +207,7 @@ jobs:
         run: |
           set -e
           echo "Starting UI tests with destination: $destination, suite: $suite"
-          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UITestResults.xcresult -only-testing:"PerformanceSuite-UI-UITests/$suite"
+          xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UITestResults.xcresult -only-testing:"PerformanceSuite-UI-UITests/$suite" SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) PERFORMANCE_TESTS'
           echo "UI tests completed successfully"
 
       - name: Save DerivedData

@@ -378,6 +378,9 @@ let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
 let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
     shouldEmit: { context in
         switch context {
+        case .startup(let data):
+            // Drop prewarmed launches — their timings aren't comparable to cold starts.
+            return !data.appStartInfo.appStartedWithPrewarming
         case .screenTTI(let screen):
             return screen.screenName != "debug_menu"
         default:

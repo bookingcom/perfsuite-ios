@@ -226,8 +226,13 @@ extension OTelInstrumenter:
         currentHangContext = nil
         hangContextLock.unlock()
         // Live-only: a non-fatal hang is always preceded by `hangStarted`, so `ctx` is non-nil in
-        // steady state. A nil ctx (SDK enabled mid-hang — unreachable in practice) emits nothing.
-        guard let ctx else { return }
+        // steady state. A nil ctx (SDK enabled mid-hang) emits nothing — the assertion surfaces a
+        // genuinely lost `hangStarted` pairing in DEBUG/tests, and is a no-op in release so the rare
+        // mid-hang-enable case can't crash users.
+        guard let ctx else {
+            assertionFailure("nonFatalHangReceived without a preceding hangStarted — live hang span dropped")
+            return
+        }
         // End window = info.detectedAt + final duration to match the completed-span shape.
         // Re-stamp top screen and session id (may have changed since hangStarted).
         let attrs = OTelSemanticConventions.Attribute.self

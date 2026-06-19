@@ -1,2 +1,2 @@
-Tested 3705/4011 statements
-Test Coverage: 92.37%
+Tested 3700/4011 statements
+Test Coverage: 92.25%

@@ -6,138 +6,85 @@
 //
 
 import Foundation
-import UIKit
+import OpenTelemetryApi
 
 #if canImport(PerformanceSuiteOTel)
 import PerformanceSuite
 #endif
 
-/// Accumulates `RenderingMetrics` across the SDK's throttled
-/// `appRenderingMetricsReceived(metrics:)` callbacks and emits one OTel span
-/// per app-foreground session.
-///
-/// `sessionStartedAt` is seeded from ``PerformanceMonitoring/processStartTime``
-/// at init, so the first session is anchored on the actual process launch
-/// regardless of when the host calls `enable(...)`. Subsequent sessions are
-/// anchored on `didBecomeActive` (after `didEnterBackground` clears the
-/// previous session's anchor).
-///
-/// Lifetime mirrors the owning ``OTelInstrumenter``: subscriptions are
-/// installed at init and torn down in `deinit`. State (the in-flight
-/// `sessionStartedAt` timestamp and the running `accumulated` metrics) is
-/// guarded by a private lock — `UIApplication` notifications by default arrive
-/// on the posting thread (main thread for the lifecycle notifications), while
-/// `appRenderingMetricsReceived(metrics:)` runs on `PerformanceMonitoring`'s
-/// background consumer queue, so the accumulator interleaves across two
-/// threads and needs synchronisation.
-///
-/// The session boundary is intentionally `didEnterBackground`, not
-/// `willResignActive` — the latter fires for transient interruptions
-/// (control-centre swipes, incoming-call banners, app-switcher previews) which
-/// would split a single user session into many tiny spans. `didEnterBackground`
-/// only fires for genuine backgrounding.
+/// Owns the open `app-rendering` live span for each foreground session. `AppRenderingReporter` drives
+/// the lifecycle on `PerformanceMonitoring.consumerQueue` (start → chunks → end), so this type holds
+/// no observers and open/close can't race across queues. The span carries the caller-injected
+/// auto-termination attribute (if any) for unclean exits. Chunks before the first start are dropped.
 final class AppRenderingSessionAccumulator {
 
     private let emitter: OTelSpanEmitter
-    private let notificationCenter: NotificationCenter
     private let now: () -> Date
 
+    /// Guards sessionStartedAt/activeSpan/accumulated across emitter calls: a concurrent chunk must
+    /// not setAttribute on a span another path already ended (OTel silently drops such writes).
     private let lock = NSLock()
-    /// Wall-clock anchor for the in-flight session. Seeded from
-    /// `PerformanceMonitoring.processStartTime` at init; reset to `nil` on
-    /// `didEnterBackground`; set to `Date()` on `didBecomeActive` when nil.
     private var sessionStartedAt: Date?
-    /// Sum of every `RenderingMetrics` chunk that arrived during the
-    /// in-flight session. Reset to `.zero` on every `didEnterBackground`.
+    private var activeSpan: (any OpenTelemetryApi.Span)?
     private var accumulated: RenderingMetrics = .zero
 
-    private var didBecomeActiveObserver: NSObjectProtocol?
-    private var didEnterBackgroundObserver: NSObjectProtocol?
-
-    init(
-        emitter: OTelSpanEmitter,
-        notificationCenter: NotificationCenter = .default,
-        sessionStartedAt: Date = PerformanceMonitoring.processStartTime,
-        now: @escaping () -> Date = Date.init
-    ) {
+    init(emitter: OTelSpanEmitter, now: @escaping () -> Date = Date.init) {
         self.emitter = emitter
-        self.notificationCenter = notificationCenter
         self.now = now
-        self.sessionStartedAt = sessionStartedAt
-        self.subscribe()
     }
 
     deinit {
-        if let observer = didBecomeActiveObserver {
-            notificationCenter.removeObserver(observer)
-        }
-        if let observer = didEnterBackgroundObserver {
-            notificationCenter.removeObserver(observer)
+        // End outside the lock so a slow tracer hook can't stall deinit.
+        lock.lock()
+        let pending = activeSpan
+        activeSpan = nil
+        lock.unlock()
+        if let span = pending, span.isRecording {
+            span.status = .error(description: "accumulator_deinit")
+            span.end()
         }
     }
 
-    // MARK: - Public hook
-
-    /// Called by ``OTelInstrumenter`` from its
-    /// ``AppRenderingMetricsReceiver/appRenderingMetricsReceived(metrics:)``
-    /// implementation. Adds the chunk's counters to the running session
-    /// accumulator.
+    /// Re-applies cumulative counters to the live span so an auto-terminated span ships latest data.
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         lock.lock()
         defer { lock.unlock() }
         accumulated = accumulated + metrics
-    }
-
-    // MARK: - Lifecycle handlers
-
-    private func subscribe() {
-        didBecomeActiveObserver = notificationCenter.addObserver(
-            forName: UIApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: nil
-        ) { [weak self] _ in
-            self?.handleDidBecomeActive()
-        }
-        didEnterBackgroundObserver = notificationCenter.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil,
-            queue: nil
-        ) { [weak self] _ in
-            self?.handleDidEnterBackground()
+        if let span = activeSpan {
+            emitter.applyRenderingAttributes(span: span, metrics: accumulated)
         }
     }
 
-    private func handleDidBecomeActive() {
-        let timestamp = now()
+    /// Opens the session span, anchored at the reporter-captured `didBecomeActive` instant. Idempotent
+    /// (a stray start while open is a no-op); FIFO delivery guarantees the prior close lands first.
+    func appRenderingSessionStarted(at startedAt: Date) {
         lock.lock()
         defer { lock.unlock() }
-        if sessionStartedAt == nil {
-            sessionStartedAt = timestamp
-        }
+        guard activeSpan == nil else { return }
+        sessionStartedAt = startedAt
+        accumulated = .zero
+        activeSpan = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
     }
 
-    private func handleDidEnterBackground() {
+    /// Finalises the open span; idempotent when no session is open.
+    func appRenderingSessionEnded() {
         let endedAt = now()
-
-        let pending: (start: Date, metrics: RenderingMetrics)? = {
-            lock.lock()
-            defer { lock.unlock() }
-            guard let started = sessionStartedAt else {
-                accumulated = .zero
-                return nil
-            }
-            let metricsSnapshot = accumulated
-            sessionStartedAt = nil
+        lock.lock()
+        defer { lock.unlock() }
+        guard let span = activeSpan, let started = sessionStartedAt else {
             accumulated = .zero
-            return (started, metricsSnapshot)
-        }()
-
-        guard let pending else { return }
-        guard pending.metrics != .zero else { return }
-
-        emitter.emitAppSessionRenderingSpan(
-            metrics: pending.metrics,
-            sessionStartedAt: pending.start,
+            sessionStartedAt = nil
+            return
+        }
+        let metricsSnapshot = accumulated
+        activeSpan = nil
+        sessionStartedAt = nil
+        accumulated = .zero
+        // No `metrics != .zero` gate — empty sessions are signal.
+        emitter.finalizeAppRenderingLiveSpan(
+            span: span,
+            metrics: metricsSnapshot,
+            sessionStartedAt: started,
             sessionEndedAt: endedAt
         )
     }

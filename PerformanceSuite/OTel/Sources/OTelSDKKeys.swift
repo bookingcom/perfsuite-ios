@@ -26,6 +26,18 @@ enum OTelSDKKeys {
         OTelSemanticConventions.Attribute.startupPrewarmed,
     ]
 
+    static let screenTTI: Set<String> = [
+        OTelSemanticConventions.Attribute.screenName,
+        OTelSemanticConventions.Attribute.screenTTIMs,
+        OTelSemanticConventions.Attribute.screenTTFRMs,
+    ]
+
+    static let fragmentTTI: Set<String> = [
+        OTelSemanticConventions.Attribute.fragmentName,
+        OTelSemanticConventions.Attribute.fragmentTTIMs,
+        OTelSemanticConventions.Attribute.fragmentTTFRMs,
+    ]
+
     static let screenRendering: Set<String> = [
         OTelSemanticConventions.Attribute.screenName,
         OTelSemanticConventions.Attribute.renderingTotalFrames,
@@ -42,6 +54,7 @@ enum OTelSDKKeys {
         OTelSemanticConventions.Attribute.renderingFreezeTimeMs,
         OTelSemanticConventions.Attribute.renderingSessionDurationMs,
         OTelSemanticConventions.Attribute.appSessionDurationMs,
+        // Auto-termination key (when set) is reserved dynamically by OTelSpanEmitter.reservedKeys(_:).
     ]
 
     static let hang: Set<String> = [

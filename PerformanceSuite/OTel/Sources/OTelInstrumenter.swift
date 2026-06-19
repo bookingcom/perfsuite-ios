@@ -9,125 +9,52 @@ import Foundation
 import OpenTelemetryApi
 import UIKit
 
-// In SwiftPM `PerformanceSuiteOTel` is its own target, so we must explicitly
-// import the sibling `PerformanceSuite` module. In CocoaPods the OTel subspec
-// is compiled as part of the single `PerformanceSuite` framework, so the
-// `PerformanceSuite` types are already in scope and a self-import would fail.
+// SwiftPM: OTel is a separate target, so import the sibling core module. CocoaPods compiles both as
+// one framework, where this self-import is skipped.
 #if canImport(PerformanceSuiteOTel)
 import PerformanceSuite
 #endif
 
 /// Adapter that turns every PerformanceSuite metric into an OpenTelemetry span.
 ///
-/// `OTelInstrumenter` conforms to **all** PerformanceSuite receiver protocols
-/// and emits one OTel span per signal received. Spans are recorded as completed
-/// (start time + end time set together at emission), which is the simplest
-/// shape that flows through any standard OTel pipeline.
+/// **Live-only**: signals with a start (screen/fragment TTI, rendering, startup, hangs, app-rendering)
+/// emit a live span; post-facto signals (fatal hang, watchdog, VC leaks) emit a completed span/log; the
+/// base `*Received` callbacks are unused no-ops. Requires **iOS 16** — live dispatch for the
+/// associated-type signals uses a constrained-existential cast (iOS-16 runtime). Core stays iOS-15.
 ///
-/// ## Generic parameters
-///
-/// `OTelInstrumenter` is generic over the host app's `Screen` and `Fragment`
-/// identifier types. The generics avoid `Any` at the boundary so the
-/// instrumenter can be wrapped inside ``MultiTTIMetricsReceiver`` /
-/// ``MultiFragmentTTIMetricsReceiver`` without losing the type's screen
-/// identity.
-///
-/// For an OTel-only setup with view-controller-typed screens, instantiate
-/// directly with no parameters:
-///
-///     let otel = OTelInstrumenter<UIViewController, String>()
-///
-/// For a typed setup that participates in dual-emit via a `Multi*Receiver`,
-/// pass `Screen` / `Fragment` matching the rest of the app's config (the
-/// `screenIdentifier` closure is then provided by the multi-receiver, so
-/// `OTelInstrumenter` can leave it unset).
-///
-/// ## TracerProvider resolution
-///
-/// The OTel tracer is **lazily** fetched from the global
-/// `OpenTelemetry.instance.tracerProvider` at first emission unless an explicit
-/// provider is injected. PerformanceSuite typically initialises before the
-/// OTel SDK (for example the Embrace SDK in BookingObservability), so eager
-/// resolution would freeze the no-op `DefaultTracerProvider` and silently drop
-/// every span.
-///
-/// ## Identifier conversion
-///
-/// Span names embed the screen / fragment identifier as a string. For
-/// `String`-backed `RawRepresentable` enums (the common case in the host app)
-/// the `rawValue` is used; otherwise the value is rendered via
-/// `String(describing:)`. This matches the semantics used by the existing
-/// PerformanceSuite squeak path and keeps OTel span names stable across
-/// renames in Swift code.
-public final class OTelInstrumenter<Screen, Fragment>:
-    TTIMetricsReceiver,
-    RenderingMetricsReceiver,
-    FragmentTTIMetricsReceiver,
-    AppRenderingMetricsReceiver,
-    StartupTimeReceiver,
-    HangsReceiver,
-    WatchdogTerminationsReceiver,
-    ViewControllerLeaksReceiver {
+/// Generic over `Screen`/`Fragment` so screen identity survives a `Multi*Receiver` (no `Any` boundary).
+/// The tracer resolves lazily at first emission (PerformanceSuite usually inits before the OTel SDK
+/// registers its global, so eager resolution would freeze the no-op provider).
+@available(iOS 16.0, *)
+public final class OTelInstrumenter<Screen, Fragment> {
     public typealias ScreenIdentifier = Screen
     public typealias FragmentIdentifier = Fragment
 
     private let _screenIdentifier: ((UIViewController) -> Screen?)?
-    private let emitter: OTelSpanEmitter
-    private let logEmitter: OTelLogEmitter
-    private let appRenderingAccumulator: AppRenderingSessionAccumulator
+    // Internal (not private) so the receiver conformances in OTelInstrumenter+Receivers.swift reach them.
+    let emitter: OTelSpanEmitter
+    let logEmitter: OTelLogEmitter
+    let appRenderingAccumulator: AppRenderingSessionAccumulator
+    let now: () -> Date
+
+    /// In-flight hang span. Guarded by `hangContextLock` since the public receiver methods could be
+    /// called off the documented serial consumerQueue.
+    var currentHangContext: OTelSpanContext?
+    let hangContextLock = NSLock()
 
     /// - Parameters:
-    ///   - screenIdentifier: Optional closure to map view controllers to
-    ///     `Screen`. When `nil`:
-    ///       * If `Screen == UIViewController`, the default behaviour
-    ///         (track main-bundle view controllers) is used — matching
-    ///         PerformanceSuite's own default.
-    ///       * Otherwise this method returns `nil`, which is the right
-    ///         behaviour when the instrumenter is wrapped inside a
-    ///         `Multi*Receiver` whose own closure is the source of truth.
-    ///   - tracerProvider: Inject a custom provider for tests or special
-    ///     setups. When `nil`, the global `OpenTelemetry.instance.tracerProvider`
-    ///     is resolved at first emission.
-    ///   - loggerProvider: Same shape as `tracerProvider` but for OTel log
-    ///     records (currently used only by view-controller leak emission).
-    ///     Lazily resolved at first emission so a late-registered global
-    ///     provider (e.g. Embrace) still wins.
-    ///   - instrumentationName: Reported on every span. Backends use this to
-    ///     filter PerformanceSuite spans. Defaults to `"perfsuite-ios"`.
-    ///   - instrumentationVersion: Optional version string reported alongside
-    ///     the instrumentation name.
-    ///   - spanNamePrefix: Optional prefix prepended to every span name with a
-    ///     dot separator. For example, `"bookingcom"` turns `"app-startup"`
-    ///     into `"bookingcom.app-startup"`. Useful when multiple apps share an
-    ///     OTel pipeline and need namespaced span names. `nil` (the default)
-    ///     emits unprefixed names.
-    ///   - attributeProvider: Optional closure invoked once per emission with
-    ///     the matching ``PerformanceSuiteSignalContext``. The returned
-    ///     attributes are merged onto the span (or log record) via
-    ///     ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``.
-    ///     SDK-set semantic-convention keys win on collision; host attributes
-    ///     matching SDK-reserved keys are silently dropped at the merge.
-    ///   - shouldEmit: Optional closure invoked once per emission with the
-    ///     matching ``PerformanceSuiteSignalContext``, before any work
-    ///     happens (no provider attributes evaluated, no tracer / logger
-    ///     resolved, no span built). Returning `false` short-circuits the
-    ///     emission. Pattern-matching against the typed signal payload reads
-    ///     naturally:
-    ///
-    ///     ```swift
-    ///     shouldEmit: { context in
-    ///         switch context {
-    ///         case .startup(let data):
-    ///             return !data.appStartInfo.appStartedWithPrewarming
-    ///         default:
-    ///             return true
-    ///         }
-    ///     }
-    ///     ```
-    ///   - now: Clock function used to stamp emitted spans and log records.
-    ///     Defaults to `Date.init` (the system clock); tests inject a
-    ///     deterministic closure so timestamp assertions can compare exact
-    ///     values.
+    ///   - screenIdentifier: Maps view controllers to `Screen`. `nil` → main-bundle VCs when
+    ///     `Screen == UIViewController`, else `nil` (the wrapping `Multi*Receiver`'s closure is the source).
+    ///   - tracerProvider / loggerProvider: Inject for tests; `nil` resolves the global lazily at first emission.
+    ///   - instrumentationName / instrumentationVersion: Reported on every span; backends filter on them.
+    ///   - spanNamePrefix: Optional dot-prefix on span names (`"bookingcom"` → `"bookingcom.app-startup"`).
+    ///   - attributeProvider: Invoked once per emission with the signal context; result merged onto the
+    ///     span (SDK-reserved keys win; host collisions dropped).
+    ///   - shouldEmit: Per-emission gate. `false` suppresses start-gated spans; for deferred-context live
+    ///     spans (startup, hangs, app-rendering) it ends with `Status.error("shouldEmit_rejected")` instead.
+    ///   - autoTerminationAttribute: Optional `(key, value)` stamped on live spans at start for a backend
+    ///     to close on unclean exit. `nil` = vendor-neutral. Embrace: `("emb.auto_termination.code", "user_abandon")`.
+    ///   - now: Clock for deterministic tests.
     public init(
         screenIdentifier: ((UIViewController) -> Screen?)? = nil,
         tracerProvider: (any TracerProvider)? = nil,
@@ -137,9 +64,11 @@ public final class OTelInstrumenter<Screen, Fragment>:
         spanNamePrefix: String? = nil,
         attributeProvider: OTelAttributeProvider? = nil,
         shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)? = nil,
+        autoTerminationAttribute: (key: String, value: String)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self._screenIdentifier = screenIdentifier
+        self.now = now
         let emitter = OTelSpanEmitter(
             tracerProvider: tracerProvider,
             instrumentationName: instrumentationName,
@@ -147,6 +76,7 @@ public final class OTelInstrumenter<Screen, Fragment>:
             spanNamePrefix: spanNamePrefix,
             attributeProvider: attributeProvider,
             shouldEmit: shouldEmit,
+            autoTerminationAttribute: autoTerminationAttribute,
             now: now
         )
         self.emitter = emitter
@@ -170,102 +100,26 @@ public final class OTelInstrumenter<Screen, Fragment>:
             return provider(viewController)
         }
         if Screen.self == UIViewController.self {
-            // Mirror PerformanceSuite's default: track view controllers from
-            // the main bundle only.
+            // PerformanceSuite default: main-bundle VCs only.
             guard Bundle(for: type(of: viewController)) == Bundle.main else { return nil }
             return viewController as? Screen
         }
-        // The instrumenter is being used as part of a Multi*Receiver — the
-        // screenIdentifier closure on the multi-receiver supplies the mapping,
-        // and PerformanceSuite never calls this method on us directly.
+        // Wrapped in a Multi*Receiver — its closure supplies the mapping; this is never called directly.
         return nil
     }
 
-    // MARK: - TTIMetricsReceiver
-
-    public func ttiMetricsReceived(metrics: TTIMetrics, screen: Screen) {
-        emitter.emitScreenTTISpan(screenName: identifierName(screen), metrics: metrics)
-    }
-
-    // MARK: - RenderingMetricsReceiver
-
-    public func renderingMetricsReceived(metrics: RenderingMetrics, screen: Screen) {
-        emitter.emitScreenRenderingSpan(screenName: identifierName(screen), metrics: metrics)
-    }
-
-    // MARK: - FragmentTTIMetricsReceiver
-
-    public func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment: Fragment) {
-        emitter.emitFragmentTTISpan(fragmentName: identifierName(fragment), metrics: metrics)
-    }
-
-    // MARK: - AppRenderingMetricsReceiver
-
-    public func appRenderingMetricsReceived(metrics: RenderingMetrics) {
-        appRenderingAccumulator.appRenderingMetricsReceived(metrics: metrics)
-    }
-
-    // MARK: - StartupTimeReceiver
-
-    public func startupTimeReceived(_ data: StartupTimeData) {
-        // The OTel side always emits, even on
-        // prewarmed launches. The `app.startup.prewarmed` attribute lets
-        // backends filter or weight prewarm samples instead of dropping them.
-        emitter.emitStartupSpan(data: data)
-    }
-
-    // MARK: - HangsReceiver
-
-    public func fatalHangReceived(info: HangInfo) {
-        emitter.emitFatalHangSpan(info: info)
-    }
-
-    public func nonFatalHangReceived(info: HangInfo) {
-        emitter.emitNonFatalHangSpan(info: info)
-    }
-
-    public func hangStarted(info: HangInfo) {
-        // `hangStarted` is an in-progress signal; no completed span to record.
-    }
-
-    // MARK: - WatchdogTerminationsReceiver
-
-    public func watchdogTerminationReceived(_ data: WatchdogTerminationData) {
-        emitter.emitWatchdogTerminationSpan(data: data)
-    }
-
-    // MARK: - ViewControllerLeaksReceiver
-
-    public func viewControllerLeakReceived(viewController: UIViewController) {
-        logEmitter.emitViewControllerLeakLog(
-            viewController: viewController,
-            appStartedWithPrewarming: PerformanceMonitoring.appStartInfo.appStartedWithPrewarming
-        )
-    }
-
-    // No `shouldTrack(viewController:)` override — picks up the protocol
-    // extension default (`true`). Per-VC opt-out is wired chain-wide through
-    // `MultiViewControllerLeaksReceiver`'s `shouldTrack:` predicate, not
-    // per-receiver, so that squeak and OTel pipelines stay in lockstep when
-    // a host filter (e.g. `UINavigationController` exclusion) is applied.
-
     // MARK: - Identifier conversion
 
-    /// Convert an arbitrary identifier to the string form used in span names
-    /// and attribute values.
-    ///
-    /// Strategy:
-    /// 1. If the identifier is a `String`-backed `RawRepresentable` (the common
-    ///    case for `enum Screen: String`), emit the raw value. This produces
-    ///    stable, dashboard-friendly names like `"search_results"` instead of
-    ///    Swift-mangled `"PerformanceScreen.searchResults"`.
-    /// 2. Otherwise fall back to `String(describing:)`. Acceptable for
-    ///    `String` identifiers (which become themselves) and for ad-hoc enum
-    ///    types.
-    private func identifierName<T>(_ identifier: T) -> String {
+    /// String form of an identifier for span names / attributes (rawValue for String-backed
+    /// RawRepresentable, else `String(describing:)`). `UIViewController` is special-cased to its class
+    /// name because `String(describing:)` on an instance embeds the heap pointer → unbounded cardinality.
+    func identifierName<T>(_ identifier: T) -> String {
         if let raw = identifier as? any RawRepresentable,
            let str = raw.rawValue as? String {
             return str
+        }
+        if let viewController = identifier as? UIViewController {
+            return String(describing: type(of: viewController))
         }
         return String(describing: identifier)
     }

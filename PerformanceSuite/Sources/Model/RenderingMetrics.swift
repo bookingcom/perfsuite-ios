@@ -56,6 +56,32 @@ public struct RenderingMetrics: CustomStringConvertible, Equatable {
     /// You probably want to exclude such metrics.
     public let appStartInfo: AppStartInfo
 
+    /// Wall-clock anchor captured at viewDidAppear before the queue hop, so a live receiver can set the
+    /// measurement's true start time (avoids queue-dispatch skew). `nil` except at session-aggregate level.
+    public let sessionStarted: Date?
+
+    public init(
+        renderedFrames: Int,
+        expectedFrames: Int,
+        droppedFrames: Int,
+        frozenFrames: Int,
+        slowFrames: Int,
+        freezeTime: DispatchTimeInterval,
+        sessionDuration: DispatchTimeInterval,
+        appStartInfo: AppStartInfo,
+        sessionStarted: Date? = nil
+    ) {
+        self.renderedFrames = renderedFrames
+        self.expectedFrames = expectedFrames
+        self.droppedFrames = droppedFrames
+        self.frozenFrames = frozenFrames
+        self.slowFrames = slowFrames
+        self.freezeTime = freezeTime
+        self.sessionDuration = sessionDuration
+        self.appStartInfo = appStartInfo
+        self.sessionStarted = sessionStarted
+    }
+
     /// frozenFrames / renderedFrames.
     ///
     /// 0...1 or nil if renderedFrames is 0
@@ -87,6 +113,13 @@ public struct RenderingMetrics: CustomStringConvertible, Equatable {
     }
 
 
+    /// All frame counters zero (ignores sessionStarted/appStartInfo); gates empty-session emission.
+    var hasNoRenderingSignal: Bool {
+        renderedFrames == 0 && expectedFrames == 0 && droppedFrames == 0
+            && frozenFrames == 0 && slowFrames == 0
+    }
+
+
     /// Instance with zeros in every field
     public static var zero: Self {
         return RenderingMetrics(
@@ -97,7 +130,23 @@ public struct RenderingMetrics: CustomStringConvertible, Equatable {
             slowFrames: 0,
             freezeTime: .zero,
             sessionDuration: .zero,
-            appStartInfo: .empty
+            appStartInfo: .empty,
+            sessionStarted: nil
+        )
+    }
+
+    /// `.zero` carrying the session start anchor; propagates through `+` (earliest wins).
+    public static func zero(sessionStarted: Date) -> Self {
+        return RenderingMetrics(
+            renderedFrames: 0,
+            expectedFrames: 0,
+            droppedFrames: 0,
+            frozenFrames: 0,
+            slowFrames: 0,
+            freezeTime: .zero,
+            sessionDuration: .zero,
+            appStartInfo: .empty,
+            sessionStarted: sessionStarted
         )
     }
 
@@ -132,7 +181,8 @@ public struct RenderingMetrics: CustomStringConvertible, Equatable {
             slowFrames: slowFrames,
             freezeTime: freezeTime,
             sessionDuration: sessionDuration,
-            appStartInfo: AppInfoHolder.appStartInfo)
+            appStartInfo: AppInfoHolder.appStartInfo,
+            sessionStarted: nil)
     }
 
     public static func + (lhs: Self, rhs: Self) -> Self {
@@ -150,7 +200,9 @@ public struct RenderingMetrics: CustomStringConvertible, Equatable {
             slowFrames: lhs.slowFrames + rhs.slowFrames,
             freezeTime: lhs.freezeTime + rhs.freezeTime,
             sessionDuration: lhs.sessionDuration + rhs.sessionDuration,
-            appStartInfo: AppStartInfo.merge(lhs.appStartInfo, rhs.appStartInfo)
+            appStartInfo: AppStartInfo.merge(lhs.appStartInfo, rhs.appStartInfo),
+            // Earliest non-nil wins (chronological accumulation = older + newer).
+            sessionStarted: lhs.sessionStarted ?? rhs.sessionStarted
         )
     }
 }

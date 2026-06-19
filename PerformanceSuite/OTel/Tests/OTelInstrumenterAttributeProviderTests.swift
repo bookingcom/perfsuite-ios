@@ -115,6 +115,7 @@ private final class StubLeakingViewController: UIViewController {}
 
 // MARK: - Tests
 
+@available(iOS 16.0, *)
 final class OTelInstrumenterAttributeProviderTests: XCTestCase {
 
     // MARK: - Test setup helpers
@@ -133,14 +134,6 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
             instrumentationVersion: "1.7.0",
             attributeProvider: attributeProvider,
             now: { now }
-        )
-    }
-
-    private func metrics(tti ms: Int, ttfr ttfrMs: Int = 50) -> TTIMetrics {
-        TTIMetrics(
-            tti: .milliseconds(ms),
-            ttfr: .milliseconds(ttfrMs),
-            appStartInfo: .empty
         )
     }
 
@@ -175,7 +168,8 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        instrumenter.startupTimeReceived(startupData(prewarmed: false))
+        let context = instrumenter.startupMeasurementStarted()
+        instrumenter.startupMeasurementEnded(startupData(prewarmed: false), context: context)
 
         XCTAssertEqual(spy.captures.map(\.kind), [.startup])
     }
@@ -185,7 +179,7 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        instrumenter.ttiMetricsReceived(metrics: metrics(tti: 800), screen: .searchResults)
+        _ = instrumenter.screenTTIMeasurementStarted(screen: .searchResults)
 
         XCTAssertEqual(spy.captures.count, 1)
         XCTAssertEqual(spy.captures.first?.kind, .screenTTI)
@@ -197,7 +191,7 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        instrumenter.fragmentTTIMetricsReceived(metrics: metrics(tti: 250), fragment: .header)
+        _ = instrumenter.fragmentTTIMeasurementStarted(fragment: .header)
 
         XCTAssertEqual(spy.captures.count, 1)
         XCTAssertEqual(spy.captures.first?.kind, .fragmentTTI)
@@ -209,7 +203,10 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        instrumenter.renderingMetricsReceived(metrics: renderingMetrics(), screen: .homescreen)
+        _ = instrumenter.screenRenderingStarted(
+            screen: .homescreen,
+            sessionStarted: Date(timeIntervalSince1970: 1_700_000_000)
+        )
 
         XCTAssertEqual(spy.captures.count, 1)
         XCTAssertEqual(spy.captures.first?.kind, .screenRendering)
@@ -221,9 +218,9 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_700_000_000))
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        instrumenter.appRenderingSessionEnded()
 
         XCTAssertEqual(spy.captures.map(\.kind), [.appRendering])
     }
@@ -252,6 +249,9 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
         let info = HangInfo.with(callStack: "stack", duringStartup: true, duration: .milliseconds(2_100))
 
+        // Live hang: hangStarted opens the span; nonFatalHangReceived finalises it and runs the
+        // attribute provider against the `.nonFatalHang` context.
+        instrumenter.hangStarted(info: info)
         instrumenter.nonFatalHangReceived(info: info)
 
         XCTAssertEqual(spy.captures.count, 1)
@@ -281,14 +281,17 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         spy.attributesToReturn = ["EXPS0": .string("a"), "EXPS1": .string("b")]
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_700_000_000))
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        instrumenter.appRenderingSessionEnded()
 
-        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
-        XCTAssertEqual(builder.attributes["EXPS0"]?.stringValue, "a")
-        XCTAssertEqual(builder.attributes["EXPS1"]?.stringValue, "b")
-        XCTAssertEqual(builder.attributes["rendering.total_frames"]?.intValue, 240)
+        // Phase 4 live-span shape: app-rendering host attributes are merged at
+        // finalize time and applied via `setAttribute` on the started span (not
+        // on the spanBuilder, since the span is already running by then).
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertEqual(span.attributes["EXPS0"]?.stringValue, "a")
+        XCTAssertEqual(span.attributes["EXPS1"]?.stringValue, "b")
+        XCTAssertEqual(span.attributes["rendering.total_frames"]?.intValue, 240)
     }
 
     func testHostAttributesCannotOverwriteSDKKeysOnEmittedSpan() throws {
@@ -301,21 +304,21 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         ]
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_700_000_000))
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 4_000))
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        instrumenter.appRenderingSessionEnded()
 
-        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
         XCTAssertEqual(
-            builder.attributes["rendering.total_frames"]?.intValue, 240,
+            span.attributes["rendering.total_frames"]?.intValue, 240,
             "Host must not be able to overwrite an SDK-reserved attribute"
         )
         XCTAssertEqual(
-            builder.attributes["rendering.session_duration.ms"]?.intValue, 4_000,
+            span.attributes["rendering.session_duration.ms"]?.intValue, 4_000,
             "Host must not be able to overwrite an SDK-reserved attribute"
         )
         XCTAssertEqual(
-            builder.attributes["EXPS0"]?.stringValue, "ok",
+            span.attributes["EXPS0"]?.stringValue, "ok",
             "Non-reserved host attribute still passes through"
         )
     }
@@ -325,11 +328,12 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let spy = AttributeProviderSpy()
         let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
 
-        instrumenter.startupTimeReceived(startupData(prewarmed: false))
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        let startupContext = instrumenter.startupMeasurementStarted()
+        instrumenter.startupMeasurementEnded(startupData(prewarmed: false), context: startupContext)
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_700_000_000))
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics())
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-        instrumenter.ttiMetricsReceived(metrics: metrics(tti: 800), screen: .homescreen)
+        instrumenter.appRenderingSessionEnded()
+        _ = instrumenter.screenTTIMeasurementStarted(screen: .homescreen)
 
         XCTAssertEqual(spy.captures.map(\.kind), [.startup, .appRendering, .screenTTI])
     }

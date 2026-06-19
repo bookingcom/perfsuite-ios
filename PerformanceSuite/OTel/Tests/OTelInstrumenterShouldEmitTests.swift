@@ -18,6 +18,7 @@ import XCTest
 /// from the closure short-circuits the corresponding span (or log record)
 /// emission before any provider attribute is evaluated or any tracer / logger
 /// is resolved.
+@available(iOS 16.0, *)
 final class OTelInstrumenterShouldEmitTests: XCTestCase {
 
     private enum TestScreen: String {
@@ -75,13 +76,45 @@ final class OTelInstrumenterShouldEmitTests: XCTestCase {
             }
         )
 
-        instrumenter.startupTimeReceived(startupData(prewarmed: true))
-        XCTAssertTrue(provider.tracer.builders.isEmpty,
-                      "Prewarmed startup is dropped by the host's shouldEmit closure")
+        // Live startup opens a raw span at start; shouldEmit reads the payload at finalize. A
+        // prewarmed launch ends with Status.error; a non-prewarmed one carries finalize attributes.
+        let prewarmed = instrumenter.startupMeasurementStarted()
+        instrumenter.startupMeasurementEnded(startupData(prewarmed: true), context: prewarmed)
+        let prewarmedSpan = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        guard case .error = prewarmedSpan.status else {
+            return XCTFail("Prewarmed launch must be rejected by shouldEmit, got \(prewarmedSpan.status)")
+        }
 
-        instrumenter.startupTimeReceived(startupData(prewarmed: false))
-        XCTAssertEqual(provider.tracer.builders.count, 1,
-                       "Non-prewarmed startup reaches the OTel pipeline")
+        let normal = instrumenter.startupMeasurementStarted()
+        instrumenter.startupMeasurementEnded(startupData(prewarmed: false), context: normal)
+        let normalSpan = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertEqual(normalSpan.attributes["app.startup.total_time.ms"]?.intValue, 1_500,
+                       "Accepted launch carries finalize attributes")
+    }
+
+    func testShouldEmitRejectionOnLiveStartupSpanEndsWithRejectedStatus() throws {
+        // Rejected live spans are ended with Status.error rather than never opened, so downstream can filter them.
+        let provider = MockTracerProvider()
+        let instrumenter = makeInstrumenter(
+            provider: provider,
+            shouldEmit: { context in
+                if case .startup = context { return false }
+                return true
+            }
+        )
+
+        let context = instrumenter.startupMeasurementStarted()
+        XCTAssertEqual(provider.tracer.builders.count, 1, "Raw live span opens before the gate runs")
+        instrumenter.startupMeasurementEnded(startupData(prewarmed: false), context: context)
+
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertTrue(span.ended)
+        guard case let .error(description) = span.status else {
+            return XCTFail("Rejected live span must end with Status.error, got \(span.status)")
+        }
+        XCTAssertEqual(description, "shouldEmit_rejected")
+        XCTAssertNil(span.attributes["app.startup.total_time.ms"],
+                     "Rejected span carries no finalize attributes")
     }
 
     func testShouldEmitNotEvaluatedForOtherSignalsWhenFilteringStartup() throws {
@@ -94,8 +127,8 @@ final class OTelInstrumenterShouldEmitTests: XCTestCase {
             }
         )
 
-        instrumenter.startupTimeReceived(startupData(prewarmed: false))    // suppressed
-        instrumenter.fatalHangReceived(info: hangInfo())                   // emitted
+        // A shouldEmit closure that rejects only `.startup` must not suppress the fatal-hang span.
+        instrumenter.fatalHangReceived(info: hangInfo())
 
         XCTAssertEqual(provider.tracer.builders.count, 1)
         XCTAssertEqual(provider.tracer.lastBuilder?.spanName, "app-hang")
@@ -127,10 +160,12 @@ final class OTelInstrumenterShouldEmitTests: XCTestCase {
         let provider = MockTracerProvider()
         let instrumenter = makeInstrumenter(provider: provider)
 
-        instrumenter.startupTimeReceived(startupData(prewarmed: true))
+        let context = instrumenter.startupMeasurementStarted()
+        instrumenter.startupMeasurementEnded(startupData(prewarmed: true), context: context)
 
         XCTAssertEqual(provider.tracer.builders.count, 1,
                        "Without shouldEmit, every emission flows through — including prewarmed startups")
-        XCTAssertEqual(provider.tracer.lastBuilder?.attributes["app.startup.prewarmed"]?.boolValue, true)
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertEqual(span.attributes["app.startup.prewarmed"]?.boolValue, true)
     }
 }

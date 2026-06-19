@@ -21,6 +21,7 @@ import XCTest
 /// - The span carries an `app.session.id` attribute sourced from
 ///   ``HangInfo/sessionId``. The key is reserved in ``OTelSDKKeys/hang``,
 ///   so a host `attributeProvider` cannot overwrite it.
+@available(iOS 16.0, *)
 final class OTelInstrumenterHangSpanTests: XCTestCase {
 
     private enum TestScreen: String {
@@ -119,7 +120,9 @@ final class OTelInstrumenterHangSpanTests: XCTestCase {
         let provider = MockTracerProvider()
         let instrumenter = makeInstrumenter(provider: provider)
 
+        // Live hang: hangStarted opens the span (stamping app.session.id), nonFatalHangReceived finalises it.
         let info = hangInfo(sessionId: "current-session-B")
+        instrumenter.hangStarted(info: info)
         instrumenter.nonFatalHangReceived(info: info)
 
         let builder = try XCTUnwrap(provider.tracer.lastBuilder)

@@ -37,6 +37,10 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
 
     private var customCreationTime: DispatchTime?
 
+    /// Live measurement handle from `screenTTIMeasurementStarted`, held on `PerformanceMonitoring.queue`. Handed back
+    /// at `screenTTIMeasurementEnded`; cancelled on any abandon path (ignoreThisScreen, negative TTI, deinit).
+    private var measurementHandle: (any MeasurementHandle)?
+
     func beforeInit() {
         let now = timeProvider.now()
         let action = {
@@ -67,6 +71,14 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 assert(!self.ttiCalculated)
                 self.screenCreatedTime = now
             }
+            // Guard on `measurementHandle == nil` (not just `ttiCalculated`): after a report clears
+            // measurementHandle but sets ttiCalculated, a re-entrant beforeViewDidLoad must not start a
+            // second orphaned measurement. `ignoreThisScreen` covers the double-viewWillAppear cancel path.
+            if !self.ttiCalculated && !self.ignoreThisScreen && self.measurementHandle == nil,
+               #available(iOS 16.0, *),
+               let live = self.metricsReceiver as? any LiveTTIMetricsReceiver<T.ScreenIdentifier> {
+                self.measurementHandle = live.screenTTIMeasurementStarted(screen: self.screen)
+            }
         }
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         action()
@@ -86,6 +98,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 //
                 // For such cases we can't calculate anything, just ignore it.
                 self.ignoreThisScreen = true
+                self.cancelMeasurement()
             }
 
             if self.shouldReportTTI && self.viewWillAppearTime == nil {
@@ -157,6 +170,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         let tti = ttiStartTime.distance(to: ttiEndTime)
         if tti < .zero {
             assertionFailure("We received negative TTI  for \(screen). That should never happen")
+            cancelMeasurement()
             return
         }
 
@@ -166,13 +180,20 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         let ttfr = ttfrStartTime.distance(to: ttfrEndTime)
         if ttfr < .zero {
             assertionFailure("We received negative TTFR  for \(screen). That should never happen")
+            cancelMeasurement()
             return
         }
 
 
         let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
+        let context = self.measurementHandle
+        self.measurementHandle = nil
         PerformanceMonitoring.consumerQueue.async {
-            self.metricsReceiver.ttiMetricsReceived(metrics: metrics, screen: self.screen)
+            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveTTIMetricsReceiver<T.ScreenIdentifier> {
+                live.screenTTIMeasurementEnded(metrics: metrics, screen: self.screen, context: context)
+            } else {
+                self.metricsReceiver.ttiMetricsReceived(metrics: metrics, screen: self.screen)
+            }
         }
 
         self.ttiCalculated = true
@@ -180,6 +201,24 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
 
     private var shouldReportTTI: Bool {
         return !ttiCalculated && !appStateListener.wasInBackground && !ignoreThisScreen
+    }
+
+    /// Cancel and clear the open live measurement. Called from every path that abandons the
+    /// measurement: `ignoreThisScreen` (double-viewWillAppear), negative TTI/TTFR
+    /// assertion, and `deinit` (observer destroyed before `reportTTIIfNeeded` ran). Idempotent.
+    private func cancelMeasurement() {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        if let context = self.measurementHandle {
+            context.cancel()
+            self.measurementHandle = nil
+        }
+    }
+
+    deinit {
+        // VC went away before TTI completed: discard any open measurement. measurementHandle is mutated only on
+        // PerformanceMonitoring.queue and queued closures retain self, so deinit runs only after
+        // that work drains — direct access is race-free.
+        self.measurementHandle?.cancel()
     }
 }
 

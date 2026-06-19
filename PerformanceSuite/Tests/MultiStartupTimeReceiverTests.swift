@@ -79,4 +79,38 @@ final class MultiStartupTimeReceiverTests: XCTestCase {
 
         XCTAssertEqual(order, [10, 11, 12])
     }
+
+    // MARK: - Live-measurement dispatch (single live child)
+
+    func testSingleLiveChildDrivesMeasurementAndRoundTripsHandle() {
+        let live = LiveStartupReceiverStub()
+        let legacy = StartupStub()
+        let multi = MultiStartupTimeReceiver(receivers: [live, legacy])
+
+        let context = multi.startupMeasurementStarted()
+        XCTAssertNotNil(context)
+        multi.startupMeasurementEnded(makeData(), context: context)
+
+        XCTAssertEqual(live.startedCount, 1)
+        XCTAssertEqual(live.endedContexts.count, 1)
+        XCTAssertNotNil(live.endedContexts.first ?? nil)
+        XCTAssertEqual(legacy.received.count, 1, "Non-live child gets the completed callback")
+    }
+}
+
+// File-scope so the nested `Ctx` handle stays at one level of nesting (SwiftLint `nesting`).
+private final class LiveStartupReceiverStub: LiveStartupTimeReceiver {
+    final class Ctx: MeasurementHandle {
+        func cancel() {}
+    }
+    var startedCount = 0
+    var endedContexts: [(any MeasurementHandle)?] = []
+    func startupTimeReceived(_ data: StartupTimeData) {}
+    func startupMeasurementStarted() -> (any MeasurementHandle)? {
+        startedCount += 1
+        return Ctx()
+    }
+    func startupMeasurementEnded(_ data: StartupTimeData, context: (any MeasurementHandle)?) {
+        endedContexts.append(context)
+    }
 }

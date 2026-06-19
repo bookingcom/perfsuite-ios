@@ -47,6 +47,17 @@ public protocol StartupTimeReceiver: AnyObject {
     func startupTimeReceived(_ data: StartupTimeData)
 }
 
+/// Opt-in live-measurement variant of ``StartupTimeReceiver``. The reporter starts a measurement in `init`
+/// (anchored retroactively at `PerformanceMonitoring.processStartTime`) and ends it at the first
+/// `viewDidAppear`; `cancel()` covers abandonment. No associated type → no iOS-16 requirement.
+public protocol LiveStartupTimeReceiver: StartupTimeReceiver {
+    func startupMeasurementStarted() -> (any MeasurementHandle)?
+    func startupMeasurementEnded(
+        _ data: StartupTimeData,
+        context: (any MeasurementHandle)?
+    )
+}
+
 class AppInfoHolder {
 
     // Example can be found in FirebasePerformance

@@ -119,7 +119,7 @@ SPEC CHECKSUMS:
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   OpenTelemetry-Swift-Api: 3d77582ab6837a63b65bf7d2eacc57d8f2595edd
-  PerformanceSuite: deac4f1c9cb2d0dc55127b08e7cb92bc2b465bf3
+  PerformanceSuite: a53bc5f8380a88a06655c2a79013d498ee0a7d9e
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
   SwiftLint: 4fa4a9b437ccc4fc72f6c0bc98556e8e9e05bccf

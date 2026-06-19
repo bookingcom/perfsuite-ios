@@ -22,25 +22,26 @@ public protocol FragmentTTITrackable: AnyObject {
 }
 
 
-/// Implement this protocol if you want to receive events about Fragment TTI
+/// Implement this protocol if you want to receive events about Fragment TTI.
 public protocol FragmentTTIMetricsReceiver<FragmentIdentifier>: AnyObject {
     /// This can be String, or enum or any other identifier
     associatedtype FragmentIdentifier
 
-
-    /// Method is called when TTI metrics are calculated for some fragment.
-    ///
-    /// `Config.fragmentTTI` should be enabled.
-    ///
-    /// Method is called on a separate background queue `PerformanceMonitoring.consumerQueue`.
-    ///
-    /// It is called after `fragmentIsReady` is executed on `FragmentTTITrackable` object,
-    /// which is returned from `PerformanceMonitoring.startFragmentTTI`.
-    ///
-    /// - Parameters:
-    ///   - metrics: TTI metric for the fragment
-    ///   - fragment: fragment identifier for which we received the metrics
+    /// Called on `consumerQueue` after `fragmentIsReady` fires on the trackable
+    /// returned from `PerformanceMonitoring.startFragmentTTI`.
     func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment: FragmentIdentifier)
+}
+
+/// Opt-in live-measurement variant of ``FragmentTTIMetricsReceiver``. The reporter starts a measurement when the
+/// trackable is vended and ends it when `fragmentIsReady` fires; `cancel()` covers abandonment.
+/// Requires iOS 16.
+public protocol LiveFragmentTTIMetricsReceiver<FragmentIdentifier>: FragmentTTIMetricsReceiver {
+    func fragmentTTIMeasurementStarted(fragment: FragmentIdentifier) -> (any MeasurementHandle)?
+    func fragmentTTIMeasurementEnded(
+        metrics: TTIMetrics,
+        fragment: FragmentIdentifier,
+        context: (any MeasurementHandle)?
+    )
 }
 
 private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
@@ -55,6 +56,10 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
     private var isRenderedTime: DispatchTime?
     private var ttiCalculated = false
 
+    /// Live measurement handle held across the trackable's lifetime. Mutated only on
+    /// `PerformanceMonitoring.queue` after the initial assignment in `init`. Cancelled
+    /// in `deinit` for the common abandonment path: caller never calls `fragmentIsReady()`.
+    private var measurementHandle: (any MeasurementHandle)?
 
     init(
         identifier: F.FragmentIdentifier,
@@ -69,6 +74,11 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
         self.appStateListener = appStateListener
         self.reporter = reporter
         self.createdTime = timeProvider.now()
+        // Start a live measurement synchronously on the caller's thread (matching createdTime) when the
+        // receiver is live. iOS 16 only (constrained-existential cast); otherwise completed path.
+        if #available(iOS 16.0, *), let live = metricsReceiver as? any LiveFragmentTTIMetricsReceiver<F.FragmentIdentifier> {
+            self.measurementHandle = live.fragmentTTIMeasurementStarted(fragment: identifier)
+        }
     }
 
     func fragmentIsRendered() {
@@ -94,6 +104,7 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
 
         if appStateListener.wasInBackground {
             // we ignore events when app went into background during screen session, because TTI will be too long
+            cancelMeasurement()
             return
         }
 
@@ -103,6 +114,7 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
         let tti = ttiStartTime.distance(to: ttiEndTime)
         if tti < .zero {
             assertionFailure("We received negative TTI  for \(identifier) that should never happen")
+            cancelMeasurement()
             return
         }
 
@@ -112,15 +124,36 @@ private class Trackable<F: FragmentTTIMetricsReceiver>: FragmentTTITrackable {
         let ttfr = ttfrStartTime.distance(to: ttfrEndTime)
         if ttfr < .zero {
             assertionFailure("We received negative TTFR  for \(identifier) that should never happen")
+            cancelMeasurement()
             return
         }
 
         let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
+        let context = self.measurementHandle
+        self.measurementHandle = nil
         PerformanceMonitoring.consumerQueue.async {
-            self.metricsReceiver.fragmentTTIMetricsReceived(metrics: metrics, fragment: self.identifier)
+            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveFragmentTTIMetricsReceiver<F.FragmentIdentifier> {
+                live.fragmentTTIMeasurementEnded(metrics: metrics, fragment: self.identifier, context: context)
+            } else {
+                self.metricsReceiver.fragmentTTIMetricsReceived(metrics: metrics, fragment: self.identifier)
+            }
         }
 
         ttiCalculated = true
+    }
+
+    /// Cancel and clear the open live measurement. Idempotent.
+    private func cancelMeasurement() {
+        if let context = self.measurementHandle {
+            context.cancel()
+            self.measurementHandle = nil
+        }
+    }
+
+    deinit {
+        // Trackable dropped without `fragmentIsReady()`. Queued closures retain `self`,
+        // so by deinit all queue work has drained — direct access is race-free.
+        self.measurementHandle?.cancel()
     }
 }
 

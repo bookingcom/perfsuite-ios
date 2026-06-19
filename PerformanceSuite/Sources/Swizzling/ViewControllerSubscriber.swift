@@ -24,35 +24,47 @@ final class ViewControllerSubscriber {
     private let viewDidDisappearSelector = #selector(UIViewController.viewDidDisappear(_:))
 
     func subscribeObserver(_ observer: ViewControllerObserver) throws {
+        // dispatchPrecondition(.onQueue(.main)) traps loudly if UIKit ever delivers a lifecycle
+        // selector off-main. The before*/after* asymmetry is deliberate: before* call directly so the
+        // observer captures timeProvider.now() at the original frame (a main.async would regress TTI
+        // screenCreatedTime); after* defer to the next tick for post-method timing (commit b43e2d9d).
+
         try Swizzler.swizzle(class: classToSwizzle, selector: initWithNibSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             observer.beforeInit(viewController: vc)
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: initWithCoderSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             observer.beforeInit(viewController: vc)
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewDidLoadSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             observer.beforeViewDidLoad(viewController: vc)
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewWillAppearSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             DispatchQueue.main.async {
                 observer.afterViewWillAppear(viewController: vc)
             }
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewDidAppearSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             DispatchQueue.main.async {
                 observer.afterViewDidAppear(viewController: vc)
             }
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewWillDisappearSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             observer.beforeViewWillDisappear(viewController: vc)
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewDidDisappearSelector) { (vc: UIViewController) in
+            dispatchPrecondition(condition: .onQueue(.main))
             observer.beforeViewDidDisappear(viewController: vc)
         }
     }

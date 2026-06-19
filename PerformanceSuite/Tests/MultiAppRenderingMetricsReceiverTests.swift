@@ -70,4 +70,33 @@ final class MultiAppRenderingMetricsReceiverTests: XCTestCase {
 
         XCTAssertEqual(order, [1, 2])
     }
+
+    // MARK: - Live-measurement dispatch (session start/end reach only the live child)
+
+    func testSessionStartAndEndForwardedOnlyToLiveChild() {
+        final class LiveStub: LiveAppRenderingMetricsReceiver {
+            var received: [RenderingMetrics] = []
+            var startedDates: [Date] = []
+            var sessionEndedCount = 0
+            func appRenderingMetricsReceived(metrics: RenderingMetrics) { received.append(metrics) }
+            func appRenderingSessionStarted(at startedAt: Date) { startedDates.append(startedAt) }
+            func appRenderingSessionEnded() { sessionEndedCount += 1 }
+        }
+
+        let legacy = AppRenderingStub()
+        let live = LiveStub()
+        let multi = MultiAppRenderingMetricsReceiver(receivers: [legacy, live])
+
+        let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let metrics = makeMetrics()
+        multi.appRenderingSessionStarted(at: startedAt)
+        multi.appRenderingMetricsReceived(metrics: metrics)
+        multi.appRenderingSessionEnded()
+
+        // Chunks fan out to both; session start/end only to the live child.
+        XCTAssertEqual(legacy.received, [metrics])
+        XCTAssertEqual(live.received, [metrics])
+        XCTAssertEqual(live.startedDates, [startedAt])
+        XCTAssertEqual(live.sessionEndedCount, 1)
+    }
 }

@@ -11,11 +11,9 @@ import XCTest
 @available(iOS 16.0, *)
 final class MultiTTIMetricsReceiverTests: XCTestCase {
 
-    // ScreenIdentifier is inferred from the method signatures below; declaring it
-    // explicitly would push this stub to nesting depth 2 and trip SwiftLint.
+    // screenIdentifier(for:) is never called — Multi overrides it via the init closure;
+    // kept un-nested so this stub stays at nesting depth 1 (SwiftLint).
     private final class StringTTIReceiverStub: TTIMetricsReceiver {
-        // We intentionally do not use this: MultiTTIMetricsReceiver overrides screenIdentifier(for:)
-        // with the closure passed to its initializer.
         func screenIdentifier(for viewController: UIViewController) -> String? {
             "should-not-be-called"
         }
@@ -26,12 +24,10 @@ final class MultiTTIMetricsReceiverTests: XCTestCase {
         }
     }
 
-    func testFanOutToAllReceiversInOrder() {
+    func testFanOutToAllReceivers() {
         let first = StringTTIReceiverStub()
         let second = StringTTIReceiverStub()
         let third = StringTTIReceiverStub()
-        let invocationOrder = NSMutableArray()
-        first.received = []
         let multi = MultiTTIMetricsReceiver<String>(
             screenIdentifier: { _ in "screen_a" },
             receivers: [first, second, third]
@@ -45,7 +41,6 @@ final class MultiTTIMetricsReceiverTests: XCTestCase {
         XCTAssertEqual(first.received.first?.0, metrics)
         XCTAssertEqual(second.received.count, 1)
         XCTAssertEqual(third.received.count, 1)
-        XCTAssertNotNil(invocationOrder)
     }
 
     func testScreenIdentifierUsesClosureNotReceivers() {
@@ -106,5 +101,45 @@ final class MultiTTIMetricsReceiverTests: XCTestCase {
         )
 
         XCTAssertEqual(order, [1, 2, 3])
+    }
+
+    @available(iOS 16.0, *)
+    func testSingleLiveChildDrivesMeasurementAndRoundTripsHandle() {
+        let live = LiveTTIReceiverStub()
+        let legacy = StringTTIReceiverStub()
+        let multi = MultiTTIMetricsReceiver<String>(
+            screenIdentifier: { _ in nil },
+            receivers: [live, legacy]
+        )
+
+        let context = multi.screenTTIMeasurementStarted(screen: "x")
+        XCTAssertNotNil(context, "Live child's handle is returned")
+        let metrics = TTIMetrics(tti: .seconds(1), ttfr: .milliseconds(500), appStartInfo: .empty)
+        multi.screenTTIMeasurementEnded(metrics: metrics, screen: "x", context: context)
+
+        XCTAssertEqual(live.startedScreens, ["x"])
+        XCTAssertEqual(live.endedContexts.count, 1)
+        XCTAssertNotNil(live.endedContexts.first ?? nil)
+        // Non-live child gets the completed callback, not a live end.
+        XCTAssertEqual(legacy.received.count, 1)
+    }
+}
+
+// File-scope so the `Ctx` handle stays at one level of nesting (SwiftLint `nesting`).
+private final class LiveTTIReceiverStub: LiveTTIMetricsReceiver {
+    final class Ctx: MeasurementHandle {
+        var cancelCount = 0
+        func cancel() { cancelCount += 1 }
+    }
+    var startedScreens: [String] = []
+    var endedContexts: [(any MeasurementHandle)?] = []
+    func screenIdentifier(for viewController: UIViewController) -> String? { nil }
+    func ttiMetricsReceived(metrics: TTIMetrics, screen: String) {}
+    func screenTTIMeasurementStarted(screen: String) -> (any MeasurementHandle)? {
+        startedScreens.append(screen)
+        return Ctx()
+    }
+    func screenTTIMeasurementEnded(metrics: TTIMetrics, screen: String, context: (any MeasurementHandle)?) {
+        endedContexts.append(context)
     }
 }

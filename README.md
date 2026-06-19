@@ -296,7 +296,7 @@ let config: Config = [
 
 The `viewControllerLeaks(_:shouldTrack:)` convenience wraps `MultiViewControllerLeaksReceiver`, whose optional `shouldTrack` predicate gates dispatch for *all* children at once. The predicate is invoked once per leak, immediately before any child receiver is called; returning `false` skips the dispatch so the chain stays in lockstep.
 
-> **iOS 16+ for the three generic Multi receivers.** `MultiTTIMetricsReceiver`, `MultiRenderingMetricsReceiver`, and `MultiFragmentTTIMetricsReceiver` store `[any P<X>]` arrays, whose runtime support shipped with iOS 16 (SE-0353). They are gated with `@available(iOS 16.0, *)`. The other five `Multi*Receiver` types (including `MultiViewControllerLeaksReceiver`) and all of `OTelInstrumenter` work on iOS 15+.
+> **iOS 16+ for `OTelInstrumenter` and the three generic Multi receivers.** `OTelInstrumenter`, `MultiTTIMetricsReceiver`, `MultiRenderingMetricsReceiver`, and `MultiFragmentTTIMetricsReceiver` rely on constrained-existential `any P<X>` (runtime support shipped with iOS 16, SE-0353): the Multi receivers store `[any P<X>]` arrays, and the screen / fragment / rendering observers resolve a live receiver via an `as? any Live…Receiver<…>` cast. They are gated with `@available(iOS 16.0, *)`. The other five `Multi*Receiver` types (including `MultiViewControllerLeaksReceiver`) and the rest of the core `PerformanceSuite` framework work on iOS 15+.
 
 ### View-controller leak log records
 
@@ -372,14 +372,17 @@ let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
 
 ### Filtering emissions
 
-`OTelInstrumenter.init` accepts an optional `shouldEmit:` closure invoked **before any work happens** on every span and log emission — no provider attributes evaluated, no tracer or logger resolved, no span built. Returning `false` short-circuits the emission. Pattern-matching against the typed signal payload reads naturally:
+`OTelInstrumenter.init` accepts an optional `shouldEmit:` closure invoked per emission. Returning `false` drops the signal before any host work (no provider attributes evaluated, no tracer or logger resolved). For completed spans and the start-gated live spans (screen / fragment TTI, screen rendering) no span is built at all; for deferred-context live spans (startup, hangs, app-rendering) see the finalize note below. Pattern-matching against the typed signal payload reads naturally:
 
 ```swift
 let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
     shouldEmit: { context in
         switch context {
         case .startup(let data):
+            // Drop prewarmed launches — their timings aren't comparable to cold starts.
             return !data.appStartInfo.appStartedWithPrewarming
+        case .screenTTI(let screen):
+            return screen.screenName != "debug_menu"
         default:
             return true
         }
@@ -389,13 +392,61 @@ let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
 
 `shouldEmit` is independent of `attributeProvider`: a signal that the gate suppresses is never handed to the provider either. Use `shouldEmit` for binary keep-or-drop decisions and `attributeProvider` for adding host context to signals you do want to emit.
 
+For **live spans** (TTI, fragment TTI, screen rendering — see "Live spans" below) `shouldEmit` evaluates at *start* time, since the receiver context is fully known by then. A rejected signal never reaches `tracer()` — no span is created.
+
+For signals whose context completes only at finalize (startup before `StartupTimeData` arrives, app-rendering before `sessionEndedAt` arrives, hangs before fatal-vs-non-fatal is known), the live span is started unconditionally and the gate runs at finalize. A rejected span is closed with `Status.error("shouldEmit_rejected")` so it can be filtered out before reaching your backend. If you'd rather not see those spans in the downstream pipeline, install a wrapping `SpanExporter` that filters them out. `SpanProcessor.onEnd` is informational and can't actually suppress a span — the place to drop is the export step:
+
+```swift
+final class FilteringSpanExporter: SpanExporter {
+    private let underlying: SpanExporter
+    init(_ underlying: SpanExporter) { self.underlying = underlying }
+
+    func export(spans: [SpanData], explicitTimeout: TimeInterval? = nil) -> SpanExporterResultCode {
+        // The rejected-span sentinel set by perfsuite-ios when shouldEmit
+        // refuses a late-context live span at finalize.
+        let kept = spans.filter { span in
+            guard case let .error(description) = span.status else { return true }
+            return description != "shouldEmit_rejected"
+        }
+        return kept.isEmpty ? .success : underlying.export(spans: kept, explicitTimeout: explicitTimeout)
+    }
+
+    func flush(explicitTimeout: TimeInterval? = nil) -> SpanExporterResultCode {
+        underlying.flush(explicitTimeout: explicitTimeout)
+    }
+    func shutdown(explicitTimeout: TimeInterval? = nil) {
+        underlying.shutdown(explicitTimeout: explicitTimeout)
+    }
+}
+
+// Install at TracerProvider build time, wrapping whatever real exporter you use:
+//   let exporter = FilteringSpanExporter(realExporter)
+//   tracerProvider.addSpanProcessor(BatchSpanProcessor(spanExporter: exporter))
+```
+
+The actual API names may differ slightly across opentelemetry-swift versions — adjust to your pinned major.
+
 ### App rendering: one span per app-foreground session
 
-`OTelInstrumenter` aggregates the SDK's throttled `appRenderingMetricsReceived(metrics:)` callbacks into a single OTel `app-rendering` span per app-foreground session. The span's window is `UIApplication.didBecomeActiveNotification → UIApplication.didEnterBackgroundNotification`, with rendering counters (`rendering.dropped_frames`, `rendering.freeze_time.ms`, `rendering.total_frames`, `rendering.session_duration.ms`) summed across every chunk that arrived inside the window. The span also carries `app.session.duration.ms` equal to the wall-clock `sessionEndedAt - sessionStartedAt`.
+`OTelInstrumenter` emits one OTel `app-rendering` span per app-foreground session. The span is a **live span** opened on `UIApplication.didBecomeActiveNotification` and ended on `UIApplication.didEnterBackgroundNotification`. While the session is running, every throttled `appRenderingMetricsReceived(metrics:)` chunk updates the running counters AND re-applies them to the live span via `setAttribute`, so the latest snapshot is always on the span. At the clean boundary the span ends with `Status.unset`, the cumulative rendering counters (`rendering.dropped_frames`, `rendering.freeze_time.ms`, `rendering.total_frames`, `rendering.session_duration.ms`), and `app.session.duration.ms` equal to the wall-clock `sessionEndedAt - sessionStartedAt`.
 
-`didEnterBackground` is the boundary, not `willResignActive` — the latter fires for transient interruptions (control-centre swipes, incoming-call banners, app-switcher previews) that would otherwise split a single user session into many tiny spans.
+`didEnterBackground` is the *clean* boundary, not `willResignActive` — the latter fires for transient interruptions (control-centre swipes, incoming-call banners, app-switcher previews) that would otherwise split a single user session into many tiny spans.
+
+For sessions that don't end with a clean `didEnterBackground` (crash, OOM, watchdog kill, force-quit, debugger stop, simulator stop), the live span is never ended in-process. To let a backend end it, inject `autoTerminationAttribute:` — a `(key, value)` stamped at start on every **unclean-exit** live span (app-rendering, startup, screen / fragment TTI, screen rendering). The **hang** live span deliberately omits it: a fatal hang already has an authoritative next-launch record (`fatalHangReceived`), so an auto-terminated orphan would double-count it. The library names no vendor; for Embrace pass the canonical code:
+
+```swift
+let otel = OTelInstrumenter<PerformanceScreen, PerformanceFragment>(
+    autoTerminationAttribute: (key: "emb.auto_termination.code", value: "user_abandon")
+)
+```
+
+`EmbraceSpanProcessor` reads `emb.auto_termination.code` on `Span.onStart`, registers the span, and on session-end recovery ends the orphaned span with `Status.error("user_abandon")` and `emb.error_code = "user_abandon"` (matching `SpanErrorCode.userAbandon.rawValue`). The injected key is reserved so a host `attributeProvider` can't overwrite it. With nothing injected (the default), the library stays vendor-neutral and an unclean-exit span is simply never ended.
+
+A clean session with zero dropped frames still emits a span (with `app.session.duration.ms` set and zero rendering counters) — it's signal, not noise. Backend dashboards use this to compute the "fraction of perfectly-rendered sessions" metric.
 
 ### Hangs and previous-session correlation
+
+`OTelInstrumenter` opens a live `app-hang` span on `hangStarted(info:)` (anchored on `info.detectedAt`) and finalises it on `nonFatalHangReceived(info:)` with the final duration. Fatal hangs detected on the next launch are emitted as completed spans (the corresponding `hangStarted` ran in a previous, now-dead process and can never be paired up).
 
 `HangInfo` exposes two optional fields that let backends correlate a fatal hang detected on the next launch with the *previous* session that produced it:
 
@@ -413,6 +464,56 @@ try PerformanceMonitoring.enable(
 The closure is invoked synchronously at hang detection. When non-`nil`, `OTelInstrumenter` surfaces the captured value as the `app.session.id` attribute on hang spans (reserved in `OTelSDKKeys.hang` so a host `attributeProvider` cannot overwrite it).
 
 Both fields decode as `nil` when absent from persisted JSON.
+
+### Live spans: started/ended via `Live*` sub-protocols
+
+For consumers that want OTel spans to exist *during* a measurement (rather than as completed spans recorded retroactively at the end), each receiver protocol has an opt-in **`Live*` sub-protocol**. A receiver that wants live spans conforms to the sub-protocol (alongside the base protocol); the SDK reporter resolves it at runtime via an `as?` cast and drives the measurement's `started` / `ended` lifecycle. A receiver that conforms only to the base protocol keeps getting the completed `*Received` callback unchanged — fully backward compatible.
+
+> Liveness is a **conformance**, not a defaulted hook, so dispatch is unambiguous and never shadowed by a default when the receiver is used as `any P` or behind a `Multi*Receiver`. The screen / fragment / rendering sub-protocols carry the screen/fragment associated type, so the reporter resolves them with a constrained-existential `as? any Live…Receiver<…>` cast — that needs **iOS 16** (SE-0353). Startup and app-rendering have no associated type and resolve on iOS 15+, but `OTelInstrumenter` as a whole is `@available(iOS 16)`.
+
+```swift
+// The handle returned from a `started` call and passed back to the matching `ended`.
+public protocol MeasurementHandle: AnyObject {
+    func cancel()   // invoked when the measurement is abandoned; safe to call after `ended`
+}
+
+public protocol LiveTTIMetricsReceiver<ScreenIdentifier>: TTIMetricsReceiver {
+    func screenTTIMeasurementStarted(screen: ScreenIdentifier) -> (any MeasurementHandle)?
+    func screenTTIMeasurementEnded(metrics: TTIMetrics, screen: ScreenIdentifier,
+                                   context: (any MeasurementHandle)?)
+}
+
+public protocol LiveRenderingMetricsReceiver<ScreenIdentifier>: RenderingMetricsReceiver {
+    // note the synchronously-captured Date anchor
+    func screenRenderingStarted(screen: ScreenIdentifier, sessionStarted: Date) -> (any MeasurementHandle)?
+    func screenRenderingEnded(metrics: RenderingMetrics, screen: ScreenIdentifier,
+                              context: (any MeasurementHandle)?)
+}
+
+public protocol LiveFragmentTTIMetricsReceiver<FragmentIdentifier>: FragmentTTIMetricsReceiver {
+    func fragmentTTIMeasurementStarted(fragment: FragmentIdentifier) -> (any MeasurementHandle)?
+    func fragmentTTIMeasurementEnded(metrics: TTIMetrics, fragment: FragmentIdentifier,
+                                     context: (any MeasurementHandle)?)
+}
+
+public protocol LiveStartupTimeReceiver: StartupTimeReceiver {
+    func startupMeasurementStarted() -> (any MeasurementHandle)?
+    func startupMeasurementEnded(_ data: StartupTimeData, context: (any MeasurementHandle)?)
+}
+
+public protocol LiveAppRenderingMetricsReceiver: AppRenderingMetricsReceiver {
+    func appRenderingSessionStarted(at startedAt: Date)
+    func appRenderingSessionEnded()
+}
+```
+
+A live receiver implements `started` to build an in-progress span and return a `MeasurementHandle` wrapping it; the SDK reporter holds the handle across the measurement window and either passes it back via `ended` (success path) or invokes `cancel()` on it (abandonment path: the screen was ignored, the app went to background mid-measurement, or the tracked object was deallocated before its terminal callback fired).
+
+`OTelInstrumenter` is a live receiver out of the box — it conforms to every `Live*` sub-protocol, opens spans via the OTel tracer at start time, and finalises them at end time with the timing-derived attributes (`screen.tti.ms`, `app.session.duration.ms`, etc.). The hang live span uses the existing `hangStarted(info:)` / `nonFatalHangReceived(info:)` callbacks for the same shape.
+
+App-rendering's lifecycle is driven entirely by `AppRenderingReporter` on `PerformanceMonitoring.consumerQueue` — `appRenderingSessionStarted(at:)` on `didBecomeActive`, per-chunk `appRenderingMetricsReceived(metrics:)`, then `appRenderingSessionEnded()` on `didEnterBackground` / `willTerminate` — so session start and end stay FIFO-ordered on one serial queue (a fast background→foreground can't open a new session before the previous one closes). The `at:` start instant is captured on the main thread and passed through for a precise anchor.
+
+The screen-rendering `started` callback receives a `Date` (`sessionStarted:`) captured synchronously inside `RenderingObserver.afterViewDidAppear` *before* the queue hop. This anchors the live span's `setStartTime(time:)` precisely on the visible-frame moment instead of the cumulative consumer-queue dispatch latency. The same anchor flows through `RenderingMetrics.sessionStarted` (a new field summed by the existing `+` operator with "earlier non-nil wins" semantics) into the completed-span path, so even plain (non-`Live`) receivers get wall-clock-correct screen-rendering spans.
 
 ### Semantic conventions
 

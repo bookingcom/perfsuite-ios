@@ -90,8 +90,15 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
     // we store this value just after `main()` function started. In seconds since 1970.
     private static var mainStartedTime: TimeInterval?
 
+    /// Live measurement handle from `receiver.startupMeasurementStarted()`, started in `init` and finalized at the
+    /// first `viewDidAppear` (both on main). A live receiver may anchor it retroactively at process start.
+    private var measurementHandle: (any MeasurementHandle)?
+
     init(receiver: StartupTimeReceiver) {
         self.receiver = receiver
+        // Started runs synchronously on the caller's thread (typically main) right after
+        // `recordMainStarted()`. Only a live receiver starts a measurement; others stay legacy.
+        self.measurementHandle = (receiver as? LiveStartupTimeReceiver)?.startupMeasurementStarted()
     }
 
     /// This function should be called once just in the beginning of `main()` function of the app.
@@ -119,6 +126,9 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             // that viewDidAppear is called for a view controller without viewDidLoad was called.
             // I reproduced this case in `PerformanceMonitoringTests.testIntegration` test.
             // Didn't see it in production though.
+            // Discard the live measurement — startup measurement abandoned for this process.
+            self.measurementHandle?.cancel()
+            self.measurementHandle = nil
             return
         }
         let viewDidAppearTime = Self.currentTime()
@@ -152,8 +162,14 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             mainBeforeViewControllerTime: mainBeforeViewControllerTime,
             appStartInfo: AppInfoHolder.appStartInfo
         )
+        let context = self.measurementHandle
+        self.measurementHandle = nil
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver.startupTimeReceived(data)
+            if let live = self.receiver as? LiveStartupTimeReceiver {
+                live.startupMeasurementEnded(data, context: context)
+            } else {
+                self.receiver.startupTimeReceived(data)
+            }
         }
 
         PerformanceMonitoring.queue.async {
@@ -161,6 +177,12 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             self.onStartedActions.forEach { $0() }
             self.onStartedActions.removeAll()
         }
+    }
+
+    deinit {
+        // Defensive: cancel an unfinalized live measurement so it can't leak (e.g. reporter torn down in
+        // tests before the first viewDidAppear). Idempotent.
+        self.measurementHandle?.cancel()
     }
 
     func makeViewControllerObserver() -> ViewControllerObserver {

@@ -7,39 +7,42 @@
 
 import OpenTelemetryApi
 @testable import PerformanceSuite
-import UIKit
 import XCTest
 
 #if canImport(PerformanceSuiteOTel)
 @testable import PerformanceSuiteOTel
 #endif
 
-/// Covers ``AppRenderingSessionAccumulator``: chunks delivered through
-/// `appRenderingMetricsReceived(metrics:)` are buffered between session
-/// boundaries, and one OTel span is emitted per session.
+/// Covers ``AppRenderingSessionAccumulator``: `appRenderingSessionStarted(at:)` opens a live span
+/// (carrying the injected auto-termination attribute), chunks update cumulative counters on it, and
+/// `appRenderingSessionEnded()` finalises it with `app.session.duration.ms`.
 final class AppRenderingSessionAccumulatorTests: XCTestCase {
 
     private let pinnedNow = Date(timeIntervalSince1970: 1_700_000_000)
 
     private func makeAccumulator(
         provider: MockTracerProvider,
-        sessionStartedAt: Date? = nil
+        autoTerminationAttribute: (key: String, value: String)? = ("emb.auto_termination.code", "user_abandon"),
+        attributeProvider: OTelAttributeProvider? = nil,
+        now: (() -> Date)? = nil
     ) -> AppRenderingSessionAccumulator {
+        let nowClosure = now ?? { self.pinnedNow }
         let emitter = OTelSpanEmitter(
             tracerProvider: provider,
             instrumentationName: "perfsuite-ios",
-            instrumentationVersion: "1.9.0",
-            now: { self.pinnedNow }
+            instrumentationVersion: "1.10.0",
+            attributeProvider: attributeProvider,
+            autoTerminationAttribute: autoTerminationAttribute,
+            now: nowClosure
         )
-        let seed = sessionStartedAt ?? pinnedNow.addingTimeInterval(-30)
-        return AppRenderingSessionAccumulator(
-            emitter: emitter,
-            sessionStartedAt: seed,
-            now: { self.pinnedNow }
-        )
+        return AppRenderingSessionAccumulator(emitter: emitter, now: nowClosure)
     }
 
-    private func renderingMetrics(droppedFrames: Int = 5, freezeMs: Int = 120, sessionMs: Int = 4_000) -> RenderingMetrics {
+    private func renderingMetrics(
+        droppedFrames: Int = 5,
+        freezeMs: Int = 120,
+        sessionMs: Int = 4_000
+    ) -> RenderingMetrics {
         RenderingMetrics(
             renderedFrames: 240,
             expectedFrames: 240,
@@ -52,112 +55,173 @@ final class AppRenderingSessionAccumulatorTests: XCTestCase {
         )
     }
 
-    // MARK: - Session boundary
+    // MARK: - Live-span lifecycle
 
-    func testBuffersChunksAndEmitsOnDidEnterBackground() throws {
-        let provider = MockTracerProvider()
-        let accumulator = makeAccumulator(provider: provider, sessionStartedAt: pinnedNow.addingTimeInterval(-10))
-
-        // Two chunks arrive during the session.
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 5, freezeMs: 100, sessionMs: 2_000))
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 7, freezeMs: 200, sessionMs: 3_000))
-        XCTAssertTrue(provider.tracer.builders.isEmpty,
-                      "Individual chunks must not emit — only the session boundary does")
-
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-
-        XCTAssertEqual(provider.tracer.builders.count, 1)
-        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
-        XCTAssertEqual(builder.spanName, "app-rendering")
-        XCTAssertEqual(builder.attributes["rendering.dropped_frames"]?.intValue, 12)
-        XCTAssertEqual(builder.attributes["rendering.freeze_time.ms"]?.intValue, 300)
-        XCTAssertEqual(builder.attributes["rendering.session_duration.ms"]?.intValue, 5_000)
-        XCTAssertEqual(builder.attributes["app.session.duration.ms"]?.intValue, 10_000,
-                       "app.session.duration.ms is wall-clock sessionEndedAt - sessionStartedAt")
-    }
-
-    func testHandlesMultipleSessionCycles() throws {
+    func testSessionStartOpensLiveSpanWithAutoTerminationCode() throws {
         let provider = MockTracerProvider()
         let accumulator = makeAccumulator(provider: provider)
 
-        // Session 1: ends with the seeded anchor.
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 3, freezeMs: 50, sessionMs: 1_000))
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        accumulator.appRenderingSessionStarted(at: pinnedNow)
 
-        // Session 2: didBecomeActive sets a fresh anchor.
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 8, freezeMs: 250, sessionMs: 4_000))
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        XCTAssertEqual(provider.tracer.builders.count, 1, "session start opens exactly one live span")
+        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
+        XCTAssertEqual(builder.spanName, "app-rendering")
+        XCTAssertEqual(builder.startTime, pinnedNow, "Live span anchors at the passed session-start instant")
+        XCTAssertEqual(builder.attributes["emb.auto_termination.code"]?.stringValue, "user_abandon")
+        let span = try XCTUnwrap(builder.startedSpan, "Span must be started, not just built")
+        XCTAssertTrue(span.isRecording)
+        XCTAssertFalse(span.ended)
+
+        // Auto-termination code must survive chunk updates (applyRenderingAttributes re-applies the dict).
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics())
+        XCTAssertEqual(span.attributes["emb.auto_termination.code"]?.stringValue, "user_abandon")
+    }
+
+    func testPerChunkUpdatesApplyCumulativeAttributesToLiveSpan() throws {
+        let provider = MockTracerProvider()
+        let accumulator = makeAccumulator(provider: provider)
+
+        accumulator.appRenderingSessionStarted(at: pinnedNow)
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 5, freezeMs: 100, sessionMs: 2_000))
+        XCTAssertEqual(span.attributes["rendering.dropped_frames"]?.intValue, 5)
+        XCTAssertEqual(span.attributes["rendering.freeze_time.ms"]?.intValue, 100)
+
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 7, freezeMs: 200, sessionMs: 3_000))
+        XCTAssertEqual(span.attributes["rendering.dropped_frames"]?.intValue, 12, "Cumulative")
+        XCTAssertEqual(span.attributes["rendering.freeze_time.ms"]?.intValue, 300)
+        XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 5_000)
+        XCTAssertFalse(span.ended)
+    }
+
+    func testSessionEndFinalisesLiveSpanWithSessionDuration() throws {
+        let provider = MockTracerProvider()
+        let activateTime = pinnedNow
+        let backgroundTime = pinnedNow.addingTimeInterval(15)
+
+        var clock = activateTime
+        let accumulator = makeAccumulator(provider: provider, now: { clock })
+
+        accumulator.appRenderingSessionStarted(at: clock)
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 4, sessionMs: 8_000))
+
+        clock = backgroundTime
+        accumulator.appRenderingSessionEnded()
+
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertTrue(span.ended)
+        XCTAssertEqual(span.firstEndTime, backgroundTime)
+        XCTAssertEqual(span.status, .unset, "Clean exit — Status.unset, no emb.error_code")
+        XCTAssertEqual(span.attributes["app.session.duration.ms"]?.intValue, 15_000)
+        XCTAssertEqual(span.attributes["rendering.dropped_frames"]?.intValue, 4)
+    }
+
+    // MARK: - Multi-cycle
+
+    func testMultipleSessionCyclesEachOpenAndCloseTheirOwnLiveSpan() throws {
+        let provider = MockTracerProvider()
+        var clock = pinnedNow
+        let accumulator = makeAccumulator(provider: provider, now: { clock })
+
+        accumulator.appRenderingSessionStarted(at: clock)
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 3, sessionMs: 1_000))
+        clock = clock.addingTimeInterval(10)
+        accumulator.appRenderingSessionEnded()
+
+        clock = clock.addingTimeInterval(60)
+        accumulator.appRenderingSessionStarted(at: clock)
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 8, sessionMs: 4_000))
+        clock = clock.addingTimeInterval(20)
+        accumulator.appRenderingSessionEnded()
 
         XCTAssertEqual(provider.tracer.builders.count, 2)
-        XCTAssertEqual(provider.tracer.builders[0].attributes["rendering.dropped_frames"]?.intValue, 3,
-                       "Session 1 carries only its own chunk")
-        XCTAssertEqual(provider.tracer.builders[1].attributes["rendering.dropped_frames"]?.intValue, 8,
-                       "Session 2's accumulator is reset cleanly between sessions")
-        XCTAssertEqual(provider.tracer.builders[1].attributes["rendering.freeze_time.ms"]?.intValue, 250)
-    }
-
-    // MARK: - Anchoring
-
-    func testFirstSessionUsesSeededLaunchAnchorEvenWhenDidBecomeActiveIsMissed() throws {
-        // Simulates the case where the host calls `enable(...)` after
-        // `didBecomeActive` has already fired — the observer never sees the
-        // notification. The seeded `sessionStartedAt` keeps the first session
-        // emittable.
-        let provider = MockTracerProvider()
-        let launchTime = pinnedNow.addingTimeInterval(-60)
-        let accumulator = makeAccumulator(provider: provider, sessionStartedAt: launchTime)
-
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 4, freezeMs: 80, sessionMs: 2_000))
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-
-        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
-        XCTAssertEqual(builder.startTime, launchTime,
-                       "First session anchors on the seeded launch time when no didBecomeActive was observed")
-        XCTAssertEqual(builder.attributes["app.session.duration.ms"]?.intValue, 60_000)
-    }
-
-    func testDidBecomeActiveDoesNotOverwriteSeededLaunchAnchor() throws {
-        // The first session keeps its launch-time anchor even if a stray
-        // `didBecomeActive` arrives during the session (e.g. a foreground
-        // event posted while the app was already active).
-        let provider = MockTracerProvider()
-        let launchTime = pinnedNow.addingTimeInterval(-100)
-        let accumulator = makeAccumulator(provider: provider, sessionStartedAt: launchTime)
-
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics())
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-
-        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
-        XCTAssertEqual(builder.startTime, launchTime)
+        let s1 = try XCTUnwrap(provider.tracer.builders[0].startedSpan)
+        let s2 = try XCTUnwrap(provider.tracer.builders[1].startedSpan)
+        XCTAssertEqual(s1.attributes["rendering.dropped_frames"]?.intValue, 3, "Session 1 carries only its own counter")
+        XCTAssertEqual(s2.attributes["rendering.dropped_frames"]?.intValue, 8, "Session 2 reset cleanly between sessions")
+        XCTAssertEqual(s1.attributes["app.session.duration.ms"]?.intValue, 10_000)
+        XCTAssertEqual(s2.attributes["app.session.duration.ms"]?.intValue, 20_000)
     }
 
     // MARK: - Edge cases
 
-    func testSkipsEmissionForEmptySessions() throws {
+    func testEmptySessionStillEmitsSpanWithDurationAndZeroCounters() throws {
         let provider = MockTracerProvider()
-        let accumulator = makeAccumulator(provider: provider)
-        _ = accumulator // hold reference
+        var clock = pinnedNow
+        let accumulator = makeAccumulator(provider: provider, now: { clock })
 
-        // didEnterBackground without any accumulated chunks.
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        accumulator.appRenderingSessionStarted(at: clock)
+        clock = clock.addingTimeInterval(8)
+        accumulator.appRenderingSessionEnded()
 
-        XCTAssertTrue(provider.tracer.builders.isEmpty,
-                      "Empty sessions emit no span")
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertTrue(span.ended)
+        XCTAssertEqual(span.status, .unset)
+        XCTAssertEqual(span.attributes["app.session.duration.ms"]?.intValue, 8_000)
+        XCTAssertEqual(span.attributes["rendering.dropped_frames"]?.intValue, 0)
+        XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 0)
     }
 
-    func testIgnoresStrayBackgroundWithNoOpenSession() throws {
+    func testIdempotentSessionStartDoesNotOpenSecondSpan() throws {
         let provider = MockTracerProvider()
         let accumulator = makeAccumulator(provider: provider)
 
-        // First didEnterBackground clears the seeded anchor (and emits nothing
-        // because no chunks accumulated). A second didEnterBackground without
-        // a foreground in between has no anchor and emits nothing.
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics())
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        accumulator.appRenderingSessionStarted(at: pinnedNow)
+        accumulator.appRenderingSessionStarted(at: pinnedNow)
+        accumulator.appRenderingSessionStarted(at: pinnedNow)
 
+        XCTAssertEqual(provider.tracer.builders.count, 1, "Only one live span open across stray starts")
+    }
+
+    func testStraySessionEndWithNoOpenSessionIsIdempotent() throws {
+        let provider = MockTracerProvider()
+        let accumulator = makeAccumulator(provider: provider)
+
+        accumulator.appRenderingSessionEnded()
         XCTAssertTrue(provider.tracer.builders.isEmpty)
+
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics())
+        XCTAssertTrue(provider.tracer.builders.isEmpty)
+
+        accumulator.appRenderingSessionEnded()
+        XCTAssertTrue(provider.tracer.builders.isEmpty)
+    }
+
+    // MARK: - Auto-termination semantics
+
+    func testNoAutoTerminationAttributeWhenNotInjected() throws {
+        let provider = MockTracerProvider()
+        let accumulator = makeAccumulator(provider: provider, autoTerminationAttribute: nil)
+
+        accumulator.appRenderingSessionStarted(at: pinnedNow)
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertNil(span.attributes["emb.auto_termination.code"])
+    }
+
+    func testInjectedAutoTerminationKeyIsReservedAgainstAttributeProvider() throws {
+        let provider = MockTracerProvider()
+        var clock = pinnedNow
+        let accumulator = makeAccumulator(
+            provider: provider,
+            attributeProvider: { _ in ["emb.auto_termination.code": .string("host_override")] },
+            now: { clock }
+        )
+
+        accumulator.appRenderingSessionStarted(at: clock)
+        clock = clock.addingTimeInterval(5)
+        accumulator.appRenderingSessionEnded()
+
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertEqual(span.attributes["emb.auto_termination.code"]?.stringValue, "user_abandon",
+                       "SDK-injected value wins; host attributeProvider override is dropped at the reserved-key merge")
+    }
+
+    func testNoSpanUntilFirstSessionStartAndPreStartChunksAreDropped() throws {
+        let provider = MockTracerProvider()
+        let accumulator = makeAccumulator(provider: provider)
+
+        accumulator.appRenderingMetricsReceived(metrics: renderingMetrics(droppedFrames: 9))
+        XCTAssertTrue(provider.tracer.builders.isEmpty, "No span before the first session start")
     }
 }

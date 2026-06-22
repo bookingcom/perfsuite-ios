@@ -74,6 +74,13 @@ public enum OTelSemanticConventions {
         public static let appSessionId = "app.session.id"
         public static let appSessionDurationMs = "app.session.duration.ms"
 
+        /// The backend's session-bucketing key. A session processor stamps this = the CURRENT session
+        /// on every span at start and the exporter buckets spans into the session payload by it. This is
+        /// the generic OpenTelemetry session key (Embrace's `SpanSemantics.keySessionId` is the same
+        /// `"session.id"`), so it's safe to hardcode here rather than inject — a post-facto fatal-hang
+        /// span re-stamps it (post-`startSpan`) with the session the hang happened in.
+        public static let sessionId = "session.id"
+
         // Watchdog termination
         public static let appState = "app.state"
         public static let memoryWarningsCount = "memory.warnings_count"

@@ -85,7 +85,11 @@ extension OTelSpanEmitter {
             startTime: startTime,
             endTime: endTime,
             attributes: SDKAttributeSet(values: sdkAttributes, reservedKeys: OTelSDKKeys.hang),
-            context: context
+            context: context,
+            // Fatal hangs are detected on the NEXT launch, so the span is created in session N+1.
+            // Override `session.id` (post-startSpan) with the session the hang happened in so the
+            // backend buckets it correctly instead of attributing it to the launch that reported it.
+            sessionIdOverride: info.sessionId
         )
     }
 

@@ -115,7 +115,8 @@ final class OTelSpanEmitter {
         startTime: Date,
         endTime: Date,
         attributes: SDKAttributeSet,
-        context: PerformanceSuiteSignalContext
+        context: PerformanceSuiteSignalContext,
+        sessionIdOverride: String? = nil
     ) {
         if let shouldEmit, !shouldEmit(context) { return }
 
@@ -127,6 +128,18 @@ final class OTelSpanEmitter {
         )
 
         let span = makeBuilder(spanName: spanName, startTime: startTime, attributes: merged).startSpan()
+        // A backend session processor (e.g. Embrace's `EmbraceSpanProcessor.onStart`) stamps the
+        // session-bucketing key = the CURRENT session on every span at start, overwriting anything set
+        // pre-start. A post-facto signal (a fatal hang detected on the NEXT launch) must be attributed
+        // to the session it actually happened in — so set the key AFTER `startSpan` so it survives the
+        // onStart overwrite and lands on the completed span exported at onEnd (the backend buckets by
+        // this attribute). The key is the generic OTel `session.id` (== Embrace's `SpanSemantics
+        // .keySessionId`), so it's hardcoded rather than injected.
+        if let sessionIdOverride {
+            span.setAttribute(
+                key: OTelSemanticConventions.Attribute.sessionId,
+                value: .string(sessionIdOverride))
+        }
         span.end(time: endTime)
     }
 

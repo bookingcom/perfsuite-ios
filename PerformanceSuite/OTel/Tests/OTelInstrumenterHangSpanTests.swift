@@ -157,4 +157,41 @@ final class OTelInstrumenterHangSpanTests: XCTestCase {
         XCTAssertEqual(builder.attributes["app.session.id"]?.stringValue, "sdk-session-id",
                        "OTelSDKKeys.hang reserves app.session.id, so a malicious provider cannot overwrite it")
     }
+
+    // MARK: - session.id override (backend session-bucketing key)
+
+    /// A fatal hang is detected on the NEXT launch, so its span is created in the new session and the
+    /// backend's onStart processor (e.g. Embrace's `EmbraceSpanProcessor`) would stamp `session.id` =
+    /// the new session. The emitter re-stamps `session.id` with `info.sessionId` (the session the hang
+    /// happened in) AFTER `startSpan` so it survives that overwrite. This asserts the override lands on
+    /// the *started span* and NOT on the pre-start builder — the ordering is the whole point: setting it
+    /// pre-start would let onStart clobber it back to the wrong (current) session.
+    func testFatalHangSpanOverridesSessionIdWithOriginatingSessionPostStart() throws {
+        let provider = MockTracerProvider()
+        let instrumenter = makeInstrumenter(provider: provider)
+
+        let info = hangInfo(sessionId: "previous-session-A")
+        instrumenter.fatalHangReceived(info: info)
+
+        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
+        // Pre-start: session.id must NOT be on the builder, or the backend's onStart would overwrite it.
+        XCTAssertNil(builder.attributes["session.id"],
+                     "session.id must be set AFTER startSpan, not on the pre-start builder")
+        // Post-start: the started span carries session.id = the originating (previous) session.
+        let span = try XCTUnwrap(builder.startedSpan)
+        XCTAssertEqual(span.attributes["session.id"]?.stringValue, "previous-session-A",
+                       "Fatal hang span must re-stamp session.id with info.sessionId post-startSpan")
+    }
+
+    func testFatalHangSpanOmitsSessionIdOverrideWhenInfoSessionIdIsNil() throws {
+        let provider = MockTracerProvider()
+        let instrumenter = makeInstrumenter(provider: provider)
+
+        let info = hangInfo(sessionId: nil)
+        instrumenter.fatalHangReceived(info: info)
+
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertNil(span.attributes["session.id"],
+                     "With nil info.sessionId, no session.id override is set (no empty string)")
+    }
 }

@@ -259,6 +259,60 @@ class RenderingObserverTests: XCTestCase {
         )
     }
 
+    func testWillResignActiveEndsLiveMeasurementThenDidBecomeActiveRestarts() {
+        // A screen-rendering span straddles an app background (no viewWillDisappear fires). End it
+        // synchronously on willResignActive — winning the race against the backend's didEnterBackground
+        // session-end — then restart a fresh measurement on didBecomeActive while the screen is visible.
+        let metricsReceiver = LiveRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
+
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.startedContexts.count, 1)
+        XCTAssertTrue(framesMeter.isStarted)
+
+        // Synchronous end via the live path (NOT cancel()); FramesMeter unsubscribed.
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "willResignActive ends the live measurement synchronously")
+        XCTAssertNotNil(metricsReceiver.endedCalls.first?.context, "ended via the live context, not cancel()")
+        XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 0)
+        XCTAssertFalse(framesMeter.isStarted, "FramesMeter unsubscribed on background")
+
+        // Foreground again, screen still visible → a fresh measurement restarts.
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.startedContexts.count, 2, "didBecomeActive restarts a fresh measurement")
+        XCTAssertTrue(framesMeter.isStarted, "FramesMeter re-subscribed on restart")
+
+        // A later real disappear ends the restarted measurement — exactly once more.
+        observer.beforeViewWillDisappear()
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 2, "the restarted session ends normally on disappear")
+    }
+
+    func testWillResignActiveThenDisappearDoesNotDoubleReport() {
+        // After a resign-driven end with no restart, a later real viewWillDisappear must not
+        // re-report the already-ended span.
+        let metricsReceiver = LiveRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
+
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
+        waitForEvents()
+
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 1)
+
+        observer.beforeViewWillDisappear()
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "disappear after a resign-end must not double-report")
+    }
+
     private func waitForEvents() {
         let exp = expectation(description: "runloop")
         DispatchQueue.main.asyncAfter(deadline: .now()) {

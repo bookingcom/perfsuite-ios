@@ -180,6 +180,52 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    func testWillResignActiveEndsSessionSynchronously() {
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        // willResignActive fires before the backend's didEnterBackground session-end, so the live
+        // session must end *synchronously* within the notification turn to win that race — no wait.
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+
+        XCTAssertEqual(
+            metricsReceiver.endedCount, 1,
+            "willResignActive must end the live session synchronously so it beats the backend session-end")
+        _ = receiver
+    }
+
+    func testDidBecomeActiveStartsSession() {
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertEqual(metricsReceiver.startedCount, 1, "didBecomeActive must start a new live session")
+        _ = receiver
+    }
+
+    func testBackgroundCycleEndsThenRestarts() {
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        PerformanceMonitoring.consumerQueue.sync {}
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertEqual(metricsReceiver.startedCount, 2, "each foreground entry starts a fresh session")
+        XCTAssertEqual(metricsReceiver.endedCount, 1, "willResignActive ended the first session")
+        _ = receiver
+    }
+
     private func waitForThreshold() {
         let exp = expectation(description: "throttle delay")
         DispatchQueue.main.asyncAfter(deadline: .now() + throttleInterval * 2) {
@@ -196,4 +242,21 @@ class AppRenderingMetricsReceiverStub: AppRenderingMetricsReceiver {
         appRenderingMetrics = metrics
     }
     var appRenderingMetrics: RenderingMetrics?
+}
+
+/// Live variant used by the app-lifecycle (willResignActive / didBecomeActive) tests: records
+/// session start/end calls so the background-safe live-span lifecycle can be asserted.
+final class LiveAppRenderingMetricsReceiverStub: LiveAppRenderingMetricsReceiver {
+    var appRenderingMetrics: RenderingMetrics?
+    var startedCount = 0
+    var endedCount = 0
+    func appRenderingMetricsReceived(metrics: RenderingMetrics) {
+        appRenderingMetrics = metrics
+    }
+    func appRenderingSessionStarted(at startedAt: Date) {
+        startedCount += 1
+    }
+    func appRenderingSessionEnded() {
+        endedCount += 1
+    }
 }

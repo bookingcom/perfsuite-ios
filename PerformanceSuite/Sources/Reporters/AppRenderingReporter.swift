@@ -58,6 +58,16 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
             name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
+        // Ends the live span on willResignActive — which fires BEFORE didEnterBackground, hence
+        // before Embrace's didEnterBackground-driven SessionController.endSession() →
+        // autoTerminateSpans(). Ending synchronously here lets our clean end win that race so the
+        // span ships Status.unset + real duration instead of being auto-terminated (user_abandon).
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appDidEnterBackground),
@@ -113,7 +123,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     /// finish before the process dies); `didEnterBackground` is async to keep the transition off main
     /// and avoid a `main → PM.queue → consumerQueue → main` deadlock. A finalize that misses
     /// suspension is covered by the caller-injected auto-termination attribute.
-    private func drainAndEndSession(synchronously: Bool) {
+    private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
         PerformanceMonitoring.runOnQueue {
             self.scheduledSending?.cancel()
             self.scheduledSending = nil
@@ -124,6 +134,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
                     self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
                 }
                 (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
+                completion?()
             }
             if synchronously {
                 PerformanceMonitoring.consumerQueue.sync(execute: deliver)
@@ -141,8 +152,39 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
         }
     }
 
+    @objc private func appWillResignActive() {
+        // Synchronous end so it completes within this notification turn — before Embrace ends the
+        // session on didEnterBackground. Idempotent: if the app merely resigns active for a transient
+        // interruption (Control Center / notification / call) and returns without backgrounding, the
+        // next didBecomeActive starts a fresh session span. The auto-termination attribute remains the
+        // safety net for unclean exits where willResignActive never fires (jetsam/OOM/crash while active).
+        drainAndEndSession(synchronously: true)
+    }
+
     @objc private func appDidEnterBackground() {
-        drainAndEndSession(synchronously: false)
+        // Hold a background-task assertion across the async finalize so `span.end()`
+        // actually runs before the process is suspended. Without it the
+        // `consumerQueue.async` finalize loses the race with suspension on essentially
+        // every backgrounding: the span stays open and is closed only by the backend's
+        // auto-termination on the NEXT launch (bogus duration, `emb.error_code=user_abandon`,
+        // and none of the `finalizeAppRenderingLiveSpan` attributes). Kept async (not `sync`)
+        // on purpose — a synchronous `consumerQueue.sync` from main can deadlock if a
+        // span-processor `onEnd` ever hops back to main; the background task gives the
+        // existing async path the runtime it needs instead.
+        let application = UIApplication.shared
+        var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+        backgroundTask = application.beginBackgroundTask(withName: "perfsuite.app-rendering.finalize") {
+            if backgroundTask != .invalid {
+                application.endBackgroundTask(backgroundTask)
+                backgroundTask = .invalid
+            }
+        }
+        drainAndEndSession(synchronously: false) {
+            if backgroundTask != .invalid {
+                application.endBackgroundTask(backgroundTask)
+                backgroundTask = .invalid
+            }
+        }
     }
 
     @objc private func appWillTerminate() {

@@ -131,8 +131,7 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
     ///
     /// If the marker survives this flow, the *next* launch sees
     /// `didCrashDuringPreviousExecution() == true` and a recovered hang is mis-reported as a
-    /// crash. This must hold for both reporting modes, and even after any asynchronously-deferred
-    /// Crashlytics work has run.
+    /// crash. This must hold for both reporting modes.
     private func assertRecoveredNonFatalHangDoesNotLeaveCrashMarker(
         fatalHangsAsCrashes: Bool, file: StaticString = #file, line: UInt = #line
     ) throws {
@@ -158,15 +157,10 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
             "exception.clsrecord should be present (non-empty) only when fatalHangsAsCrashes is true",
             file: file, line: line)
 
-        // 2. Hang recovers -> replace with a non-fatal report, marker should be removed again.
+        // 2. Hang recovers -> replace with a non-fatal report, marker removed again. The
+        // on-demand recording is synchronous, so the marker is created and removed inside this
+        // call; assert as soon as it returns.
         reporter.changeExistingHangReport(toType: hangType, stackTrace: stack, reportPath: reportPath)
-
-        // Let any asynchronously-deferred Crashlytics work run. Newer Firebase defers
-        // `recordOnDemandExceptionModel` behind a context-init promise, so the on-demand
-        // recording (which re-creates the marker) may land *after* the synchronous removal.
-        let drain = expectation(description: "drain async crashlytics work")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { drain.fulfill() }
-        wait(for: [drain], timeout: 5)
 
         XCTAssertFalse(
             fileManager.fileExists(atPath: markerPath),

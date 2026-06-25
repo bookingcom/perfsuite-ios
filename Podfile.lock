@@ -54,22 +54,22 @@ PODS:
   - nanopb/decode (3.30910.0)
   - nanopb/encode (3.30910.0)
   - OpenTelemetry-Swift-Api (2.3.0)
-  - PerformanceSuite (1.10.1):
-    - PerformanceSuite/Core (= 1.10.1)
-  - PerformanceSuite/Core (1.10.1)
-  - PerformanceSuite/Crashlytics (1.10.1):
-    - FirebaseCrashlytics
+  - PerformanceSuite (1.11.0):
+    - PerformanceSuite/Core (= 1.11.0)
+  - PerformanceSuite/Core (1.11.0)
+  - PerformanceSuite/Crashlytics (1.11.0):
+    - FirebaseCrashlytics (< 13.0.0, >= 12.11.0)
     - PerformanceSuite/Core
-  - PerformanceSuite/OTel (1.10.1):
+  - PerformanceSuite/OTel (1.11.0):
     - OpenTelemetry-Swift-Api (~> 2.0)
     - PerformanceSuite/Core
-  - PerformanceSuite/PerformanceApp (1.10.1):
+  - PerformanceSuite/PerformanceApp (1.11.0):
     - GCDWebServer
     - PerformanceSuite/Crashlytics
-  - PerformanceSuite/Tests (1.10.1):
+  - PerformanceSuite/Tests (1.11.0):
     - PerformanceSuite/Crashlytics
     - PerformanceSuite/OTel
-  - PerformanceSuite/UITests (1.10.1):
+  - PerformanceSuite/UITests (1.11.0):
     - GCDWebServer
     - PerformanceSuite/PerformanceApp
   - PromisesObjC (2.4.1)
@@ -78,7 +78,6 @@ PODS:
   - SwiftLint (0.63.2)
 
 DEPENDENCIES:
-  - FirebaseCrashlytics (~> 12.0)
   - PerformanceSuite (from `.`)
   - PerformanceSuite/PerformanceApp (from `.`)
   - PerformanceSuite/Tests (from `.`)
@@ -120,11 +119,11 @@ SPEC CHECKSUMS:
   GoogleUtilities: 4f2618a4a1e762a1ee134a1e2323bba9843e06da
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   OpenTelemetry-Swift-Api: 3d77582ab6837a63b65bf7d2eacc57d8f2595edd
-  PerformanceSuite: 6921686c72fc17ee5034b0cf327a45c82460e1d6
+  PerformanceSuite: 9a4b74c989d17811769189299cc10c21f58b53ef
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
   SwiftLint: 4fa4a9b437ccc4fc72f6c0bc98556e8e9e05bccf
 
-PODFILE CHECKSUM: 9eb2792b2e8a8b5ad47784c0f931c16170885776
+PODFILE CHECKSUM: 2b913d8832a277bcc352c8790ee0c010eb447635
 
 COCOAPODS: 1.16.2

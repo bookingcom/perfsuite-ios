@@ -111,6 +111,48 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(atPath: reportPath))
     }
 
+    /// Reproduces the full lifecycle of a *recovered* (non-fatal) hang and asserts that
+    /// Crashlytics does NOT think the app crashed afterwards.
+    ///
+    /// Real-world flow (see `CrashlyticsHangsReceiverWrapper`):
+    ///   1. The hang crosses the fatal threshold -> `reportHangStarted` records a *fatal*
+    ///      on-demand exception. Recording any on-demand exception makes Firebase write its
+    ///      `previously-crashed` marker, so we immediately remove the marker.
+    ///   2. The hang then recovers -> `changeExistingHangReport` replaces the fatal report
+    ///      with a non-fatal one and again ensures the marker is removed.
+    ///
+    /// If the marker survives this flow, the *next* launch sees
+    /// `didCrashDuringPreviousExecution() == true` and a recovered hang is mis-reported as a
+    /// crash. This must hold even after any asynchronously-deferred Crashlytics work has run.
+    func testRecoveredNonFatalHang_DoesNotLeaveCrashMarker() throws {
+        let fileManager = FileManager.default
+        let markerPath = try XCTUnwrap(getCrashMarkerFilePath())
+
+        // Start from a clean state.
+        try? fileManager.removeItem(atPath: markerPath)
+        XCTAssertFalse(fileManager.fileExists(atPath: markerPath))
+
+        let reporter = CrashlyticsIssueReporter(fatalHangsAsCrashes: true, firebaseHangReason: hangReason)
+
+        // 1. Hang starts -> fatal report recorded, marker removed.
+        let reportPath = reporter.reportHangStarted(withType: hangType, stackTrace: stack)
+        XCTAssertFalse(reportPath.isEmpty)
+
+        // 2. Hang recovers -> replace with a non-fatal report, marker removed again.
+        reporter.changeExistingHangReport(toType: hangType, stackTrace: stack, reportPath: reportPath)
+
+        // Let any asynchronously-deferred Crashlytics work run. Newer Firebase defers
+        // `recordOnDemandExceptionModel` behind a context-init promise, so the on-demand
+        // recording (which re-creates the marker) may land *after* the synchronous removal.
+        let drain = expectation(description: "drain async crashlytics work")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { drain.fulfill() }
+        wait(for: [drain], timeout: 5)
+
+        XCTAssertFalse(
+            fileManager.fileExists(atPath: markerPath),
+            "Crash marker present after a recovered non-fatal hang: the next launch would mis-report it as an app crash")
+    }
+
     // Helper method to get the crash marker file path
     private func getCrashMarkerFilePath() -> String? {
         guard let crashedMarkerFileName = String(utf8String: FIRCLSCrashedMarkerFileName),

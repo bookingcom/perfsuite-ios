@@ -76,9 +76,13 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
             let model = exceptionModel(withName: type, stackTrace: stackTrace)
             Crashlytics.crashlytics().record(onDemandExceptionModel: model)
 
-            if fatalHangsAsCrashes {
-                removeFirebaseCrashMarker()
-            }
+            // `record(onDemandExceptionModel:)` records an on-demand exception, which always
+            // writes Firebase's "previously-crashed" marker (even for a non-fatal model). A
+            // recovered hang is never a crash, so we must always clear the marker here -
+            // regardless of the reporting mode - otherwise the next launch reports a phantom
+            // crash via `didCrashDuringPreviousExecution()`. This mirrors `reportHangStarted`,
+            // which also removes the marker unconditionally.
+            removeFirebaseCrashMarker()
         } catch {
             debugPrint("Failed to change hang report type with error: \(error)")
         }

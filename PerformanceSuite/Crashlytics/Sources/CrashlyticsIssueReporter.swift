@@ -47,13 +47,17 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
             }
 
             // We are passing crash error type here, so that stack trace is recorded
-            // for all the threads
-            result = FIRCLSExceptionRecordOnDemand(firebaseNativeErrorType, name, reason, model.stackTrace, true, 0, 0)
+            // for all the threads.
+            // Last argument is `shouldSuspendThread` (added in Firebase 11.9.0); we pass `true`
+            // to match Firebase's own default and preserve the all-thread snapshot behavior.
+            result = FIRCLSExceptionRecordOnDemand(firebaseNativeErrorType, name, reason, model.stackTrace, true, 0, 0, true)
         } else {
             // We are not using `record(onDemandExceptionModel: model)` here,
             // because then the report will be sent right away,
             // but we do not know if it should by fatal or non-fatal hang yet.
-            result = FIRCLSExceptionRecordOnDemandModel(model, 0, 0)
+            // Last argument is `shouldSuspendThread` (added in Firebase 11.9.0); we pass `true`
+            // to match Firebase's own default.
+            result = FIRCLSExceptionRecordOnDemandModel(model, 0, 0, true)
         }
 
         // Ensure, that crash marker is not created
@@ -74,7 +78,8 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
             try FileManager.default.removeItem(atPath: reportPath)
 
             let model = exceptionModel(withName: type, stackTrace: stackTrace)
-            Crashlytics.crashlytics().record(onDemandExceptionModel: model)
+            let crashlytics = Crashlytics.crashlytics()
+            crashlytics.record(onDemandExceptionModel: model)
 
             // `record(onDemandExceptionModel:)` records an on-demand exception, which always
             // writes Firebase's "previously-crashed" marker (even for a non-fatal model). A
@@ -82,7 +87,24 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
             // regardless of the reporting mode - otherwise the next launch reports a phantom
             // crash via `didCrashDuringPreviousExecution()`. This mirrors `reportHangStarted`,
             // which also removes the marker unconditionally.
-            removeFirebaseCrashMarker()
+            //
+            // Since Firebase 12.11.0, `record(onDemandExceptionModel:)` defers its work (the
+            // marker write included) onto an internal context-init promise instead of running
+            // synchronously. A synchronous `removeFirebaseCrashMarker()` here would race ahead
+            // of that deferred write, leaving the marker in place. We chain our removal on the
+            // same promise via `waitForContextInit` *after* the record call: FBLPromise invokes
+            // observers in registration order on the main queue, and the record's marker write
+            // is synchronous within its own observer, so our removal is guaranteed to run after
+            // the marker has been (re)written. (`reportHangStarted` is unaffected: it records
+            // through the synchronous `FIRCLSExceptionRecordOnDemand*` C functions, which Firebase
+            // never wrapped.)
+            // Capture `self` strongly: the removal must run even if the caller releases this
+            // reporter before the promise resolves (otherwise the deferred marker *write* would
+            // survive with no removal). The closure is owned by Firebase's one-shot promise
+            // observer, not by `self`, so there is no retain cycle.
+            crashlytics.wait(forContextInit: "perfSuiteHangMarkerRemoval") {
+                self.removeFirebaseCrashMarker()
+            }
         } catch {
             debugPrint("Failed to change hang report type with error: \(error)")
         }

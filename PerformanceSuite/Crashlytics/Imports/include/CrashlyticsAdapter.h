@@ -14,7 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// with the different hang type.
 NSString *FIRCLSExceptionRecordOnDemandModel(FIRExceptionModel *exceptionModel,
                                              int previousRecordedOnDemandExceptions,
-                                             int previousDroppedOnDemandExceptions);
+                                             int previousDroppedOnDemandExceptions,
+                                             BOOL shouldSuspendThread);
 
 /// We need to pass proper type (first argument) to this method
 /// to record stack traces of all the methods, 
@@ -25,7 +26,8 @@ NSString *FIRCLSExceptionRecordOnDemand(int type,
                                         NSArray<FIRStackFrame *> *frames,
                                         BOOL fatal,
                                         int previousRecordedOnDemandExceptions,
-                                        int previousDroppedOnDemandExceptions);
+                                        int previousDroppedOnDemandExceptions,
+                                        BOOL shouldSuspendThread);
 
 
 /// Firebase marker file which indicates that exception happened during the previous launch.
@@ -47,6 +49,14 @@ extern const char *FIRCLSCrashedMarkerFileName;
 /// because `recordExceptionModel` will send data only on the next launch,
 /// but we want to send non-fatal hang events as soon as we receive it.
 - (void)recordOnDemandExceptionModel:(FIRExceptionModel *)exceptionModel;
+
+/// Since Firebase 12.11.0 the record/log APIs (including `recordOnDemandExceptionModel:`)
+/// no longer run synchronously - their work is deferred onto an internal context-init
+/// promise. We expose this private helper so we can chain our crash-marker removal onto
+/// the same promise *after* an on-demand record, guaranteeing the removal runs after the
+/// deferred record has (re)written Firebase's "previously-crashed" marker. Without this,
+/// a synchronous removal would race ahead of the deferred write and the marker would survive.
+- (void)waitForContextInit:(NSString *)contextLog callback:(void (^)(void))callback;
 
 /// We need file manager to get `rootPath` folder
 @property(nonatomic, readonly, nullable) id<RootPathProvider> fileManager;

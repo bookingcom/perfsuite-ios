@@ -157,11 +157,25 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
             "exception.clsrecord should be present (non-empty) only when fatalHangsAsCrashes is true",
             file: file, line: line)
 
-        // 2. Hang recovers -> replace with a non-fatal report, marker removed again. The
-        // on-demand recording is synchronous, so the marker is created and removed inside this
-        // call; assert as soon as it returns.
+        // The marker an on-demand recording writes must be gone after reportHangStarted. Give any
+        // deferred Crashlytics work a moment to run before checking (see below).
+        let afterReportHangStarted = expectation(description: "deferred crashlytics work")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { afterReportHangStarted.fulfill() }
+        wait(for: [afterReportHangStarted], timeout: 10)
+        XCTAssertFalse(
+            fileManager.fileExists(atPath: markerPath),
+            "Crash marker present after reportHangStarted",
+            file: file, line: line)
+
+        // 2. Hang recovers -> replace with a non-fatal report; the marker must end up removed.
         reporter.changeExistingHangReport(toType: hangType, stackTrace: stack, reportPath: reportPath)
 
+        // `record(onDemandExceptionModel:)` runs on the main queue, and newer Firebase (>= 12.x)
+        // defers it behind a context-init promise that resolves shortly after this call - so the
+        // marker it (incorrectly) leaves appears a moment later. Wait for it to settle, then assert.
+        let afterChangeExistingHangReport = expectation(description: "deferred crashlytics work")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { afterChangeExistingHangReport.fulfill() }
+        wait(for: [afterChangeExistingHangReport], timeout: 10)
         XCTAssertFalse(
             fileManager.fileExists(atPath: markerPath),
             "Crash marker present after a recovered non-fatal hang: the next launch would mis-report it as an app crash",

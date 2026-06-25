@@ -7,7 +7,6 @@ target :Project
 platform :ios, deployment_target
 use_frameworks!
 pod 'PerformanceSuite', :path  => '.', :appspecs => ['PerformanceApp'], :testspecs => ['Tests', 'UITests']
-pod 'FirebaseCrashlytics', '~> 12.0'
 pod 'SwiftLint'
 
 post_install do |installer|

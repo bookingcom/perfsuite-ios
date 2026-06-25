@@ -111,34 +111,45 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(atPath: reportPath))
     }
 
+    func testRecoveredNonFatalHang_DoesNotLeaveCrashMarker_WhenFatalHangsAsCrashesIsTrue() throws {
+        try assertRecoveredNonFatalHangDoesNotLeaveCrashMarker(fatalHangsAsCrashes: true)
+    }
+
+    func testRecoveredNonFatalHang_DoesNotLeaveCrashMarker_WhenFatalHangsAsCrashesIsFalse() throws {
+        try assertRecoveredNonFatalHangDoesNotLeaveCrashMarker(fatalHangsAsCrashes: false)
+    }
+
     /// Reproduces the full lifecycle of a *recovered* (non-fatal) hang and asserts that
     /// Crashlytics does NOT think the app crashed afterwards.
     ///
     /// Real-world flow (see `CrashlyticsHangsReceiverWrapper`):
-    ///   1. The hang crosses the fatal threshold -> `reportHangStarted` records a *fatal*
-    ///      on-demand exception. Recording any on-demand exception makes Firebase write its
+    ///   1. The hang crosses the fatal threshold -> `reportHangStarted` records an on-demand
+    ///      exception. Recording any on-demand exception makes Firebase write its
     ///      `previously-crashed` marker, so we immediately remove the marker.
-    ///   2. The hang then recovers -> `changeExistingHangReport` replaces the fatal report
-    ///      with a non-fatal one and again ensures the marker is removed.
+    ///   2. The hang then recovers -> `changeExistingHangReport` replaces that report with a
+    ///      non-fatal one and again ensures the marker is removed.
     ///
     /// If the marker survives this flow, the *next* launch sees
     /// `didCrashDuringPreviousExecution() == true` and a recovered hang is mis-reported as a
-    /// crash. This must hold even after any asynchronously-deferred Crashlytics work has run.
-    func testRecoveredNonFatalHang_DoesNotLeaveCrashMarker() throws {
+    /// crash. This must hold for both reporting modes, and even after any asynchronously-deferred
+    /// Crashlytics work has run.
+    private func assertRecoveredNonFatalHangDoesNotLeaveCrashMarker(
+        fatalHangsAsCrashes: Bool, file: StaticString = #file, line: UInt = #line
+    ) throws {
         let fileManager = FileManager.default
         let markerPath = try XCTUnwrap(getCrashMarkerFilePath())
 
         // Start from a clean state.
         try? fileManager.removeItem(atPath: markerPath)
-        XCTAssertFalse(fileManager.fileExists(atPath: markerPath))
+        XCTAssertFalse(fileManager.fileExists(atPath: markerPath), file: file, line: line)
 
-        let reporter = CrashlyticsIssueReporter(fatalHangsAsCrashes: true, firebaseHangReason: hangReason)
+        let reporter = CrashlyticsIssueReporter(fatalHangsAsCrashes: fatalHangsAsCrashes, firebaseHangReason: hangReason)
 
-        // 1. Hang starts -> fatal report recorded, marker removed.
+        // 1. Hang starts -> report recorded, marker removed.
         let reportPath = reporter.reportHangStarted(withType: hangType, stackTrace: stack)
-        XCTAssertFalse(reportPath.isEmpty)
+        XCTAssertFalse(reportPath.isEmpty, file: file, line: line)
 
-        // 2. Hang recovers -> replace with a non-fatal report, marker removed again.
+        // 2. Hang recovers -> replace with a non-fatal report, marker should be removed again.
         reporter.changeExistingHangReport(toType: hangType, stackTrace: stack, reportPath: reportPath)
 
         // Let any asynchronously-deferred Crashlytics work run. Newer Firebase defers
@@ -150,7 +161,8 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
 
         XCTAssertFalse(
             fileManager.fileExists(atPath: markerPath),
-            "Crash marker present after a recovered non-fatal hang: the next launch would mis-report it as an app crash")
+            "Crash marker present after a recovered non-fatal hang: the next launch would mis-report it as an app crash",
+            file: file, line: line)
     }
 
     // Helper method to get the crash marker file path

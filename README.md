@@ -70,7 +70,7 @@ func appRenderingMetricsReceived(metrics: RenderingMetrics) { ... }
 
 ```
 
-For screen-level metrics you should return `ScreenIdentifier` from `screenIdentifier(for:)` or nil if this view controller shouldn't be tracked. Check [Screen identifiers] for the example.
+For screen-level metrics you should return `ScreenIdentifier` from `screenIdentifier(for:)` or nil if this view controller shouldn't be tracked. Check [Screen identifiers](#screen-identifiers) for the example.
 
 ```swift
 
@@ -112,7 +112,7 @@ pod 'PerformanceSuite'
 Currently CocoaPods repo [has problems](https://github.com/CocoaPods/cocoapods.org/issues/424) with indexing the new added pods, that's why if it doesn't work you may specify the source url and tag
 
 ```
-pod 'PerformanceSuite', :git => 'https://github.com/bookingcom/perfsuite-ios.git', :tag => '0.0.4' # use the last released version here
+pod 'PerformanceSuite', :git => 'https://github.com/bookingcom/perfsuite-ios.git', :tag => '1.10.1' # use the last released version here
 ```
 
 ## Usage
@@ -121,7 +121,7 @@ To receive performance events, you must have a class implementing some of the fo
 - `TTIMetricsReceiver`
 - `RenderingMetricsReceiver` 
 - `AppRenderingMetricsReceiver`
-- `WatchDogTerminationsReceiver`
+- `WatchdogTerminationsReceiver`
 - `HangsReceiver`
 - `ViewControllerLeaksReceiver` 
 - `StartupTimeReceiver`
@@ -218,7 +218,7 @@ class MetricsConsumer: TTIMetricsReceiver {
 
     func ttiMetricsReceived(metrics: TTIMetrics, screen: PerformanceScreen) {
         // send the event to your backend with this identifier
-        send(metric: "tti", value: metrics.tti.seconds, screen: performanceScreen.rawValue)
+        send(metric: "tti", value: metrics.tti.milliseconds, screen: screen.rawValue)
     }
 }
 

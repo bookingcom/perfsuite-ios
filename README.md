@@ -226,9 +226,7 @@ class MetricsConsumer: TTIMetricsReceiver {
 
 ## Crashlytics Integration
 
-`PerformanceSuite/Crashlytics` is an additional library that reports **fatal and non-fatal hangs** to [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics) with their stack traces. Hangs then show up as Crashlytics issues right next to your crashes, with a symbolicated main-thread stack trace, so you can triage them with the same tooling. It depends on `PerformanceSuite` and on `FirebaseCrashlytics`.
-
-> This integration covers **hangs only**. Standard crashes are still collected by Crashlytics itself; PerformanceSuite does not track them (see the note in [Supported features](#supported-features)).
+`PerformanceSuite/Crashlytics` is an additional library that reports **fatal and non-fatal hangs** to [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics) with their stack traces. Hangs then show up as Crashlytics issues right next to your crashes, with symbolicated stack traces — all threads for fatal issues, the main thread for non-fatal ones — so you can triage them with the same tooling. It depends on `PerformanceSuite` and on `FirebaseCrashlytics`.
 
 ### Installation
 
@@ -282,7 +280,7 @@ The wrapper tracks the lifecycle of a hang so the Crashlytics issue ends up with
 - When a hang **starts**, an on-demand report is recorded immediately as a **fatal hang**. If the app is then terminated while still hung (a fatal hang), that report survives and is delivered on the next launch.
 - If the hang instead **recovers** (a non-fatal hang), the wrapper rewrites the pending report as a **non-fatal** issue and sends it right away.
 
-In both cases the report carries the hang's main-thread stack trace, and the Firebase "previously-crashed" marker is cleared so a recovered hang doesn't surface as a phantom crash via `didCrashDuringPreviousExecution()` on the next launch.
+In both cases the report carries the hang's stack trace (and, for fatal hangs in `.fatalHangsAsCrashes` mode, a snapshot of all threads), and the Firebase "previously-crashed" marker is cleared so a recovered hang doesn't surface as a phantom crash via `didCrashDuringPreviousExecution()` on the next launch.
 
 ### Customizing reporting — `CrashlyticsHangsSettings`
 

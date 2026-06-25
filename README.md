@@ -39,9 +39,16 @@ We've also opened the code for the similar [Android PerformanceSuite](https://gi
 - Watchdog [terminations](https://github.com/bookingcom/perfsuite-ios/wiki/Watchdog-Terminations) (memory or CPU terminations).
 - Logging of all UIKit controller events for easier debugging.
 
+### Built-in reporting integrations
+
+On top of delivering events to your own code, PerformanceSuite ships two optional libraries that report events for you without writing a custom bridge:
+
+- **Firebase Crashlytics** (`PerformanceSuite/Crashlytics`): reports fatal and non-fatal hangs to Crashlytics with their stack traces, so you can inspect hangs as issues right next to your crashes. See [Crashlytics Integration](#crashlytics-integration).
+- **OpenTelemetry** (`PerformanceSuite/OTel`): reports all events to any OTel-compatible backend (Embrace, Honeycomb, an in-house OTLP collector, …) — most signals as spans, view-controller leaks as log records. See [OpenTelemetry Integration](#opentelemetry-integration).
+
 #### Check our [Wiki](https://github.com/bookingcom/perfsuite-ios/wiki) for more details.
 
-Please note that PerformanceSuite currently does not support the tracking of standard crashes. You will need an additional tool to collect stack traces for crashes (for example, Firebase Crashlytics).
+Please note that PerformanceSuite currently does not support the tracking of standard crashes. You will need an additional tool to collect stack traces for crashes (for example, Firebase Crashlytics). Hangs, however, *can* be reported to Crashlytics out of the box — see [Crashlytics Integration](#crashlytics-integration).
 
 ## How it works
 
@@ -216,6 +223,96 @@ class MetricsConsumer: TTIMetricsReceiver {
 }
 
 ```
+
+## Crashlytics Integration
+
+`PerformanceSuite/Crashlytics` is an additional library that reports **fatal and non-fatal hangs** to [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics) with their stack traces. Hangs then show up as Crashlytics issues right next to your crashes, with a symbolicated main-thread stack trace, so you can triage them with the same tooling. It depends on `PerformanceSuite` and on `FirebaseCrashlytics`.
+
+> This integration covers **hangs only**. Standard crashes are still collected by Crashlytics itself; PerformanceSuite does not track them (see the note in [Supported features](#supported-features)).
+
+### Installation
+
+#### Swift Package Manager
+
+Add `PerformanceSuiteCrashlytics` as a target dependency alongside `PerformanceSuite`. The package URL is the same one you already use:
+
+```
+https://github.com/bookingcom/perfsuite-ios
+```
+
+#### CocoaPods
+
+```
+pod 'PerformanceSuite/Crashlytics'
+```
+
+The `Crashlytics` subspec depends on `FirebaseCrashlytics`.
+
+### Usage
+
+Instead of `PerformanceMonitoring.enable(...)`, call `enableWithCrashlyticsSupport(...)`. Compared to `enable`, it additionally:
+
+- reads `didCrashPreviously` from Crashlytics for you (`Crashlytics.crashlytics().didCrashDuringPreviousExecution()`);
+- wraps the `HangsReceiver` you pass via `.hangs(...)` so every hang is also reported to Crashlytics — your own receiver still gets the callbacks unchanged.
+
+**Make sure `FirebaseApp.configure()` has been called before this method** — the app will crash otherwise.
+
+```swift
+import PerformanceSuite
+import PerformanceSuiteCrashlytics
+
+FirebaseApp.configure()
+
+let metricsConsumer = MetricsConsumer()
+let config: Config = [
+    .hangs(metricsConsumer),
+    // ... any other config items
+]
+
+try PerformanceMonitoring.enableWithCrashlyticsSupport(
+    config: config,
+    settings: CrashlyticsHangsSettings()
+)
+```
+
+### How hangs are reported
+
+The wrapper tracks the lifecycle of a hang so the Crashlytics issue ends up with the correct fatality:
+
+- When a hang **starts**, an on-demand report is recorded immediately as a **fatal hang**. If the app is then terminated while still hung (a fatal hang), that report survives and is delivered on the next launch.
+- If the hang instead **recovers** (a non-fatal hang), the wrapper rewrites the pending report as a **non-fatal** issue and sends it right away.
+
+In both cases the report carries the hang's main-thread stack trace, and the Firebase "previously-crashed" marker is cleared so a recovered hang doesn't surface as a phantom crash via `didCrashDuringPreviousExecution()` on the next launch.
+
+### Customizing reporting — `CrashlyticsHangsSettings`
+
+```swift
+let settings = CrashlyticsHangsSettings(
+    reportingMode: .fatalHangsAsCrashes,   // default
+    hangReason: "hang",                    // default issue "reason"
+    hangTypeFormatter: defaultHangTypeFormatter
+)
+```
+
+- **`reportingMode`** — how fatal hangs are reported to Crashlytics:
+  - `.fatalHangsAsCrashes` (default) — fatal hangs are recorded with Firebase's native crash error type, so the report contains stack traces for **all threads** (just like a real crash).
+  - `.fatalHangsAsNonFatals` — fatal hangs are recorded as non-fatal issues (single-thread stack trace), keeping your crash-free-users metric unaffected by hangs.
+- **`hangReason`** — the string used as the Crashlytics issue "reason" for every hang.
+- **`hangTypeFormatter`** — builds the issue name from the hang's fatality and whether it happened during startup. The default produces names like `ios_fatal_hang`, `ios_non_fatal_hang`, `ios_startup_fatal_hang`, and `ios_startup_non_fatal_hang`.
+
+### Disabling Crashlytics in DEBUG
+
+`crashlyticsEnabledInDebug` (default `true`) lets you skip all Crashlytics reporting in `DEBUG` builds. When disabled, `enableWithCrashlyticsSupport` falls back to a plain `enable` (no Crashlytics calls, no wrapped receiver), so it is safe to call even when Firebase isn't configured:
+
+```swift
+try PerformanceMonitoring.enableWithCrashlyticsSupport(
+    config: config,
+    settings: CrashlyticsHangsSettings(),
+    crashlyticsEnabledInDebug: false
+)
+```
+
+`enableWithCrashlyticsSupport` also forwards `storage`, `experiments`, and `sessionIdProvider` to `enable(...)` — see [Usage](#usage) and [Hangs and previous-session correlation](#hangs-and-previous-session-correlation) for their semantics.
 
 ## OpenTelemetry Integration
 

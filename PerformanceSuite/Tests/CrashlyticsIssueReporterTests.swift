@@ -149,6 +149,15 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         let reportPath = reporter.reportHangStarted(withType: hangType, stackTrace: stack)
         XCTAssertFalse(reportPath.isEmpty, file: file, line: line)
 
+        // The fatal report file (exception.clsrecord) is written only in the fatal-hang-as-crash
+        // mode; otherwise the event is recorded to custom_exception_a.clsrecord instead.
+        let fatalReportPath = (reportPath as NSString).appendingPathComponent("exception.clsrecord")
+        let hasFatalReport = !(((try? String(contentsOfFile: fatalReportPath)) ?? "").isEmpty)
+        XCTAssertEqual(
+            hasFatalReport, fatalHangsAsCrashes,
+            "exception.clsrecord should be present (non-empty) only when fatalHangsAsCrashes is true",
+            file: file, line: line)
+
         // 2. Hang recovers -> replace with a non-fatal report, marker should be removed again.
         reporter.changeExistingHangReport(toType: hangType, stackTrace: stack, reportPath: reportPath)
 

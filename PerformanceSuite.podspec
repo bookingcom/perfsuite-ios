@@ -19,7 +19,7 @@ Pod::Spec.new do |s|
     cr_spec.source_files = 'PerformanceSuite/Crashlytics/Sources/*.swift', 'PerformanceSuite/Crashlytics/Imports/include/*.h'  
     cr_spec.public_header_files = 'PerformanceSuite/Crashlytics/Imports/include/*.h'
     cr_spec.dependency 'PerformanceSuite/Core'
-    cr_spec.dependency 'FirebaseCrashlytics'
+    cr_spec.dependency 'FirebaseCrashlytics', '>= 12.11.0', '< 13.0.0'
   end
 
   s.subspec 'OTel' do |otel_spec|

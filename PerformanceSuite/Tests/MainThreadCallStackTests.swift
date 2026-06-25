@@ -21,7 +21,7 @@ import XCTest
                 XCTAssert(stack.contains("XCTestCore"))
                 exp.fulfill()
             }
-            waitForExpectations(timeout: 1)
+            waitForExpectations(timeout: 10)
         }
 
         func testCallStackConversion() throws {

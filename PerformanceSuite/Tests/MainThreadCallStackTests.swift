@@ -21,7 +21,11 @@ import XCTest
                 XCTAssert(stack.contains("XCTestCore"))
                 exp.fulfill()
             }
-            waitForExpectations(timeout: 1)
+            // `readStack()` suspends the main thread while it walks the stack. Under CI CPU
+            // contention the background thread can be descheduled inside that window, freezing the
+            // main thread (which is waiting here) long enough to blow a tight deadline. This isn't a
+            // timing test, so use a generous timeout - it still completes in milliseconds normally.
+            waitForExpectations(timeout: 10)
         }
 
         func testCallStackConversion() throws {

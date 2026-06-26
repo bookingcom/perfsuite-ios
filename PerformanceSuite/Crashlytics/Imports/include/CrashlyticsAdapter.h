@@ -50,12 +50,10 @@ extern const char *FIRCLSCrashedMarkerFileName;
 /// but we want to send non-fatal hang events as soon as we receive it.
 - (void)recordOnDemandExceptionModel:(FIRExceptionModel *)exceptionModel;
 
-/// Since Firebase 12.11.0 the record/log APIs (including `recordOnDemandExceptionModel:`)
-/// no longer run synchronously - their work is deferred onto an internal context-init
-/// promise. We expose this private helper so we can chain our crash-marker removal onto
-/// the same promise *after* an on-demand record, guaranteeing the removal runs after the
-/// deferred record has (re)written Firebase's "previously-crashed" marker. Without this,
-/// a synchronous removal would race ahead of the deferred write and the marker would survive.
+/// Since Firebase 12.11.0 the record/log APIs (including `recordOnDemandExceptionModel:`) no longer
+/// run synchronously - their work is deferred onto an internal context-init promise. We expose this
+/// private helper so we can chain crash-marker cleanup onto the same promise after an on-demand
+/// record. See `changeExistingHangReport` for why this is paired with a background poll.
 - (void)waitForContextInit:(NSString *)contextLog callback:(void (^)(void))callback;
 
 /// We need file manager to get `rootPath` folder

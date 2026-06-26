@@ -139,8 +139,10 @@ final class CrashlyticsTests: BaseTests {
         app.launchEnvironment = env(clearStorage: true, inBackground: false, hangsAsNonFatals: hangsAsNonFatals)
         app.launch()
         app.staticTexts["Fatal hang"].tap()
-        waitForTimeout(4)  // let the fatal hang be detected in the foreground
-        app.terminate()    // simulate the system killing the stuck app
+        // Wait until the hang is actually detected before killing the app - a fixed sleep is racy on
+        // slow CI runners (kill too early -> no fatal hang recorded -> the relaunch assertion times out).
+        waitForMessage { $0 == .hangStarted }
+        app.terminate()  // simulate the system killing the stuck app
         relaunch(hangsAsNonFatals: hangsAsNonFatals)
     }
 
@@ -150,8 +152,10 @@ final class CrashlyticsTests: BaseTests {
         app.launchEnvironment = env(clearStorage: true, inBackground: false, hangsAsNonFatals: hangsAsNonFatals)
         app.launch()
         app.staticTexts["Non-fatal hang"].tap()
-        // The hang lasts ~6s and then recovers; give the deferred Crashlytics work time to settle.
-        waitForTimeout(10)
+        // Wait until the recovered hang has actually been reported before killing the app - a fixed
+        // sleep is racy on slow CI runners (kill before the report is captured -> the relaunch
+        // assertion times out).
+        waitForMessage { $0 == .nonFatalHang }
         app.terminate()
         relaunch(hangsAsNonFatals: hangsAsNonFatals)
     }

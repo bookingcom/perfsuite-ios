@@ -13,6 +13,18 @@ import GCDWebServer
 public let inTestsKey = "UI_TESTS"
 public let clearStorageKey = "CLEAR_STORAGE"
 public let startupFatalHangKey = "STARTUP_FATAL_HANG"
+/// When set, the app boots through `enableWithCrashlyticsSupport` (real Firebase Crashlytics)
+/// instead of the lightweight custom crash interceptor, so UI tests can exercise the Crashlytics
+/// `previously-crashed` marker path - e.g. the recovered-hang phantom-crash regression.
+public let crashlyticsKey = "CRASHLYTICS"
+/// When set (alongside `crashlyticsKey`), fatal hangs are reported as non-fatals
+/// (`CrashlyticsHangsReportingMode.fatalHangsAsNonFatals`) instead of the default
+/// `.fatalHangsAsCrashes`. Lets UI tests cover both hang reporting modes.
+public let crashlyticsHangsAsNonFatalsKey = "CRASHLYTICS_HANGS_AS_NONFATALS"
+/// Seconds to delay a simulated issue (crash/hang) after it is triggered. UI tests set this so
+/// they can tap the trigger, send the app to the background, and have the issue happen *while
+/// backgrounded*.
+public let actionDelayKey = "ACTION_DELAY"
 
 
 /// Message which is sent from the app to UI tests target

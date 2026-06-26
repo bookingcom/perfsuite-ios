@@ -18,6 +18,11 @@ import PerformanceSuite
 // this type is used for crashes to log all threads stack traces
 private let firebaseNativeErrorType: Int32 = 1
 
+// Polling parameters used to clear the "previously-crashed" marker that a deferred on-demand
+// `record(onDemandExceptionModel:)` re-writes (see `changeExistingHangReport`).
+private let crashMarkerPollInterval: TimeInterval = 0.005
+private let crashMarkerPollMaxAttempts = 100
+
 protocol CrashlyticsIssueReporting {
     func reportHangStarted(withType hangType: String, stackTrace: String) -> String
     func changeExistingHangReport(toType type: String, stackTrace: String, reportPath: String)
@@ -35,6 +40,10 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
 
     let fatalHangsAsCrashes: Bool
     let firebaseHangReason: String
+
+    /// Serial queue used to poll for and clear the crash marker that a deferred on-demand
+    /// `record(onDemandExceptionModel:)` re-writes (see `changeExistingHangReport`).
+    private let markerRemovalQueue = DispatchQueue(label: "com.perfsuite.crashMarkerRemoval")
 
     func reportHangStarted(withType type: String, stackTrace: String) -> String {
         let model = exceptionModel(withName: type, stackTrace: stackTrace)
@@ -78,35 +87,63 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
             try FileManager.default.removeItem(atPath: reportPath)
 
             let model = exceptionModel(withName: type, stackTrace: stackTrace)
+
+            // We use `record(onDemandExceptionModel:)` (not the synchronous C function
+            // `FIRCLSExceptionRecordOnDemandModel`) so the recovered non-fatal hang is uploaded
+            // right away instead of only on the next launch.
+            //
+            // Recording any on-demand exception writes Firebase's "previously-crashed" marker,
+            // which we must then remove (a recovered hang is never a crash) - otherwise the next
+            // launch mis-reports it as an app crash via `didCrashDuringPreviousExecution()`.
+            //
+            // Since Firebase 12.11.0, `record(onDemandExceptionModel:)` no longer runs
+            // synchronously: it defers its work (the marker write included) onto Firebase's
+            // internal context-init promise. We therefore clear the marker only once that promise
+            // has resolved - the point at which the deferred write happens - and even then poll for
+            // it, because the promise's observers have no guaranteed ordering: the write may land
+            // in our `waitForContextInit` callback (then the poll removes it immediately) or just
+            // after it (then the poll waits the brief moment for it to land). Anchoring the poll to
+            // the promise - rather than starting it at this call site - is what makes its short
+            // budget sufficient in every environment.
             let crashlytics = Crashlytics.crashlytics()
             crashlytics.record(onDemandExceptionModel: model)
-
-            // `record(onDemandExceptionModel:)` records an on-demand exception, which always
-            // writes Firebase's "previously-crashed" marker (even for a non-fatal model). A
-            // recovered hang is never a crash, so we must always clear the marker here -
-            // regardless of the reporting mode - otherwise the next launch reports a phantom
-            // crash via `didCrashDuringPreviousExecution()`. This mirrors `reportHangStarted`,
-            // which also removes the marker unconditionally.
-            //
-            // Since Firebase 12.11.0, `record(onDemandExceptionModel:)` defers its work (the
-            // marker write included) onto an internal context-init promise instead of running
-            // synchronously. A synchronous `removeFirebaseCrashMarker()` here would race ahead
-            // of that deferred write, leaving the marker in place. We chain our removal on the
-            // same promise via `waitForContextInit` *after* the record call: FBLPromise invokes
-            // observers in registration order on the main queue, and the record's marker write
-            // is synchronous within its own observer, so our removal is guaranteed to run after
-            // the marker has been (re)written. (`reportHangStarted` is unaffected: it records
-            // through the synchronous `FIRCLSExceptionRecordOnDemand*` C functions, which Firebase
-            // never wrapped.)
-            // Capture `self` strongly: the removal must run even if the caller releases this
-            // reporter before the promise resolves (otherwise the deferred marker *write* would
-            // survive with no removal). The closure is owned by Firebase's one-shot promise
-            // observer, not by `self`, so there is no retain cycle.
             crashlytics.wait(forContextInit: "perfSuiteHangMarkerRemoval") {
-                self.removeFirebaseCrashMarker()
+                self.removeCrashMarkerAfterDeferredOnDemandWrite()
             }
         } catch {
             debugPrint("Failed to change hang report type with error: \(error)")
+        }
+    }
+
+    /// `record(onDemandExceptionModel:)` writes Firebase's "previously-crashed" marker as deferred,
+    /// unordered work, so we cannot remove it inline or via a single chained promise observer. Poll
+    /// for the write to land (it is one-shot), then clear it - once removed *after* the write, it
+    /// stays gone for the next launch. If the marker never appears (e.g. the on-demand event was
+    /// dropped for quota), we simply time out with nothing to remove.
+    ///
+    /// We capture `self` strongly on purpose: the marker removal must run even if the caller
+    /// releases this reporter before the deferred write lands - otherwise the marker would survive
+    /// and the next launch would report a phantom crash. The capture is a temporary cycle
+    /// (self -> queue -> pending block -> self) that breaks as soon as the bounded poll finishes.
+    private func removeCrashMarkerAfterDeferredOnDemandWrite() {
+        // Single hop onto our serial queue; the poll then reschedules itself in place.
+        markerRemovalQueue.async {
+            self.pollForAndRemoveCrashMarker(attemptsLeft: crashMarkerPollMaxAttempts)
+        }
+    }
+
+    /// Must be called on `markerRemovalQueue`. Removes the marker if present, otherwise reschedules
+    /// itself on the same queue (no extra cross-queue hop) until it appears or the budget runs out.
+    private func pollForAndRemoveCrashMarker(attemptsLeft: Int) {
+        if let path = crashedMarkerFileFullPath, FileManager.default.fileExists(atPath: path) {
+            removeFirebaseCrashMarker()
+            return
+        }
+        guard attemptsLeft > 0 else {
+            return
+        }
+        markerRemovalQueue.asyncAfter(deadline: .now() + crashMarkerPollInterval) {
+            self.pollForAndRemoveCrashMarker(attemptsLeft: attemptsLeft - 1)
         }
     }
 

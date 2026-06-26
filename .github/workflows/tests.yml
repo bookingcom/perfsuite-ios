@@ -29,7 +29,9 @@ jobs:
 
       # we need pods to download SwiftLint
       - name: Install CocoaPods
-        if: steps.cache-pods.outputs.cache-hit != 'true'
+        # Always run, even on a Pods cache hit, so the generated project picks up newly
+        # added/removed source files (e.g. new test files); otherwise they are never compiled
+        # or run. The cache still skips re-downloading unchanged pods.
         run: |
           pod install
 
@@ -95,7 +97,9 @@ jobs:
             ${{ runner.os }}-pods-
 
       - name: Install CocoaPods
-        if: steps.cache-pods.outputs.cache-hit != 'true'
+        # Always run, even on a Pods cache hit, so the generated project picks up newly
+        # added/removed source files (e.g. new test files); otherwise they are never compiled
+        # or run. The cache still skips re-downloading unchanged pods.
         run: |
           pod install
 
@@ -180,7 +184,9 @@ jobs:
             ${{ runner.os }}-pods-
 
       - name: Install CocoaPods
-        if: steps.cache-pods.outputs.cache-hit != 'true'
+        # Always run, even on a Pods cache hit, so the generated project picks up newly
+        # added/removed source files (e.g. new test files); otherwise they are never compiled
+        # or run. The cache still skips re-downloading unchanged pods.
         run: |
           pod install
 

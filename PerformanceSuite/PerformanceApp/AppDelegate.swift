@@ -5,9 +5,17 @@
 //  Created by Gleb Tarasov on 30/11/2021.
 //
 
+import FirebaseCore
+import FirebaseCrashlytics
 import PerformanceSuite
 import SwiftUI
 import UIKit
+
+// In SwiftPM the Crashlytics support is a separate module; in CocoaPods it is part of
+// `PerformanceSuite`. Mirror the import style used by the Crashlytics sources.
+#if canImport(PerformanceSuiteCrashlytics)
+import PerformanceSuiteCrashlytics
+#endif
 
 @main
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -15,20 +23,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
 
-        let didCrash = CrashesInterceptor.didCrashDuringPreviousLaunch()
-        CrashesInterceptor.interceptCrashes()
-
         UITestsHelper.prepareForTestsIfNeeded()
 
         let metricsConsumer = MetricsConsumer()
-        do {
-            try PerformanceMonitoring.enable(config: .all(receiver: metricsConsumer), didCrashPreviously: didCrash)
-        } catch {
-            preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
-        }
-
-        if didCrash {
-            metricsConsumer.interop?.send(message: .crash)
+        if crashlyticsEnabled {
+            startWithCrashlyticsSupport(metricsConsumer: metricsConsumer)
+        } else {
+            startWithCustomCrashInterceptor(metricsConsumer: metricsConsumer)
         }
 
         let tc = UITabBarController()
@@ -40,6 +41,66 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         window.backgroundColor = .red
         self.window = window
         return true
+    }
+
+    // MARK: - Startup variants
+
+    private var crashlyticsEnabled: Bool {
+        ProcessInfo.processInfo.environment[crashlyticsKey] != nil
+    }
+
+    /// Default startup: a lightweight custom crash interceptor (no Firebase).
+    private func startWithCustomCrashInterceptor(metricsConsumer: MetricsConsumer) {
+        let didCrash = CrashesInterceptor.didCrashDuringPreviousLaunch()
+        CrashesInterceptor.interceptCrashes()
+
+        do {
+            try PerformanceMonitoring.enable(config: .all(receiver: metricsConsumer), didCrashPreviously: didCrash)
+        } catch {
+            preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
+        }
+
+        if didCrash {
+            metricsConsumer.interop?.send(message: .crash)
+        }
+    }
+
+    /// UI-test startup that boots through real Firebase Crashlytics, so tests can exercise the
+    /// Crashlytics `previously-crashed` marker path (recovered-hang phantom crashes). The marker is
+    /// the single source of truth here: if it is set on this launch, Crashlytics believes the
+    /// previous run crashed, so we surface that as `.crash`.
+    private func startWithCrashlyticsSupport(metricsConsumer: MetricsConsumer) {
+        Self.configureFirebaseIfNeeded()
+        let crashlytics = Crashlytics.crashlytics()
+        let didCrash = crashlytics.didCrashDuringPreviousExecution()
+
+        let reportingMode: CrashlyticsHangsReportingMode =
+            ProcessInfo.processInfo.environment[crashlyticsHangsAsNonFatalsKey] != nil
+            ? .fatalHangsAsNonFatals
+            : .fatalHangsAsCrashes
+
+        do {
+            try PerformanceMonitoring.enableWithCrashlyticsSupport(
+                config: .all(receiver: metricsConsumer),
+                settings: CrashlyticsHangsSettings(reportingMode: reportingMode),
+                crashlyticsEnabledInDebug: true)
+        } catch {
+            preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
+        }
+
+        if didCrash {
+            metricsConsumer.interop?.send(message: .crash)
+        }
+    }
+
+    private static func configureFirebaseIfNeeded() {
+        guard FirebaseApp.app() == nil else { return }
+        // Dummy options - we never talk to a real Firebase backend in UI tests; we only need
+        // Crashlytics' on-device report/marker machinery.
+        let options = FirebaseOptions(googleAppID: "1:11111111111:ios:aa1a1111111111a1", gcmSenderID: "123")
+        options.projectID = "abc-xyz-123"
+        options.apiKey = "A12345678901234567890123456789012345678"
+        FirebaseApp.configure(options: options)
     }
 
     func makeMenuController() -> UIViewController {

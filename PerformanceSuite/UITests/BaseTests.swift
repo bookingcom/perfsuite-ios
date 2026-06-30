@@ -7,6 +7,10 @@
 
 import XCTest
 
+/// Default timeout for event-driven waits (`waitForCondition` / `waitForMessage`). See the
+/// rationale on `waitForCondition`.
+private let uiTestDefaultWaitTimeout: TimeInterval = 45
+
 class BaseTests: XCTestCase {
     var client: UITestsInterop.Client!
     let app = XCUIApplication()
@@ -59,7 +63,13 @@ class BaseTests: XCTestCase {
     /// true. Useful when the success condition is a function of all received
     /// messages (e.g. an accumulated total) rather than the presence of a
     /// single message.
-    func waitForCondition(timeout: TimeInterval = 180, _ check: @escaping () -> Bool) {
+    ///
+    /// The default timeout is deliberately tight: a message that is going to arrive shows up within
+    /// a few seconds once its trigger fires, so a long timeout only inflates the cost of a *failing*
+    /// (often flaky) wait. 45s leaves ample margin for a slow CI relaunch while making a failed
+    /// attempt ~4x cheaper than the old 180s — which, multiplied by retries, used to blow the CI
+    /// 30-minute cap.
+    func waitForCondition(timeout: TimeInterval = uiTestDefaultWaitTimeout, _ check: @escaping () -> Bool) {
         let exp = expectation(description: "wait for condition")
         var fired = false
         waitingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in

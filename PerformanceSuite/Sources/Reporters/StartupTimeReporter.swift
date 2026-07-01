@@ -139,6 +139,9 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             // Discard the live measurement — startup measurement abandoned for this process.
             self.measurementHandle?.cancel()
             self.measurementHandle = nil
+            if experiments.dropStartupTimeWhenAppWasInBackground {
+                markAppStarted()
+            }
             return
         }
 

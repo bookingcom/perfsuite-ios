@@ -32,6 +32,22 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             startWithCustomCrashInterceptor(metricsConsumer: metricsConsumer)
         }
 
+        if startupBackgroundEnabled {
+            // Defer the whole UI setup so the first `viewDidAppear` happens a few seconds after
+            // launch. Using `asyncAfter` (not a blocking sleep) keeps the run loop free, so a
+            // `press(.home)` / `activate()` round-trip issued by the UI test during this window is
+            // actually processed before startup finishes — exercising the background-during-startup
+            // drop path deterministically.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                self.setupWindow()
+            }
+        } else {
+            setupWindow()
+        }
+        return true
+    }
+
+    private func setupWindow() {
         let tc = UITabBarController()
         tc.viewControllers = [makeMenuController(), makeRenderingController()] + makeTabs()
 
@@ -40,7 +56,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         window.makeKeyAndVisible()
         window.backgroundColor = .red
         self.window = window
-        return true
     }
 
     // MARK: - Startup variants
@@ -49,13 +64,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         ProcessInfo.processInfo.environment[crashlyticsKey] != nil
     }
 
+    private var startupBackgroundEnabled: Bool {
+        ProcessInfo.processInfo.environment[startupBackgroundKey] != nil
+    }
+
     /// Default startup: a lightweight custom crash interceptor (no Firebase).
     private func startWithCustomCrashInterceptor(metricsConsumer: MetricsConsumer) {
         let didCrash = CrashesInterceptor.didCrashDuringPreviousLaunch()
         CrashesInterceptor.interceptCrashes()
 
         do {
-            try PerformanceMonitoring.enable(config: .all(receiver: metricsConsumer), didCrashPreviously: didCrash)
+            try PerformanceMonitoring.enable(
+                config: .all(receiver: metricsConsumer),
+                didCrashPreviously: didCrash,
+                experiments: Experiments(dropStartupTimeWhenAppWasInBackground: startupBackgroundEnabled))
         } catch {
             preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
         }

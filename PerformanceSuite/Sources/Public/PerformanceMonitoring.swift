@@ -18,7 +18,17 @@ public protocol AppMetricsReceiver {}
 protocol AppMetricsReporter: AnyObject {}
 
 public struct Experiments {
-    public init() {}
+    /// When enabled, a startup-time event is dropped if the app was sent to the background
+    /// during startup (before the first `viewDidAppear`). The measured time would otherwise
+    /// include the background time and be misleadingly long.
+    ///
+    /// This mirrors how `TTIObserver` and `FragmentTTIReporter` already discard measurements that
+    /// span a backgrounding.
+    public var dropStartupTimeWhenAppWasInBackground: Bool
+
+    public init(dropStartupTimeWhenAppWasInBackground: Bool = false) {
+        self.dropStartupTimeWhenAppWasInBackground = dropStartupTimeWhenAppWasInBackground
+    }
 }
 
 public enum PerformanceMonitoring {

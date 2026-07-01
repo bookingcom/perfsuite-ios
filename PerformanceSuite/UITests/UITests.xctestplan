@@ -15,6 +15,7 @@
         "value" : "disable"
       }
     ],
+    "maximumTestRepetitions" : 2,
     "testRepetitionMode" : "retryOnFailure"
   },
   "testTargets" : [

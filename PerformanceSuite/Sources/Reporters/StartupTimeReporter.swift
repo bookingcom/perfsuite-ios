@@ -83,6 +83,8 @@ protocol StartupProvider {
 final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
 
     private let receiver: StartupTimeReceiver
+    private let appStateListener: AppStateListener
+    private let experiments: Experiments
     private var viewDidLoadTime: TimeInterval?
     private var isStarting = true
     private var onStartedActions: [() -> Void] = []
@@ -94,8 +96,16 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
     /// first `viewDidAppear` (both on main). A live receiver may anchor it retroactively at process start.
     private var measurementHandle: (any MeasurementHandle)?
 
-    init(receiver: StartupTimeReceiver) {
+    init(
+        receiver: StartupTimeReceiver,
+        appStateListener: AppStateListener = DefaultAppStateListener(),
+        experiments: Experiments = PerformanceMonitoring.experiments
+    ) {
         self.receiver = receiver
+        // Created here (during `enable()`, early in launch), so a `willResignActive` that arrives
+        // before the first `viewDidAppear` latches `wasInBackground` for the drop check below.
+        self.appStateListener = appStateListener
+        self.experiments = experiments
         // Started runs synchronously on the caller's thread (typically main) right after
         // `recordMainStarted()`. Only a live receiver starts a measurement; others stay legacy.
         self.measurementHandle = (receiver as? LiveStartupTimeReceiver)?.startupMeasurementStarted()
@@ -129,8 +139,23 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             // Discard the live measurement — startup measurement abandoned for this process.
             self.measurementHandle?.cancel()
             self.measurementHandle = nil
+            if experiments.dropStartupTimeWhenAppWasInBackground {
+                markAppStarted()
+            }
             return
         }
+
+        if experiments.dropStartupTimeWhenAppWasInBackground, appStateListener.wasInBackground {
+            // The app was sent to the background during startup, so the measured time includes
+            // background time and would be misleadingly long. Drop the event — same rationale as
+            // `TTIObserver` and `FragmentTTIReporter`. The app *did* finish starting, so we still
+            // flip `isStarting` / fire `onStartedActions` below; only the receiver callback is suppressed.
+            self.measurementHandle?.cancel()
+            self.measurementHandle = nil
+            markAppStarted()
+            return
+        }
+
         let viewDidAppearTime = Self.currentTime()
         let processStartTime = Self.processStartTime()
 
@@ -172,6 +197,13 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             }
         }
 
+        markAppStarted()
+    }
+
+    /// Marks startup as finished: flips `isStarting` and fires any `notifyAfterAppStarted` actions.
+    /// Runs regardless of whether the startup-time event itself was reported or dropped, so the
+    /// startup-finished signal used by `HangReporter` / `WatchdogTerminationReporter` is unchanged.
+    private func markAppStarted() {
         PerformanceMonitoring.queue.async {
             self.isStarting = false
             self.onStartedActions.forEach { $0() }

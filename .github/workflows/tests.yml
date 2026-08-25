@@ -115,12 +115,13 @@ jobs:
       - name: Run Unit Tests
         env:
           scheme: UnitTests
-          destination: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.4.1
+          destination: platform=iOS Simulator,name=iPhone 17 Pro,OS=latest
           workspace: Project.xcworkspace
         timeout-minutes: 30
         run: |
           set -e
           echo "Starting unit tests with destination: $destination"
+          xcrun simctl list runtimes | grep -i "^iOS" || true
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UnitTestResults.xcresult
           echo "Unit tests completed successfully"
 
@@ -202,12 +203,13 @@ jobs:
       - name: Run UI Tests
         env:
           scheme: UITests
-          destination: platform=iOS Simulator,name=iPhone 17 Pro,OS=26.4.1
+          destination: platform=iOS Simulator,name=iPhone 17 Pro,OS=latest
           workspace: Project.xcworkspace
         timeout-minutes: 30
         run: |
           set -e
           echo "Starting UI tests with destination: $destination"
+          xcrun simctl list runtimes | grep -i "^iOS" || true
           xcodebuild test -scheme "$scheme" -workspace "$workspace" -destination "$destination" -derivedDataPath DerivedData -resultBundlePath UITestResults.xcresult SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) PERFORMANCE_TESTS'
           echo "UI tests completed successfully"
 

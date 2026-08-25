@@ -508,172 +508,114 @@ class TTIObserverTests: XCTestCase {
     // A *live* receiver is required: `TTIMetricsReceiverStub` is not live and `TTIObserver` resolves the live
     // receiver by conditional cast, so tests using it pin nothing about the measurement handle.
 
-    func testLiveSpanIsCancelledOnWillResignActiveWhenScreenNeverAppeared() {
+    func testLiveSpanIsReleasedOnBackgroundWhenScreenNeverAppeared() {
         // A force-loaded off-screen child never appears and gets no disappear, so backgrounding is the only
         // signal left.
+        let appState = AppStateListenerStub()
         let metricsReceiver = LiveTTIMetricsReceiverStub()
-        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver)
+        let observer = TTIObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, appStateListener: appState)
 
         observer.beforeInit()
         observer.beforeViewDidLoad()
         XCTAssertEqual(metricsReceiver.startedContexts.count, 1, "viewDidLoad must open one live span")
 
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-        PerformanceMonitoring.consumerQueue.sync {}
+        appState.wasInBackground = true
+        appState.didChange()
 
         XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 1, "span must be released")
         XCTAssertTrue(metricsReceiver.endedContexts.isEmpty)
         XCTAssertNil(metricsReceiver.ttiMetrics)
     }
 
-    func testLiveSpanIsCancelledOnWillResignActiveWhenReadinessNeverArrived() {
+    func testLiveSpanIsReleasedOnBackgroundWhenReadinessNeverArrived() {
         // With no readiness call the span resolves only via the disappear fallback, which backgrounding
         // never triggers.
+        let appState = AppStateListenerStub()
         let metricsReceiver = LiveTTIMetricsReceiverStub()
-        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver)
+        let observer = TTIObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, appStateListener: appState)
 
         observer.beforeInit()
         observer.beforeViewDidLoad()
         observer.afterViewWillAppear()
         observer.afterViewDidAppear()
-        PerformanceMonitoring.consumerQueue.sync {}
-
-        XCTAssertEqual(metricsReceiver.startedContexts.count, 1)
         XCTAssertTrue(metricsReceiver.endedContexts.isEmpty, "no readiness signal yet, so nothing reported")
 
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-        PerformanceMonitoring.consumerQueue.sync {}
+        appState.wasInBackground = true
+        appState.didChange()
 
         XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 1, "span must be released")
         XCTAssertTrue(metricsReceiver.endedContexts.isEmpty)
     }
 
-    func testDisappearBeforeDidAppearIsParkedAndStillReports() {
-        // Same-turn push-then-pop delivers the disappear before the deferred appear callbacks. Reading the
-        // still-nil viewDidAppearTime as "never appeared" would abandon a measurable screen.
-        let timeProvider = TimeProviderStub()
-        let time = timeProvider.time
-
+    func testBecomingActiveWithoutHavingBackgroundedLeavesTheSpanOpen() {
+        // `didChange` also fires for become-active. Nothing may be released until `wasInBackground` latches.
+        let appState = AppStateListenerStub()
         let metricsReceiver = LiveTTIMetricsReceiverStub()
         let observer = TTIObserver(
-            screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
+            screen: UIViewController(), metricsReceiver: metricsReceiver, appStateListener: appState)
 
         observer.beforeInit()
         observer.beforeViewDidLoad()
+        appState.didChange()
 
-        timeProvider.time = time.advanced(by: .milliseconds(3))
-        observer.screenIsReady()
-        waitForTheNextRunLoop()
-
-        timeProvider.time = time.advanced(by: .milliseconds(5))
-        observer.beforeViewWillDisappear()   // inverted: lands before the deferred appear callbacks
-
-        timeProvider.time = time.advanced(by: .milliseconds(8))
-        observer.afterViewWillAppear()
-
-        timeProvider.time = time.advanced(by: .milliseconds(10))
-        observer.afterViewDidAppear()
-        PerformanceMonitoring.consumerQueue.sync {}
-
-        XCTAssertEqual(metricsReceiver.endedContexts.count, 1, "parked disappear must be replayed and reported")
-        XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 0, "must not abandon the screen")
-        // ttiEndTime is max(readiness, didAppear), so early readiness still yields 10ms.
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(10))
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(8))
+        XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 0, "must not release a live span")
     }
 
-    func testLiveSpanStillReportsOnDisappearWithoutReadinessCall() {
-        // The supported contract, and how most tracked screens get their TTI at all.
-        let timeProvider = TimeProviderStub()
-        let time = timeProvider.time
-
-        let metricsReceiver = LiveTTIMetricsReceiverStub()
-        let observer = TTIObserver(
-            screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
-
-        observer.beforeInit()
-        observer.beforeViewDidLoad()
-
-        timeProvider.time = time.advanced(by: .milliseconds(8))
-        observer.afterViewWillAppear()
-
-        timeProvider.time = time.advanced(by: .milliseconds(10))
-        observer.afterViewDidAppear()
-
-        timeProvider.time = time.advanced(by: .milliseconds(100))
-        observer.beforeViewWillDisappear()
-        PerformanceMonitoring.consumerQueue.sync {}
-
-        XCTAssertEqual(metricsReceiver.endedContexts.count, 1, "the back-dating fallback must still report")
-        XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 0, "must not cancel a reportable one")
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(10))
-        XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(8))
-    }
-
-    func testCancelledScreenDoesNotOpenASecondSpan() {
-        // A cancel nils `measurementHandle`, satisfying `beforeViewDidLoad`'s guard; only `ignoreThisScreen`
+    func testReleasedScreenDoesNotOpenASecondSpan() {
+        // A release nils `measurementHandle`, satisfying `beforeViewDidLoad`'s guard; only `ignoreThisScreen`
         // stops a second orphaned span.
+        let appState = AppStateListenerStub()
         let metricsReceiver = LiveTTIMetricsReceiverStub()
-        let observer = TTIObserver(screen: UIViewController(), metricsReceiver: metricsReceiver)
+        let observer = TTIObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, appStateListener: appState)
 
         observer.beforeInit()
         observer.beforeViewDidLoad()
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-        PerformanceMonitoring.consumerQueue.sync {}
+        appState.wasInBackground = true
+        appState.didChange()
         XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 1)
 
         observer.beforeViewDidLoad()
-        PerformanceMonitoring.consumerQueue.sync {}
 
         XCTAssertEqual(metricsReceiver.startedContexts.count, 1, "must not open a second span")
         XCTAssertTrue(metricsReceiver.endedContexts.isEmpty)
     }
 
-    func testAbandonedScreenDoesNotStrandCustomCreationTime() {
-        // An abandoned screen that skipped consuming the global would leak it to the next screen.
+    func testLiveSpanStillReportsOnDisappearWithoutReadinessCall() {
+        // Characterisation pin: this leaves `beforeViewWillDisappear` untouched, and it is how most tracked
+        // screens get their TTI at all.
         let timeProvider = TimeProviderStub()
         let time = timeProvider.time
 
-        let receiverA = LiveTTIMetricsReceiverStub()
-        let observerA = TTIObserver(
-            screen: UIViewController(), metricsReceiver: receiverA, timeProvider: timeProvider)
+        let metricsReceiver = LiveTTIMetricsReceiverStub()
+        let observer = TTIObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, timeProvider: timeProvider)
 
-        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
+        observer.beforeInit()
+        observer.beforeViewDidLoad()
         waitForTheNextRunLoop()
 
-        // Abandon A: its own listener latches `wasInBackground`, so it can never report.
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-        PerformanceMonitoring.consumerQueue.sync {}
-
-        timeProvider.time = time.advanced(by: .milliseconds(150))
-        observerA.beforeInit()
-        observerA.beforeViewDidLoad()
-        timeProvider.time = time.advanced(by: .milliseconds(200))
-        observerA.afterViewWillAppear()
+        timeProvider.time = time.advanced(by: .milliseconds(8))
+        observer.afterViewWillAppear()
         waitForTheNextRunLoop()
 
-        // B is created after the notification, so its listener never saw it and it reports normally.
-        let receiverB = LiveTTIMetricsReceiverStub()
-        let observerB = TTIObserver(
-            screen: UIViewController(), metricsReceiver: receiverB, timeProvider: timeProvider)
+        timeProvider.time = time.advanced(by: .milliseconds(10))
+        observer.afterViewDidAppear()
+        waitForTheNextRunLoop()
 
-        timeProvider.time = time.advanced(by: .milliseconds(250))
-        observerB.beforeInit()
-        observerB.beforeViewDidLoad()
-        timeProvider.time = time.advanced(by: .milliseconds(300))
-        observerB.afterViewWillAppear()
-        timeProvider.time = time.advanced(by: .milliseconds(320))
-        observerB.afterViewDidAppear()
-        timeProvider.time = time.advanced(by: .milliseconds(400))
-        observerB.screenIsReady()
+        timeProvider.time = time.advanced(by: .milliseconds(100))
+        observer.beforeViewWillDisappear()
         waitForTheNextRunLoop()
         PerformanceMonitoring.consumerQueue.sync {}
 
-        XCTAssertNil(receiverA.ttiMetrics, "the abandoned screen must not report")
-        XCTAssertEqual(
-            receiverB.ttiMetrics?.tti, .milliseconds(150),
-            "B must anchor at its own init (400-250), not A's stranded creation time (400-0)")
+        XCTAssertEqual(metricsReceiver.endedContexts.count, 1, "the disappear fallback must still report")
+        XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 0, "must not cancel a reportable one")
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(10))
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(8))
     }
+
 }
 
 class TimeProviderStub: TimeProvider {

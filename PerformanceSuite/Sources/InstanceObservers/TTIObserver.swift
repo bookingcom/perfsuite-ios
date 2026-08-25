@@ -19,6 +19,9 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         self.metricsReceiver = metricsReceiver
         self.timeProvider = timeProvider
         self.appStateListener = appStateListener
+        appStateListener.didChange = { [weak self] in
+            self?.handleAppStateChange()
+        }
     }
 
     private let screen: T.ScreenIdentifier
@@ -101,7 +104,10 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 self.cancelMeasurement()
             }
 
-            if self.shouldReportTTI && self.viewWillAppearTime == nil {
+            // Not gated on `shouldReportTTI`: the anchor was set for *this* screen, so an abandoned screen
+            // must still consume it or it strands and the next screen reports a TTI predating its own init.
+            // `testCustomCreationTimeIsForgotten` already pins that for a screen that reported.
+            if self.viewWillAppearTime == nil {
                 self.customCreationTime = TTIObserverHelper.upcomingCustomCreationTime
                 TTIObserverHelper.upcomingCustomCreationTime = nil
 
@@ -201,6 +207,19 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
 
     private var shouldReportTTI: Bool {
         return !ttiCalculated && !appStateListener.wasInBackground && !ignoreThisScreen
+    }
+
+    /// Backgrounding fires no `viewWillDisappear`, so an unresolved measurement would otherwise leave its live
+    /// span open for the backend to auto-terminate. `didChange` fires for resign-active and become-active
+    /// alike; once `wasInBackground` has latched the measurement can never report either way. No restart,
+    /// unlike `RenderingObserver`: TTI is one-shot.
+    private func handleAppStateChange() {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        guard appStateListener.wasInBackground else { return }
+        // `ignoreThisScreen` keeps a re-entrant `beforeViewDidLoad` from opening a second span now that the
+        // handle is nil.
+        ignoreThisScreen = true
+        cancelMeasurement()
     }
 
     /// Cancel and clear the open live measurement. Called from every path that abandons the

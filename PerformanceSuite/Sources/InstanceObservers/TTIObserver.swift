@@ -19,6 +19,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         self.metricsReceiver = metricsReceiver
         self.timeProvider = timeProvider
         self.appStateListener = appStateListener
+        registerAppLifecycleObserver()
     }
 
     private let screen: T.ScreenIdentifier
@@ -38,8 +39,28 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
     private var customCreationTime: DispatchTime?
 
     /// Live measurement handle from `screenTTIMeasurementStarted`, held on `PerformanceMonitoring.queue`. Handed back
-    /// at `screenTTIMeasurementEnded`; cancelled on any abandon path (ignoreThisScreen, negative TTI, deinit).
+    /// at `screenTTIMeasurementEnded`; cancelled on every abandon path — `ignoreThisScreen`, negative TTI/TTFR,
+    /// a disappear that can never produce a metric, `willResignActive`, and `deinit`. The invariant that matters:
+    /// no code path may leave this non-nil, or the span is left for backend auto-termination.
     private var measurementHandle: (any MeasurementHandle)?
+
+    /// Guards the swizzler's lifecycle asymmetry: `viewWillAppear`/`viewDidAppear` are deferred through
+    /// `main.async` while `viewWillDisappear` is called directly, so on a same-turn push-then-pop the
+    /// disappear is processed first and `viewDidAppearTime` is still nil even though the screen did appear.
+    /// Without this, `processDisappear` would read that nil as "never appeared" and abandon a measurable
+    /// screen. Mirrors `RenderingObserver`. Set/read only on `PerformanceMonitoring.queue`.
+    private var didAppearProcessed = false
+    private var pendingDisappear = false
+
+    /// `TTIObserverHelper.upcomingCustomCreationTime` is a process-global set just before this screen was
+    /// created, so it must be consumed exactly once by our first `viewWillAppear` — even when the measurement
+    /// is already abandoned. Leaving it set strands it for whichever screen appears next, which would then
+    /// report a TTI anchored before its own `init`.
+    private var consumedCustomCreationTime = false
+
+    /// Block-based app-lifecycle observer (`TTIObserver` is generic, so it cannot expose @objc selectors).
+    /// Removed in `deinit`.
+    private var lifecycleObserver: (any NSObjectProtocol)?
 
     func beforeInit() {
         let now = timeProvider.now()
@@ -101,10 +122,19 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 self.cancelMeasurement()
             }
 
-            if self.shouldReportTTI && self.viewWillAppearTime == nil {
-                self.customCreationTime = TTIObserverHelper.upcomingCustomCreationTime
+            if !self.consumedCustomCreationTime {
+                // Consume the global on our first viewWillAppear whether or not a metric is still permitted:
+                // it was set for *this* screen, and an abandoned screen that leaves it set corrupts the next
+                // screen's TTI. Only the assignment is gated.
+                self.consumedCustomCreationTime = true
+                let upcoming = TTIObserverHelper.upcomingCustomCreationTime
                 TTIObserverHelper.upcomingCustomCreationTime = nil
+                if self.shouldReportTTI {
+                    self.customCreationTime = upcoming
+                }
+            }
 
+            if self.shouldReportTTI && self.viewWillAppearTime == nil {
                 self.viewWillAppearTime = now
             }
         }
@@ -120,6 +150,14 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 self.viewDidAppearTime = now
                 self.reportTTIIfNeeded()
             }
+            // Set unconditionally: `processDisappear` must distinguish "appear has not drained yet" from
+            // "this screen never appeared", and that distinction holds whether or not a metric is permitted.
+            self.didAppearProcessed = true
+            // A same-turn push-then-pop queued the disappear ahead of this closure — finish it now.
+            if self.pendingDisappear {
+                self.pendingDisappear = false
+                self.processDisappear()
+            }
         }
 
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
@@ -127,16 +165,45 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
     }
 
     func beforeViewWillDisappear() {
-        // if screenIsReady wasn't called until now, we consider that screen was ready in `viewDidAppear`.
         let action = {
-            if self.shouldReportTTI && self.screenIsReadyTime == nil {
-                self.screenIsReadyTime = self.viewDidAppearTime
-                self.reportTTIIfNeeded()
+            guard self.didAppearProcessed else {
+                // didAppear's closure has not run yet (see `didAppearProcessed`). Park, and let
+                // `afterViewDidAppear` replay this once the timestamps exist. Parking cannot leak the span:
+                // a screen that truly never appears never reaches `afterViewDidAppear`, and its span is
+                // released by `handleWillResignActive` or `deinit`.
+                self.pendingDisappear = true
+                return
             }
+            self.processDisappear()
         }
 
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         action()
+    }
+
+    private func processDisappear() {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+
+        guard shouldReportTTI else {
+            // No metric is permitted and none ever will be (`wasInBackground` latched, or
+            // `ignoreThisScreen`). Release the live span instead of returning silently.
+            cancelMeasurement()
+            return
+        }
+        // Reached only once didAppear has been processed, so a nil `viewDidAppearTime` here really does mean
+        // the screen never appeared — e.g. a container that touched `view` on an off-screen child.
+        guard viewDidAppearTime != nil else {
+            // `reportTTIIfNeeded` can never be satisfied. Latch the screen out so a late `screenIsReady()`
+            // cannot resurrect a cancelled measurement, and release the span.
+            ignoreThisScreen = true
+            cancelMeasurement()
+            return
+        }
+        if screenIsReadyTime == nil {
+            // if screenIsReady wasn't called until now, we consider that screen was ready in `viewDidAppear`.
+            screenIsReadyTime = viewDidAppearTime
+        }
+        reportTTIIfNeeded()
     }
 
     static var identifier: AnyObject {
@@ -203,9 +270,38 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         return !ttiCalculated && !appStateListener.wasInBackground && !ignoreThisScreen
     }
 
-    /// Cancel and clear the open live measurement. Called from every path that abandons the
-    /// measurement: `ignoreThisScreen` (double-viewWillAppear), negative TTI/TTFR
-    /// assertion, and `deinit` (observer destroyed before `reportTTIIfNeeded` ran). Idempotent.
+    /// A TTI span opens in `beforeViewDidLoad` and closes only when TTI resolves, so it can straddle an app
+    /// background. Backgrounding fires no `viewWillDisappear`, so without this the span stays open and is
+    /// auto-terminated by the backend (e.g. Embrace, `user_abandon`). Cancel synchronously on
+    /// `willResignActive`, which precedes the backend's `didEnterBackground` session end.
+    ///
+    /// Unlike `RenderingObserver` there is no `didBecomeActive` restart: TTI is one-shot, and once
+    /// `wasInBackground` latches `shouldReportTTI` would reject a restarted measurement anyway.
+    private func registerAppLifecycleObserver() {
+        lifecycleObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.willResignActiveNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.handleWillResignActive()
+        }
+    }
+
+    private func handleWillResignActive() {
+        // Synchronous so the span closes inside this notification turn, before the backend ends the session.
+        //
+        // Deliberately NOT gated on `shouldReportTTI`: `DefaultAppStateListener` registers its own
+        // `willResignActive` observer in its `init`, which runs as this observer's default argument and is
+        // therefore always registered first. `wasInBackground` is already true by the time we run, so a
+        // gated version of this would be dead code.
+        PerformanceMonitoring.runOnQueue {
+            self.ignoreThisScreen = true
+            self.cancelMeasurement()
+        }
+    }
+
+    /// Cancel and clear the open live measurement. Called from every path that abandons the measurement:
+    /// `ignoreThisScreen` (double-viewWillAppear), negative TTI/TTFR assertion, a `viewWillDisappear` that
+    /// can never produce a metric (backgrounded, or the screen never appeared), `willResignActive`, and
+    /// `deinit` (observer destroyed before `reportTTIIfNeeded` ran). Idempotent.
     private func cancelMeasurement() {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         if let context = self.measurementHandle {
@@ -215,6 +311,9 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
     }
 
     deinit {
+        if let lifecycleObserver {
+            NotificationCenter.default.removeObserver(lifecycleObserver)
+        }
         // VC went away before TTI completed: discard any open measurement. measurementHandle is mutated only on
         // PerformanceMonitoring.queue and queued closures retain self, so deinit runs only after
         // that work drains — direct access is race-free.

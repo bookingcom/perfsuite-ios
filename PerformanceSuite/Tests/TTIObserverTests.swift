@@ -583,6 +583,53 @@ class TTIObserverTests: XCTestCase {
         XCTAssertTrue(metricsReceiver.endedContexts.isEmpty)
     }
 
+    func testAbandonedScreenDoesNotStrandCustomCreationTime() {
+        // The anchor is a process-global. An abandoned screen that skipped consuming it would leak it to the
+        // next screen, which then reports a TTI predating its own init.
+        let timeProvider = TimeProviderStub()
+        let time = timeProvider.time
+
+        let appStateA = AppStateListenerStub()
+        appStateA.wasInBackground = true          // A can never report
+        let receiverA = TTIMetricsReceiverStub()
+        let observerA = TTIObserver(
+            screen: UIViewController(), metricsReceiver: receiverA,
+            timeProvider: timeProvider, appStateListener: appStateA)
+
+        TTIObserverHelper.startCustomCreationTime(timeProvider: timeProvider)
+        waitForTheNextRunLoop()
+
+        timeProvider.time = time.advanced(by: .milliseconds(150))
+        observerA.beforeInit()
+        waitForTheNextRunLoop()
+        timeProvider.time = time.advanced(by: .milliseconds(200))
+        observerA.afterViewWillAppear()
+        waitForTheNextRunLoop()
+
+        let receiverB = TTIMetricsReceiverStub()
+        let observerB = TTIObserver(
+            screen: UIViewController(), metricsReceiver: receiverB, timeProvider: timeProvider)
+
+        timeProvider.time = time.advanced(by: .milliseconds(250))
+        observerB.beforeInit()
+        waitForTheNextRunLoop()
+        timeProvider.time = time.advanced(by: .milliseconds(300))
+        observerB.afterViewWillAppear()
+        waitForTheNextRunLoop()
+        timeProvider.time = time.advanced(by: .milliseconds(320))
+        observerB.afterViewDidAppear()
+        waitForTheNextRunLoop()
+        timeProvider.time = time.advanced(by: .milliseconds(400))
+        observerB.screenIsReady()
+        waitForTheNextRunLoop()
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertNil(receiverA.ttiMetrics, "the abandoned screen must not report")
+        XCTAssertEqual(
+            receiverB.ttiMetrics?.tti, .milliseconds(150),
+            "B must anchor at its own init (400-250), not A's stranded anchor (400-0)")
+    }
+
     func testLiveSpanStillReportsOnDisappearWithoutReadinessCall() {
         // Characterisation pin: this leaves `beforeViewWillDisappear` untouched, and it is how most tracked
         // screens get their TTI at all.

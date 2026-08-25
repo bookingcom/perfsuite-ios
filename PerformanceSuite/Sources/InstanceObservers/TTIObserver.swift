@@ -104,7 +104,10 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
                 self.cancelMeasurement()
             }
 
-            if self.shouldReportTTI && self.viewWillAppearTime == nil {
+            // Not gated on `shouldReportTTI`: the anchor was set for *this* screen, so an abandoned screen
+            // must still consume it or it strands and the next screen reports a TTI predating its own init.
+            // `testCustomCreationTimeIsForgotten` already pins that for a screen that reported.
+            if self.viewWillAppearTime == nil {
                 self.customCreationTime = TTIObserverHelper.upcomingCustomCreationTime
                 TTIObserverHelper.upcomingCustomCreationTime = nil
 

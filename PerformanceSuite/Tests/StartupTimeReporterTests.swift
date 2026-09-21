@@ -94,18 +94,17 @@ class StartupTimeReporterTests: XCTestCase {
         try ViewControllerSubscriber.shared.unsubscribeObservers()
     }
 
-    // MARK: - dropStartupTimeWhenAppWasInBackground experiment
+    // MARK: - Drop startup time when app was backgrounded during startup
 
-    /// Experiment ON + app went to background during startup → the startup event is dropped,
-    /// but startup is still considered finished (`appIsStarting` flips to `false`).
-    func testBackgroundDuringStartup_DropsEvent_WhenExperimentOn() {
+    /// App went to the background during startup → the startup event is dropped, but startup is
+    /// still considered finished (`appIsStarting` flips to `false`).
+    func testBackgroundDuringStartup_DropsEvent() {
         let receiver = StartupTimeReceiverStub()
         let appStateListener = AppStateListenerStub()
         appStateListener.wasInBackground = true
         let reporter = StartupTimeReporter(
             receiver: receiver,
-            appStateListener: appStateListener,
-            experiments: Experiments(dropStartupTimeWhenAppWasInBackground: true))
+            appStateListener: appStateListener)
 
         reporter.onViewDidLoadOfTheFirstViewController()
         reporter.onViewDidAppearOfTheFirstViewController()
@@ -117,33 +116,14 @@ class StartupTimeReporterTests: XCTestCase {
         }
     }
 
-    /// Experiment ON but app stayed in the foreground → the event is reported as usual.
-    func testForegroundStartup_ReportsEvent_WhenExperimentOn() {
+    /// App stayed in the foreground → the event is reported as usual.
+    func testForegroundStartup_ReportsEvent() {
         let receiver = StartupTimeReceiverStub()
         let appStateListener = AppStateListenerStub()
         appStateListener.wasInBackground = false
         let reporter = StartupTimeReporter(
             receiver: receiver,
-            appStateListener: appStateListener,
-            experiments: Experiments(dropStartupTimeWhenAppWasInBackground: true))
-
-        reporter.onViewDidLoadOfTheFirstViewController()
-        reporter.onViewDidAppearOfTheFirstViewController()
-        PerformanceMonitoring.consumerQueue.sync {}
-
-        XCTAssertNotNil(receiver.data?.totalTime)
-    }
-
-    /// Experiment OFF → background during startup is ignored and the (inflated) event is still
-    /// reported, proving the new behavior is gated behind the flag.
-    func testBackgroundDuringStartup_ReportsEvent_WhenExperimentOff() {
-        let receiver = StartupTimeReceiverStub()
-        let appStateListener = AppStateListenerStub()
-        appStateListener.wasInBackground = true
-        let reporter = StartupTimeReporter(
-            receiver: receiver,
-            appStateListener: appStateListener,
-            experiments: Experiments(dropStartupTimeWhenAppWasInBackground: false))
+            appStateListener: appStateListener)
 
         reporter.onViewDidLoadOfTheFirstViewController()
         reporter.onViewDidAppearOfTheFirstViewController()

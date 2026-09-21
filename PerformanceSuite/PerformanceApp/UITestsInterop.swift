@@ -25,10 +25,10 @@ public let crashlyticsHangsAsNonFatalsKey = "CRASHLYTICS_HANGS_AS_NONFATALS"
 /// they can tap the trigger, send the app to the background, and have the issue happen *while
 /// backgrounded*.
 public let actionDelayKey = "ACTION_DELAY"
-/// When set, the app enables the `dropStartupTimeWhenAppWasInBackground` experiment and *defers*
-/// the whole window/UI setup (so the first `viewDidAppear` happens a few seconds after launch).
-/// This gives a UI test a deterministic window to send the app to the background before startup
-/// finishes, exercising the "startup spanned a backgrounding → drop the event" path.
+/// When set, the app *defers* the whole window/UI setup (so the first `viewDidAppear` happens a few
+/// seconds after launch). This gives a UI test a deterministic window to send the app to the
+/// background before startup finishes, exercising the "startup spanned a backgrounding → drop the
+/// event" path.
 public let startupBackgroundKey = "STARTUP_BACKGROUND"
 
 

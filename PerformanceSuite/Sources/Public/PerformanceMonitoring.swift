@@ -17,18 +17,12 @@ public protocol AppMetricsReceiver {}
 /// which report metrics without any view controller observer
 protocol AppMetricsReporter: AnyObject {}
 
+/// Feature flags used for A/B testing experimentation features inside PerformanceSuite.
+///
+/// Currently empty: it is kept as an extension point for future experiments. Pass instances of it
+/// to `PerformanceMonitoring.enable(...)`.
 public struct Experiments {
-    /// When enabled, a startup-time event is dropped if the app was sent to the background
-    /// during startup (before the first `viewDidAppear`). The measured time would otherwise
-    /// include the background time and be misleadingly long.
-    ///
-    /// This mirrors how `TTIObserver` and `FragmentTTIReporter` already discard measurements that
-    /// span a backgrounding.
-    public var dropStartupTimeWhenAppWasInBackground: Bool
-
-    public init(dropStartupTimeWhenAppWasInBackground: Bool = false) {
-        self.dropStartupTimeWhenAppWasInBackground = dropStartupTimeWhenAppWasInBackground
-    }
+    public init() {}
 }
 
 public enum PerformanceMonitoring {

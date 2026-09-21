@@ -77,7 +77,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             try PerformanceMonitoring.enable(
                 config: .all(receiver: metricsConsumer),
                 didCrashPreviously: didCrash,
-                experiments: Experiments(dropStartupTimeWhenAppWasInBackground: startupBackgroundEnabled))
+                experiments: Experiments())
         } catch {
             preconditionFailure("Couldn't initialize PerformanceSuite: \(error)")
         }

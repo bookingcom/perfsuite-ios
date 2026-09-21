@@ -139,13 +139,11 @@ final class StartupTimeReporter: AppMetricsReporter, StartupProvider {
             // Discard the live measurement — startup measurement abandoned for this process.
             self.measurementHandle?.cancel()
             self.measurementHandle = nil
-            if experiments.dropStartupTimeWhenAppWasInBackground {
-                markAppStarted()
-            }
+            markAppStarted()
             return
         }
 
-        if experiments.dropStartupTimeWhenAppWasInBackground, appStateListener.wasInBackground {
+        if appStateListener.wasInBackground {
             // The app was sent to the background during startup, so the measured time includes
             // background time and would be misleadingly long. Drop the event — same rationale as
             // `TTIObserver` and `FragmentTTIReporter`. The app *did* finish starting, so we still

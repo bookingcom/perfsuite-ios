@@ -6,19 +6,18 @@
 //
 //  Scenario under test: the app is launched, sent to the background before startup finishes (before
 //  the first `viewDidAppear`), then brought back to the foreground. The measured startup time would
-//  otherwise include the background time and be misleadingly long, so with the
-//  `dropStartupTimeWhenAppWasInBackground` experiment enabled PerformanceSuite drops the event.
+//  otherwise include the background time and be misleadingly long, so PerformanceSuite drops the event.
 //
 
 import XCTest
 
 final class StartupTests: BaseTests {
 
-    /// Backgrounding during startup must suppress the startup-time event (experiment enabled).
+    /// Backgrounding during startup must suppress the startup-time event.
     ///
-    /// The app boots with `STARTUP_BACKGROUND`, which (a) enables the experiment and (b) defers the
-    /// whole UI setup by a few seconds, giving us a deterministic window to background and
-    /// foreground the app before the first `viewDidAppear`.
+    /// The app boots with `STARTUP_BACKGROUND`, which defers the whole UI setup by a few seconds,
+    /// giving us a deterministic window to background and foreground the app before the first
+    /// `viewDidAppear`.
     func testStartupTime_BackgroundedDuringStartup_IsDropped() {
         app.launchEnvironment = [inTestsKey: "1", clearStorageKey: "1", startupBackgroundKey: "1"]
         app.launch()

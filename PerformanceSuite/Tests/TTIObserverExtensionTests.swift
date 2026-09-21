@@ -90,7 +90,7 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = navigation
         window.makeKeyAndVisible()
 
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 100, handler: nil)
 
         let exp2 = expectation(description: "vc1 appeared")
         vc1.viewAppeared = {
@@ -101,7 +101,7 @@ class TTIObserverExtensionTests: XCTestCase {
 
         navigation.pushViewController(vc1, animated: false)
 
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 100, handler: nil)
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}

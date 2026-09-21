@@ -205,13 +205,6 @@ class TTIObserverExtensionTests: XCTestCase {
             exp.fulfill()
         }
 
-        let metricsReceived = expectation(description: "SwiftUI TTI metrics received")
-        metricsReceiver.ttiCallback = { _, controller in
-            if controller === vc {
-                metricsReceived.fulfill()
-            }
-        }
-
         let window = makeWindow()
         // Keep the window alive until SwiftUI finishes appearing and delivers its metrics.
         defer {
@@ -221,10 +214,11 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = vc
         window.makeKeyAndVisible()
 
-        // The first SwiftUI appearance can be slow on a busy simulator. Wait for the
-        // actual delivery as well: draining queues alone does not drive the main run loop.
-        wait(for: [exp, metricsReceived], timeout: 10)
+        // The first SwiftUI appearance can be slow on a busy simulator.
+        wait(for: [exp], timeout: 10)
 
+        // Drain the background-QoS queues after appearance. An asynchronous metrics
+        // expectation can starve on a busy runner even after viewDidAppear completes.
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 

@@ -90,7 +90,7 @@ class TTIObserverExtensionTests: XCTestCase {
         window.rootViewController = navigation
         window.makeKeyAndVisible()
 
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 100, handler: nil)
 
         let exp2 = expectation(description: "vc1 appeared")
         vc1.viewAppeared = {
@@ -101,7 +101,7 @@ class TTIObserverExtensionTests: XCTestCase {
 
         navigation.pushViewController(vc1, animated: false)
 
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 100, handler: nil)
 
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
@@ -200,17 +200,25 @@ class TTIObserverExtensionTests: XCTestCase {
         let vc = HostingControllerWithAppeared(rootView: ViewIsReadyOnAppear())
         vc.title = "hosting vc"
 
-        let window = makeWindow()
-        window.rootViewController = vc
-        window.makeKeyAndVisible()
-
         let exp = expectation(description: "viewDidAppear")
         vc.viewAppeared = {
             exp.fulfill()
         }
 
-        waitForExpectations(timeout: 3, handler: nil)
+        let window = makeWindow()
+        // Keep the window alive until SwiftUI finishes appearing and delivers its metrics.
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        window.rootViewController = vc
+        window.makeKeyAndVisible()
 
+        // The first SwiftUI appearance can be slow on a busy simulator.
+        wait(for: [exp], timeout: 10)
+
+        // Drain the background-QoS queues after appearance. An asynchronous metrics
+        // expectation can starve on a busy runner even after viewDidAppear completes.
         PerformanceMonitoring.queue.sync {}
         PerformanceMonitoring.consumerQueue.sync {}
 

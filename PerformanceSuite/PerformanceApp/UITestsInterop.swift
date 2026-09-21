@@ -40,6 +40,9 @@ public enum Message: Codable, Equatable {
     case tti(duration: Int, screen: String)
     case fragmentTTI(duration: Int, fragment: String)
     case hangStarted
+    case startupHangStarted
+    case startupNonFatalHang
+    case crashlyticsReady
     case fatalHang
     case startupFatalHang
     case nonFatalHang
@@ -52,6 +55,9 @@ public enum Message: Codable, Equatable {
         case (.startupTime, .startupTime),
             (.appFreezeTime, .appFreezeTime),
             (.hangStarted, .hangStarted),
+            (.startupHangStarted, .startupHangStarted),
+            (.startupNonFatalHang, .startupNonFatalHang),
+            (.crashlyticsReady, .crashlyticsReady),
             (.fatalHang, .fatalHang),
             (.startupFatalHang, .startupFatalHang),
             (.nonFatalHang, .nonFatalHang),
@@ -87,6 +93,10 @@ public enum UITestsInterop {
         private var session: UUID?
         private var receivedCount = 0
         private(set) var messages: [Message] = []
+
+        mutating func clearMessages() {
+            messages.removeAll()
+        }
 
         mutating func receive(_ batch: MessageBatch) {
             if session != batch.session {
@@ -177,6 +187,12 @@ public enum UITestsInterop {
             session.invalidateAndCancel()
             messagesLock.withLock {
                 history = MessageHistory()
+            }
+        }
+
+        public func clearMessages() {
+            messagesLock.withLock {
+                history.clearMessages()
             }
         }
     }

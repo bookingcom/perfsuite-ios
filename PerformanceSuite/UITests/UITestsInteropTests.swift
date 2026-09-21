@@ -1,6 +1,16 @@
 import XCTest
 
 final class UITestsInteropTests: XCTestCase {
+    func testClearingStartupMessagesDoesNotReplayThemOnNextPoll() {
+        let session = UUID()
+        var history = UITestsInterop.MessageHistory()
+        history.receive(.init(session: session, messages: [.startupHangStarted, .crashlyticsReady]))
+        history.clearMessages()
+        history.receive(.init(session: session, messages: [.startupHangStarted, .crashlyticsReady, .hangStarted]))
+
+        XCTAssertEqual(history.messages, [.hangStarted])
+    }
+
     func testRepeatedPollDoesNotDuplicateEvents() {
         let batch = UITestsInterop.MessageBatch(session: UUID(), messages: [.hangStarted, .nonFatalHang])
         var history = UITestsInterop.MessageHistory()

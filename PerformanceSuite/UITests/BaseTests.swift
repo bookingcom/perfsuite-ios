@@ -32,10 +32,10 @@ class BaseTests: XCTestCase {
 
     func waitForTimeout(_ seconds: Int) {
         let exp = expectation(description: "wait for timeout")
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds)) {
-            exp.fulfill()
-        }
-        wait(for: [exp], timeout: Double(seconds + 1))
+        // Let XCTest wait out the interval while processing events. A separate
+        // dispatch timer can run late on CI and race the expectation's timeout.
+        exp.isInverted = true
+        wait(for: [exp], timeout: Double(seconds))
     }
 
     func assertNoMessages(file: StaticString = #file, line: UInt = #line, _ messages: Message...) {

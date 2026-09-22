@@ -18,6 +18,9 @@ class BaseTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // Stop the previous test's server before polling, or its retained events
+        // can leak into this test while app.launch() terminates the old process.
+        app.terminate()
         client = UITestsInterop.Client()
     }
 

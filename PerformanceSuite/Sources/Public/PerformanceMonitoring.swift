@@ -7,14 +7,6 @@
 
 import UIKit
 
-#if PERFORMANCE_TESTS
-// UI tests wait for consumer callbacks with a deadline. Background work can be
-// deferred while the simulator is idle, even as its HTTP polling keeps working.
-private let consumerQueueQoS: DispatchQoS = .userInitiated
-#else
-private let consumerQueueQoS: DispatchQoS = .background
-#endif
-
 
 /// This is a base protocol for recievers of the metrics from AppMetricsReporter's,
 /// those metrics are not connected to some particular UIViewController.
@@ -352,7 +344,7 @@ public enum PerformanceMonitoring {
     }()
 
     /// This queue is used to send data to the consumer. It is background because we don't need to be fast there
-    static let consumerQueue = DispatchQueue(label: "performance_suite_consumer_queue", qos: consumerQueueQoS)
+    static let consumerQueue = DispatchQueue(label: "performance_suite_consumer_queue", qos: .background)
 
     /// Identifies PM.queue so runOnQueue runs inline instead of deadlocking on queue.sync.
     static let queueKey = DispatchSpecificKey<Void>()

@@ -125,6 +125,7 @@ final class CrashlyticsTests: BaseTests {
             }
             return messages.contains(.crashlyticsReady) && startupFinished
         }
+        assertNoMessages(.crash)
         client.clearMessages()
     }
 

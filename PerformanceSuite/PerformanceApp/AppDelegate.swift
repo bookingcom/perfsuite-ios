@@ -113,6 +113,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         if didCrash {
             metricsConsumer.interop?.send(message: .crash)
         }
+        if UITestsHelper.isInTests {
+            crashlytics.wait(forContextInit: "uiTestsReady") {
+                metricsConsumer.interop?.send(message: .crashlyticsReady)
+            }
+        }
     }
 
     private static func configureFirebaseIfNeeded() {

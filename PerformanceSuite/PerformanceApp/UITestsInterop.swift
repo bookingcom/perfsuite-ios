@@ -40,6 +40,9 @@ public enum Message: Codable, Equatable {
     case tti(duration: Int, screen: String)
     case fragmentTTI(duration: Int, fragment: String)
     case hangStarted
+    case startupHangStarted
+    case startupNonFatalHang
+    case crashlyticsReady
     case fatalHang
     case startupFatalHang
     case nonFatalHang
@@ -52,6 +55,9 @@ public enum Message: Codable, Equatable {
         case (.startupTime, .startupTime),
             (.appFreezeTime, .appFreezeTime),
             (.hangStarted, .hangStarted),
+            (.startupHangStarted, .startupHangStarted),
+            (.startupNonFatalHang, .startupNonFatalHang),
+            (.crashlyticsReady, .crashlyticsReady),
             (.fatalHang, .fatalHang),
             (.startupFatalHang, .startupFatalHang),
             (.nonFatalHang, .nonFatalHang),
@@ -76,6 +82,34 @@ public enum Message: Codable, Equatable {
 /// This is a namespace to access Client and Server classes
 public enum UITestsInterop {
 
+    // Keep events until the app exits. A dropped HTTP response must not consume them.
+    // The session distinguishes a relaunched app from a repeated poll of the same events.
+    struct MessageBatch: Codable {
+        let session: UUID
+        let messages: [Message]
+    }
+
+    struct MessageHistory {
+        private var session: UUID?
+        private var receivedCount = 0
+        private(set) var messages: [Message] = []
+
+        mutating func clearMessages() {
+            messages.removeAll()
+        }
+
+        mutating func receive(_ batch: MessageBatch) {
+            if session != batch.session {
+                session = batch.session
+                receivedCount = 0
+            }
+            guard batch.messages.count > receivedCount else { return }
+            messages.append(contentsOf: batch.messages.dropFirst(receivedCount))
+            receivedCount = batch.messages.count
+        }
+    }
+
+
     /// Class is used to communicate between App target and UI Tests target.
     /// This part is a client part, which works in UI tests target.
     /// We start connection as a client and poll data from the server
@@ -94,53 +128,72 @@ public enum UITestsInterop {
         private let url = URL(string: "http://\(host):\(port)")!
 
         private let decoder = JSONDecoder()
-        private let session = URLSession(configuration: .default)
+        private let session: URLSession = {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = 5
+            return URLSession(configuration: configuration, delegate: nil, delegateQueue: .main)
+        }()
         private var timer: Timer?
         private var task: URLSessionDataTask?
+        private var isActive = true
 
         public var messages: [Message] {
             return messagesLock.withLock {
-                messagesStorage
+                history.messages
             }
         }
 
-        private var messagesStorage: [Message] = []
+        private var history = MessageHistory()
         private let messagesLock = NSLock()
 
         private func makeRequest() {
-            self.task?.cancel()
-
+            // Timer and completion both run on main. Never cancel an in-flight poll
+            // just because the next timer tick arrived on a busy runner.
+            guard isActive, task == nil else { return }
             print("Client.makeRequest")
-            self.task = session.dataTask(with: url) { data, _, _ in
+            self.task = session.dataTask(with: url) { [weak self] data, _, _ in
+                guard let self, self.isActive else { return }
+                self.task = nil
                 guard let data = data else {
                     print("No data found")
                     return
                 }
                 do {
-                    let messages = try self.decoder.decode([Message].self, from: data)
-                    self.messagesLock.withLock {
-                        self.messagesStorage.append(contentsOf: messages)
+                    let batch = try self.decoder.decode(MessageBatch.self, from: data)
+                    let newMessages = self.messagesLock.withLock {
+                        let previousCount = self.history.messages.count
+                        self.history.receive(batch)
+                        return Array(self.history.messages.dropFirst(previousCount))
                     }
-                    if messages.isEmpty {
+                    if newMessages.isEmpty {
                         print("No new messages")
                     } else {
-                        print("Messages received:\n--------------\n\(messages)\n--------------\n")
+                        print("Messages received:\n--------------\n\(newMessages)\n--------------\n")
                     }
                 } catch {
                     let str = String(data: data, encoding: .utf8)
                     fatalError("Couldn't decode messages from \(str ?? "empty")")
                 }
 
-                self.task = nil
             }
             self.task?.resume()
         }
 
         public func reset() {
-            messagesLock.withLock {
-                messagesStorage.removeAll()
-            }
+            isActive = false
             timer?.invalidate()
+            task?.cancel()
+            task = nil
+            session.invalidateAndCancel()
+            messagesLock.withLock {
+                history = MessageHistory()
+            }
+        }
+
+        public func clearMessages() {
+            messagesLock.withLock {
+                history.clearMessages()
+            }
         }
     }
 
@@ -157,9 +210,7 @@ public enum UITestsInterop {
             server = GCDWebServer()
             server.addDefaultHandler(forMethod: "GET", request: GCDWebServerRequest.self) { _ in
                 let messagesToSend = self.messagesLock.withLock {
-                    let result = self.messages
-                    self.messages.removeAll()
-                    return result
+                    MessageBatch(session: self.session, messages: self.messages)
                 }
                 do {
                     let data = try self.encoder.encode(messagesToSend)
@@ -174,6 +225,7 @@ public enum UITestsInterop {
                 fatalError("Couldn't start GCDWebServer: \(error)")
             }
         }
+        private let session = UUID()
         private let server: GCDWebServer
         private let encoder = JSONEncoder()
 

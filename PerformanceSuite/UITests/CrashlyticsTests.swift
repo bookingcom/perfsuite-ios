@@ -115,6 +115,17 @@ final class CrashlyticsTests: BaseTests {
     private func launchClean(inBackground: Bool, hangsAsNonFatals: Bool = false) {
         app.launchEnvironment = env(clearStorage: true, inBackground: inBackground, hangsAsNonFatals: hangsAsNonFatals)
         app.launch()
+        // Launch returning does not imply startup metrics or Firebase's asynchronous
+        // context initialization have finished on a loaded simulator.
+        waitForCondition(timeout: 90) { [self] in
+            let messages = client.messages
+            let startupFinished = messages.contains {
+                if case .startupTime = $0 { return true }
+                return false
+            }
+            return messages.contains(.crashlyticsReady) && startupFinished
+        }
+        client.clearMessages()
     }
 
     private func triggerAndBackground(_ menuItem: String, inBackground: Bool) {
@@ -136,8 +147,7 @@ final class CrashlyticsTests: BaseTests {
     /// Foreground fatal hang: detected (`reportHangStarted` records it per the reporting mode), the
     /// app never recovers, so we kill it and relaunch.
     private func runFatalHang(hangsAsNonFatals: Bool) {
-        app.launchEnvironment = env(clearStorage: true, inBackground: false, hangsAsNonFatals: hangsAsNonFatals)
-        app.launch()
+        launchClean(inBackground: false, hangsAsNonFatals: hangsAsNonFatals)
         app.staticTexts["Fatal hang"].tap()
         // Wait until the hang is actually detected before killing the app - a fixed sleep is racy on
         // slow CI runners (kill too early -> no fatal hang recorded -> the relaunch assertion times out).
@@ -149,8 +159,7 @@ final class CrashlyticsTests: BaseTests {
     /// Foreground non-fatal hang: detected, then recovers (this is the path that records and then
     /// clears the on-demand report/marker).
     private func runRecoveredNonFatalHang(hangsAsNonFatals: Bool) {
-        app.launchEnvironment = env(clearStorage: true, inBackground: false, hangsAsNonFatals: hangsAsNonFatals)
-        app.launch()
+        launchClean(inBackground: false, hangsAsNonFatals: hangsAsNonFatals)
         app.staticTexts["Non-fatal hang"].tap()
         // Wait until the recovered hang has actually been reported before killing the app - a fixed
         // sleep is racy on slow CI runners (kill before the report is captured -> the relaunch
@@ -164,8 +173,7 @@ final class CrashlyticsTests: BaseTests {
     /// the hang happens there. PerformanceSuite intentionally does not detect background hangs, so
     /// nothing should be reported (and certainly not a crash on the next launch).
     private func runBackgroundHang(menuItem: String, hangsAsNonFatals: Bool) {
-        app.launchEnvironment = env(clearStorage: true, inBackground: true, hangsAsNonFatals: hangsAsNonFatals)
-        app.launch()
+        launchClean(inBackground: true, hangsAsNonFatals: hangsAsNonFatals)
         app.staticTexts[menuItem].tap()
         XCUIDevice.shared.press(.home)  // background before the delayed hang fires
         waitForTimeout(12)              // hang occurs (and, if non-fatal, recovers) while backgrounded

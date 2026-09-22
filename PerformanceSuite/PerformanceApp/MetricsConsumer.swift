@@ -67,12 +67,12 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
     func nonFatalHangReceived(info: HangInfo) {
         log("nonFatalHangReceived \(info)")
-        interop?.send(message: Message.nonFatalHang)
+        interop?.send(message: info.duringStartup ? .startupNonFatalHang : .nonFatalHang)
     }
 
     func hangStarted(info: HangInfo) {
         log("hangStarted \(info)")
-        interop?.send(message: Message.hangStarted)
+        interop?.send(message: info.duringStartup ? .startupHangStarted : .hangStarted)
     }
 
     var hangThreshold: TimeInterval {

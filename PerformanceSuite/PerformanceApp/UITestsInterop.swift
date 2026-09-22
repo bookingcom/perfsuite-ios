@@ -206,9 +206,10 @@ public enum UITestsInterop {
     /// The opposite way won't work on the real device. I will re-think if this is needed or not.
     /// If not, I will switch server and client back.
     public final class Server {
-        public init() {
+        public init(beforeSnapshot: @escaping () -> Void = {}) {
             server = GCDWebServer()
             server.addDefaultHandler(forMethod: "GET", request: GCDWebServerRequest.self) { _ in
+                beforeSnapshot()
                 let messagesToSend = self.messagesLock.withLock {
                     MessageBatch(session: self.session, messages: self.messages)
                 }

@@ -7,7 +7,11 @@
 
 import Foundation
 import OSLog
+#if PERFORMANCE_TESTS
+@testable import PerformanceSuite
+#else
 import PerformanceSuite
+#endif
 import SwiftUI
 
 extension UIHostingController: PerformanceTrackable {
@@ -18,7 +22,20 @@ extension UIHostingController: PerformanceTrackable {
 
 class MetricsConsumer: PerformanceSuiteMetricsReceiver {
 
-    let interop = UITestsHelper.isInTests ? UITestsInterop.Server() : nil
+    let interop: UITestsInterop.Server? = {
+        guard UITestsHelper.isInTests else { return nil }
+        #if PERFORMANCE_TESTS
+        return UITestsInterop.Server(beforeSnapshot: {
+            // The HTTP handler runs off-main, including while the app simulates a
+            // main-thread hang. Synchronize with pending callbacks before replying
+            // so a test wait does not depend on background-QoS scheduling latency.
+            PerformanceMonitoring.queue.sync {}
+            PerformanceMonitoring.consumerQueue.sync {}
+        })
+        #else
+        return UITestsInterop.Server()
+        #endif
+    }()
 
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         log("App RenderingMetrics \(metrics)")

@@ -23,5 +23,22 @@ class UITestsHelper {
         }
         UserDefaults.standard.removePersistentDomain(forName: domain)
         UserDefaults.resetStandardUserDefaults()
+
+        // Firebase keeps reports and its previous-crash marker outside defaults.
+        // Reset that state before Firebase is configured for a new test; relaunches
+        // within a test omit CLEAR_STORAGE and must preserve the real crash marker.
+        let fileManager = FileManager.default
+        guard let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            fatalError("no caches directory")
+        }
+        let crashlyticsCache = caches.appendingPathComponent("com.crashlytics.data")
+            .appendingPathComponent(domain)
+        if fileManager.fileExists(atPath: crashlyticsCache.path) {
+            do {
+                try fileManager.removeItem(at: crashlyticsCache)
+            } catch {
+                fatalError("Couldn't clear Crashlytics test state: \(error)")
+            }
+        }
     }
 }

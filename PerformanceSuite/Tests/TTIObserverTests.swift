@@ -80,6 +80,8 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(152))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(9))
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.readyFallback, false)
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.reportDelay, .zero)
     }
 
 
@@ -115,6 +117,8 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .microseconds(10))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .microseconds(7))
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.readyFallback, false)
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.reportDelay, .zero)
     }
 
     func testTTIIsDisabledWhenAppGoesToBackground() {
@@ -245,6 +249,9 @@ class TTIObserverTests: XCTestCase {
         XCTAssertNotNil(metricsReceiver.ttiMetrics)
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(10))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(8))
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.readyFallback, true)
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.reportDelay, .milliseconds(90))
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.description, "tti: 10 ms, ttfr: 8 ms, ready_fallback: true")
     }
 
     func testCustomCreationTimeIsForgotten() {
@@ -661,6 +668,8 @@ class TTIObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.startedContexts.first?.cancelCount, 0, "must not cancel a reportable one")
         XCTAssertEqual(metricsReceiver.ttiMetrics?.tti, .milliseconds(10))
         XCTAssertEqual(metricsReceiver.ttiMetrics?.ttfr, .milliseconds(8))
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.readyFallback, true)
+        XCTAssertEqual(metricsReceiver.ttiMetrics?.reportDelay, .milliseconds(90), "the receiver can end at the TTI end")
     }
 
 }

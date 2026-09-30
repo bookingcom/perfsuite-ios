@@ -66,7 +66,10 @@ extension OTelInstrumenter:
         if let ms = metrics.ttfr.milliseconds {
             ctx.span.setAttribute(key: attrs.screenTTFRMs, value: .int(ms))
         }
-        ctx.span.end(time: now())
+        ctx.span.setAttribute(key: attrs.screenTTIReadyFallback, value: .bool(metrics.readyFallback))
+        // End at the TTI end, not at report time: the readiness fallback reports only at `viewWillDisappear`.
+        let reportDelay = max(0, metrics.reportDelay.timeInterval ?? 0)
+        ctx.span.end(time: now().addingTimeInterval(-reportDelay))
     }
 
     // MARK: - RenderingMetricsReceiver

@@ -50,6 +50,7 @@ public enum OTelSemanticConventions {
         public static let screenName = "screen.name"
         public static let screenTTIMs = "screen.tti.ms"
         public static let screenTTFRMs = "screen.ttfr.ms"
+        public static let screenTTIReadyFallback = "screen.tti.ready_fallback"
 
         // Fragment TTI
         public static let fragmentName = "fragment.name"

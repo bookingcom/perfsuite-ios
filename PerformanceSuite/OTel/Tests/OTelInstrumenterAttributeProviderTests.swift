@@ -186,6 +186,24 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         XCTAssertEqual(spy.captures.first?.screenName, "search_results")
     }
 
+    func testHostCannotSetReadyFallbackOnAScreenTTISpanThatNeverReports() throws {
+        // The SDK writes the flag only on spans that report, so a host value must not be the only one on a
+        // cancelled span.
+        let provider = MockTracerProvider()
+        let spy = AttributeProviderSpy()
+        spy.attributesToReturn = ["screen.tti.ready_fallback": .bool(true), "EXPS0": .string("ok")]
+        let instrumenter = makeInstrumenter(provider: provider, attributeProvider: spy.makeProvider())
+
+        let context = try XCTUnwrap(instrumenter.screenTTIMeasurementStarted(screen: .searchResults))
+        context.cancel()
+
+        let builder = try XCTUnwrap(provider.tracer.lastBuilder)
+        let span = try XCTUnwrap(builder.startedSpan)
+        XCTAssertNil(builder.attributes["screen.tti.ready_fallback"])
+        XCTAssertNil(span.attributes["screen.tti.ready_fallback"])
+        XCTAssertEqual(builder.attributes["EXPS0"]?.stringValue, "ok", "non-reserved host attributes still pass")
+    }
+
     func testFragmentTTISpanInvokesAttributeProviderWithFragmentContext() {
         let provider = MockTracerProvider()
         let spy = AttributeProviderSpy()

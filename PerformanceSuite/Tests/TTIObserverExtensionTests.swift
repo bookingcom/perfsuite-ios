@@ -36,6 +36,44 @@ class TTIObserverExtensionTests: XCTestCase {
         TTIObserverHelper.resetForTests()
     }
 
+    func testExperimentOffOpensNoPendingMeasurementButStillMovesTheTTIStart() throws {
+        try PerformanceMonitoring.disable()
+        let receiver = PendingTTIMetricsReceiverStub()
+        receiver.trackedScreen = { $0 is OutputViewController }
+        try PerformanceMonitoring.enable(
+            config: [.screenLevelTTI(receiver)],
+            experiments: Experiments(pendingScreenTTIMeasurements: false))
+
+        let navigation = UINavigationController(rootViewController: UIViewController())
+        let window = makeWindow()
+        window.rootViewController = navigation
+        window.makeKeyAndVisible()
+        PerformanceMonitoring.queue.sync {}
+
+        UIViewController.screenIsBeingCreated()
+        XCTAssertTrue(receiver.pendingStarts.isEmpty, "the experiment is off: nothing is opened")
+
+        let vc = OutputViewController()
+        let appeared = expectation(description: "vc appeared")
+        vc.viewAppeared = {
+            DispatchQueue.main.async {
+                appeared.fulfill()
+            }
+        }
+        navigation.pushViewController(vc, animated: false)
+        waitForExpectations(timeout: 3, handler: nil)
+        vc.screenIsReady()
+
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertTrue(receiver.pendingStarts.isEmpty)
+        XCTAssertTrue(receiver.adoptedHandles.isEmpty)
+        XCTAssertTrue(receiver.pendingEnds.isEmpty)
+        XCTAssertEqual(receiver.startedHandles.count, 1, "the screen starts its own measurement, as before")
+        XCTAssertEqual(receiver.ttiMetrics?.customStart, true, "the TTI start still moves to the call")
+    }
+
     func testPushedScreenAdoptsThePendingMeasurementThroughEnable() throws {
         try PerformanceMonitoring.disable()
         let receiver = PendingTTIMetricsReceiverStub()

@@ -19,10 +19,16 @@ protocol AppMetricsReporter: AnyObject {}
 
 /// Feature flags used for A/B testing experimentation features inside PerformanceSuite.
 ///
-/// Currently empty: it is kept as an extension point for future experiments. Pass instances of it
-/// to `PerformanceMonitoring.enable(...)`.
+/// Pass instances of it to `PerformanceMonitoring.enable(...)`.
 public struct Experiments {
-    public init() {}
+    /// Whether `UIViewController.screenIsBeingCreated()` opens a pending screen-TTI measurement
+    /// (see ``LiveTTIMetricsReceiver``). With `false` the call only moves the TTI start, as before the
+    /// feature existed, and no measurement is opened on the caller's thread.
+    public var pendingScreenTTIMeasurements: Bool
+
+    public init(pendingScreenTTIMeasurements: Bool = true) {
+        self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
+    }
 }
 
 public enum PerformanceMonitoring {
@@ -72,7 +78,9 @@ public enum PerformanceMonitoring {
         }
         self.appReporters = appReporters
         self.viewControllerSubscriberEnabled = !vcObservers.isEmpty
-        TTIObserverHelper.installPendingHook(PendingScreenTTIHook.make(config: config))
+        if experiments.pendingScreenTTIMeasurements {
+            TTIObserverHelper.installPendingHook(PendingScreenTTIHook.make(config: config))
+        }
     }
 
 

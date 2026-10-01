@@ -81,7 +81,11 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             if !self.ttiCalculated && !self.ignoreThisScreen && self.measurementHandle == nil,
                #available(iOS 16.0, *),
                let live = self.metricsReceiver as? any LiveTTIMetricsReceiver<T.ScreenIdentifier> {
-                self.measurementHandle = live.screenTTIMeasurementStarted(screen: self.screen)
+                if let pending = TTIObserverHelper.adoptPendingMeasurement(now: now) {
+                    self.measurementHandle = live.screenTTIPendingMeasurementAdopted(pending, screen: self.screen)
+                } else {
+                    self.measurementHandle = live.screenTTIMeasurementStarted(screen: self.screen)
+                }
             }
         }
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
@@ -111,6 +115,11 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             if self.viewWillAppearTime == nil {
                 self.customCreationTime = TTIObserverHelper.upcomingCustomCreationTime
                 TTIObserverHelper.upcomingCustomCreationTime = nil
+                // The anchor is taken, so its pending measurement can no longer get a screen (an adopter already
+                // removed it).
+                if self.customCreationTime != nil {
+                    TTIObserverHelper.endPendingMeasurement(reason: .notAdopted)
+                }
 
                 self.viewWillAppearTime = now
             }
@@ -199,7 +208,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             ttfr: ttfr,
             appStartInfo: AppInfoHolder.appStartInfo,
             readyFallback: readyFellBack,
-            reportDelay: ttiEndTime.distance(to: timeProvider.now())
+            reportDelay: ttiEndTime.distance(to: timeProvider.now()),
+            customStart: customCreationTime != nil
         )
         let context = self.measurementHandle
         self.measurementHandle = nil
@@ -248,25 +258,6 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         // that work drains — direct access is race-free.
         self.measurementHandle?.cancel()
     }
-}
-
-/// Non-generic helper for generic `TTIObserver`. To put all the static methods and vars there.
-final class TTIObserverHelper {
-    static var upcomingCustomCreationTime: DispatchTime?
-    static func startCustomCreationTime(timeProvider: TimeProvider = defaultTimeProvider) {
-        let now = timeProvider.now()
-        PerformanceMonitoring.queue.async {
-            upcomingCustomCreationTime = now
-        }
-    }
-
-    static func clearCustomCreationTime() {
-        PerformanceMonitoring.queue.async {
-            upcomingCustomCreationTime = nil
-        }
-    }
-
-    static let identifier: AnyObject = NSObject()
 }
 
 protocol ScreenIsReadyProvider {

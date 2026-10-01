@@ -44,6 +44,12 @@ public extension UIViewController {
     /// The second case is when TTI should be started after view controller is created.
     /// For example, when you create UIViewController and cache it in some property earlier then showing it.
     /// Then you call this method before actually showing this controller.
+    ///
+    /// With a live receiver (``LiveTTIMetricsReceiver``), the call also opens a pending measurement, so work done
+    /// before the screen exists is measured too. The next tracked screen to start measuring adopts it at its
+    /// `viewDidLoad`. A repeat call replaces it. A screen that was already measuring before the call, like a
+    /// cached controller whose view is loaded, ends it as not adopted when it takes the TTI start. The TTI values
+    /// themselves don't change.
     @objc static func screenIsBeingCreated() {
         TTIObserverHelper.startCustomCreationTime()
     }
@@ -51,6 +57,7 @@ public extension UIViewController {
 
     /// Call this method in case you called `screenIsBeingCreated`, but screen won't be created.
     /// For example network request failed, or user tapped `cancel` or so on.
+    /// It also ends the pending measurement that `screenIsBeingCreated` opened.
     @objc static func screenCreationCancelled() {
         TTIObserverHelper.clearCustomCreationTime()
     }

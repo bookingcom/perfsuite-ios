@@ -36,8 +36,8 @@ import PerformanceSuite
 ///   duration-derived via `nowWindow(durationInterval:)`.
 /// * Attributes are merged through ``mergeOTelAttributes(sdkSet:sdkSetKeys:provider:context:)``.
 /// * `shouldEmit` gates `startLiveSpan` and `emitSpan` (rejection drops the span);
-///   for raw live spans it is deferred to `finalizeLiveSpan`, which closes a
-///   rejected span with `Status.error("shouldEmit_rejected")`.
+///   for raw live spans it is deferred to `finalizeLiveSpan` or `adoptScreenTTISpan`,
+///   which close a rejected span with `Status.error("shouldEmit_rejected")`.
 final class OTelSpanEmitter {
 
     private let tracerProvider: (any TracerProvider)?
@@ -201,9 +201,10 @@ final class OTelSpanEmitter {
     }
 
     /// Starts a live span without `shouldEmit` or host attribute provider (their context
-    /// isn't complete yet). The caller MUST reach `finalizeLiveSpan` — which evaluates
-    /// `shouldEmit` and closes a rejected span with `Status.error("shouldEmit_rejected")`
-    /// so it doesn't leak as a perpetually-open span. Pass `autoTerminate: false` for signals
+    /// isn't complete yet). The caller MUST reach `finalizeLiveSpan` (or, for a pending screen
+    /// TTI span, `adoptScreenTTISpan` or an explicit end) — which evaluates `shouldEmit` and
+    /// closes a rejected span with `Status.error("shouldEmit_rejected")` so it doesn't leak as a
+    /// perpetually-open span. Pass `autoTerminate: false` for signals
     /// that have their own post-facto record (hangs) so an unclean exit doesn't double-count.
     func startLiveSpanRaw(
         spanName: String,
@@ -240,6 +241,32 @@ final class OTelSpanEmitter {
             span.setAttribute(key: key, value: value)
         }
         span.end(time: endTime)
+    }
+
+    /// Turns a pending screen-TTI span into `screenName`'s span: renames it, then runs `shouldEmit` and the
+    /// host attributes against the screen's context. Leaves an accepted span live for
+    /// `screenTTIMeasurementEnded`; ends a rejected one with `Status.error("shouldEmit_rejected")` and
+    /// returns `false`.
+    func adoptScreenTTISpan(_ span: any OpenTelemetryApi.Span, screenName: String) -> Bool {
+        let attrs = OTelSemanticConventions.Attribute.self
+        span.name = prefixed(OTelSemanticConventions.SpanName.screenTTI(screenName))
+        span.setAttribute(key: attrs.screenName, value: .string(screenName))
+        let context = PerformanceSuiteSignalContext.screenTTI(ScreenContext(screenName: screenName))
+        if let shouldEmit, !shouldEmit(context) {
+            span.status = .error(description: "shouldEmit_rejected")
+            span.end(time: now())
+            return false
+        }
+        let merged = mergeOTelAttributes(
+            sdkSet: [attrs.screenName: .string(screenName)],
+            sdkSetKeys: reservedKeys(OTelSDKKeys.screenTTI),
+            provider: attributeProvider,
+            context: context
+        )
+        for (key, value) in merged {
+            span.setAttribute(key: key, value: value)
+        }
+        return true
     }
 
     // MARK: - Helper types

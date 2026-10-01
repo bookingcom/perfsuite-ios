@@ -72,6 +72,7 @@ public enum PerformanceMonitoring {
         }
         self.appReporters = appReporters
         self.viewControllerSubscriberEnabled = !vcObservers.isEmpty
+        TTIObserverHelper.installPendingHook(PendingScreenTTIHook.make(config: config))
     }
 
 
@@ -88,6 +89,7 @@ public enum PerformanceMonitoring {
         appReporters = []
         viewControllerSubscriberEnabled = false
         experiments = Experiments()
+        TTIObserverHelper.uninstallPendingHook()
     }
 
 
@@ -316,7 +318,11 @@ public enum PerformanceMonitoring {
 
         return (vcObservers, appReporters)
     }
+}
 
+// MARK: - Queues
+
+extension PerformanceMonitoring {
 
     /// This method might be used in tests to replace `PerformanceMonitoring.queue` with the main queue and after the test revert it back.
     /// It might be useful in tests, where you test methods which should be called from `PerformanceMonitoring.queue`.

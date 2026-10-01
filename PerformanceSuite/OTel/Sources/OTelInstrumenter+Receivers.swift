@@ -67,9 +67,50 @@ extension OTelInstrumenter:
             ctx.span.setAttribute(key: attrs.screenTTFRMs, value: .int(ms))
         }
         ctx.span.setAttribute(key: attrs.screenTTIReadyFallback, value: .bool(metrics.readyFallback))
+        ctx.span.setAttribute(key: attrs.screenTTICustomStart, value: .bool(metrics.customStart))
         // End at the TTI end, not at report time: the readiness fallback reports only at `viewWillDisappear`.
         let reportDelay = max(0, metrics.reportDelay.timeInterval ?? 0)
         ctx.span.end(time: now().addingTimeInterval(-reportDelay))
+    }
+
+    public func screenTTIPendingMeasurementStarted(at startTime: Date) -> (any MeasurementHandle)? {
+        // No screen yet: shouldEmit and the host attributes wait for the screen that adopts the span.
+        let span = emitter.startLiveSpanRaw(
+            spanName: emitter.prefixed(OTelSemanticConventions.SpanName.screenTTIPending),
+            startTime: startTime,
+            attributes: [:]
+        )
+        return OTelSpanContext(span: span)
+    }
+
+    public func screenTTIPendingMeasurementAdopted(
+        _ pending: any MeasurementHandle,
+        screen: Screen
+    ) -> (any MeasurementHandle)? {
+        // A pending span that already ended (e.g. at a session end) can't be renamed: start the screen's own.
+        guard let ctx = pending as? OTelSpanContext, ctx.span.isRecording else {
+            pending.cancel()
+            return screenTTIMeasurementStarted(screen: screen)
+        }
+        guard emitter.adoptScreenTTISpan(ctx.span, screenName: identifierName(screen)) else { return nil }
+        return ctx
+    }
+
+    public func screenTTIPendingMeasurementEnded(_ pending: any MeasurementHandle, reason: PendingScreenTTIEndReason) {
+        guard let ctx = pending as? OTelSpanContext, ctx.span.isRecording else {
+            pending.cancel()
+            return
+        }
+        let status = OTelSemanticConventions.PendingScreenTTIStatus.self
+        let description: String
+        switch reason {
+        case .creationCancelled: description = status.creationCancelled
+        case .superseded: description = status.superseded
+        case .notAdopted: description = status.notAdopted
+        case .abandoned: description = status.abandoned
+        }
+        ctx.span.status = .error(description: description)
+        ctx.span.end(time: now())
     }
 
     // MARK: - RenderingMetricsReceiver

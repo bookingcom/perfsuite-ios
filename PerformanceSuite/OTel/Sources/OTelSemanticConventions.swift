@@ -30,6 +30,9 @@ public enum OTelSemanticConventions {
             "screen-tti.\(screenName)"
         }
 
+        /// Opened by `screenIsBeingCreated()` and renamed to ``screenTTI(_:)`` by the screen that adopts it.
+        public static let screenTTIPending = "screen-tti.pending"
+
         public static func fragmentTTI(_ fragmentName: String) -> String {
             "fragment-tti.\(fragmentName)"
         }
@@ -51,6 +54,7 @@ public enum OTelSemanticConventions {
         public static let screenTTIMs = "screen.tti.ms"
         public static let screenTTFRMs = "screen.ttfr.ms"
         public static let screenTTIReadyFallback = "screen.tti.ready_fallback"
+        public static let screenTTICustomStart = "screen.tti.custom_start"
 
         // Fragment TTI
         public static let fragmentName = "fragment.name"
@@ -102,6 +106,14 @@ public enum OTelSemanticConventions {
     /// strings.
     public enum LogBody {
         public static let viewControllerLeak = "view_controller_leak"
+    }
+
+    /// Error status descriptions of a ``SpanName/screenTTIPending`` span that no screen adopted.
+    public enum PendingScreenTTIStatus {
+        public static let creationCancelled = "screen_creation_cancelled"
+        public static let superseded = "superseded"
+        public static let notAdopted = "not_adopted"
+        public static let abandoned = "abandoned"
     }
 
     /// String values that appear in the `hang.type` attribute. Kept narrow on

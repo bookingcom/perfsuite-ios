@@ -63,4 +63,19 @@ public final class MultiTTIMetricsReceiver<Screen>: LiveTTIMetricsReceiver {
             receiver.ttiMetricsReceived(metrics: metrics, screen: screen)
         }
     }
+
+    public func screenTTIPendingMeasurementStarted(at startTime: Date) -> (any MeasurementHandle)? {
+        liveReceiver?.screenTTIPendingMeasurementStarted(at: startTime)
+    }
+
+    public func screenTTIPendingMeasurementAdopted(
+        _ pending: any MeasurementHandle,
+        screen: Screen
+    ) -> (any MeasurementHandle)? {
+        liveReceiver?.screenTTIPendingMeasurementAdopted(pending, screen: screen)
+    }
+
+    public func screenTTIPendingMeasurementEnded(_ pending: any MeasurementHandle, reason: PendingScreenTTIEndReason) {
+        liveReceiver?.screenTTIPendingMeasurementEnded(pending, reason: reason)
+    }
 }

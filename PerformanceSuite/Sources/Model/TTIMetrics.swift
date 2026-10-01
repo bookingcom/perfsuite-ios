@@ -33,6 +33,9 @@ public struct TTIMetrics: CustomStringConvertible, Equatable {
     /// Large mostly on the `readyFallback` path, where the report waits for `viewWillDisappear`.
     public var reportDelay: DispatchTimeInterval = .zero
 
+    /// `true` when TTI started at a `UIViewController.screenIsBeingCreated()` call instead of the screen's own creation.
+    public var customStart: Bool = false
+
     public var description: String {
         let base = "tti: \(tti.milliseconds ?? 0) ms, ttfr: \(ttfr.milliseconds ?? 0) ms"
         return readyFallback ? base + ", ready_fallback: true" : base

@@ -123,6 +123,46 @@ final class MultiTTIMetricsReceiverTests: XCTestCase {
         // Non-live child gets the completed callback, not a live end.
         XCTAssertEqual(legacy.received.count, 1)
     }
+
+    func testPendingMeasurementCallsReachTheLiveChild() throws {
+        let live = LiveTTIReceiverStub()
+        let multi = MultiTTIMetricsReceiver<String>(
+            screenIdentifier: { _ in nil },
+            receivers: [StringTTIReceiverStub(), live]
+        )
+        let startDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let pending = try XCTUnwrap(multi.screenTTIPendingMeasurementStarted(at: startDate))
+        XCTAssertEqual(live.pendingStartDates, [startDate])
+        XCTAssertTrue(pending === live.pendingHandles.first)
+
+        let adopted = multi.screenTTIPendingMeasurementAdopted(pending, screen: "x")
+        XCTAssertTrue(adopted === pending, "the live child's handle is returned")
+        XCTAssertEqual(live.adoptedScreens, ["x"])
+        let metrics = TTIMetrics(tti: .seconds(1), ttfr: .milliseconds(500), appStartInfo: .empty)
+        multi.screenTTIMeasurementEnded(metrics: metrics, screen: "x", context: adopted)
+        XCTAssertTrue((live.endedContexts.first ?? nil) === pending, "the adopted handle is the one ended")
+
+        let other = try XCTUnwrap(multi.screenTTIPendingMeasurementStarted(at: startDate))
+        multi.screenTTIPendingMeasurementEnded(other, reason: .superseded)
+        XCTAssertEqual(live.pendingEndReasons, [.superseded])
+    }
+
+    func testPendingMeasurementCallsWithoutALiveChildDoNothing() {
+        let legacy = StringTTIReceiverStub()
+        let multi = MultiTTIMetricsReceiver<String>(
+            screenIdentifier: { _ in nil },
+            receivers: [legacy]
+        )
+        let handle = LiveTTIReceiverStub.Ctx()
+
+        XCTAssertNil(multi.screenTTIPendingMeasurementStarted(at: Date()))
+        XCTAssertNil(multi.screenTTIPendingMeasurementAdopted(handle, screen: "x"))
+        multi.screenTTIPendingMeasurementEnded(handle, reason: .abandoned)
+
+        XCTAssertEqual(handle.cancelCount, 0, "no protocol default runs: nothing is cancelled or started")
+        XCTAssertTrue(legacy.received.isEmpty)
+    }
 }
 
 // File-scope so the `Ctx` handle stays at one level of nesting (SwiftLint `nesting`).
@@ -141,5 +181,22 @@ private final class LiveTTIReceiverStub: LiveTTIMetricsReceiver {
     }
     func screenTTIMeasurementEnded(metrics: TTIMetrics, screen: String, context: (any MeasurementHandle)?) {
         endedContexts.append(context)
+    }
+    var pendingStartDates: [Date] = []
+    var pendingHandles: [Ctx] = []
+    var adoptedScreens: [String] = []
+    var pendingEndReasons: [PendingScreenTTIEndReason] = []
+    func screenTTIPendingMeasurementStarted(at startTime: Date) -> (any MeasurementHandle)? {
+        pendingStartDates.append(startTime)
+        let handle = Ctx()
+        pendingHandles.append(handle)
+        return handle
+    }
+    func screenTTIPendingMeasurementAdopted(_ pending: any MeasurementHandle, screen: String) -> (any MeasurementHandle)? {
+        adoptedScreens.append(screen)
+        return pending
+    }
+    func screenTTIPendingMeasurementEnded(_ pending: any MeasurementHandle, reason: PendingScreenTTIEndReason) {
+        pendingEndReasons.append(reason)
     }
 }

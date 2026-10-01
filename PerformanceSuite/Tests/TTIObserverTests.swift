@@ -16,11 +16,13 @@ class TTIObserverTests: XCTestCase {
 
         PerformanceMonitoring.queue.sync {}
         self.previousQueue = PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
+        TTIObserverHelper.resetForTests()
     }
     private var previousQueue: DispatchQueue?
 
     override func tearDown() {
         super.tearDown()
+        TTIObserverHelper.resetForTests()
         if let previousQueue = previousQueue {
             PerformanceMonitoring.changeQueueForTests(previousQueue)
         }

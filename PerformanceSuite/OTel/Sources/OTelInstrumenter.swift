@@ -51,7 +51,9 @@ public final class OTelInstrumenter<Screen, Fragment> {
     ///   - attributeProvider: Invoked once per emission with the signal context; result merged onto the
     ///     span (SDK-reserved keys win; host collisions dropped).
     ///   - shouldEmit: Per-emission gate. `false` suppresses start-gated spans; for deferred-context live
-    ///     spans (startup, hangs, app-rendering) it ends with `Status.error("shouldEmit_rejected")` instead.
+    ///     spans (startup, hangs, app-rendering, and a screen TTI span adopted from `screenIsBeingCreated()`'s
+    ///     pending span) it ends with `Status.error("shouldEmit_rejected")` instead. A pending span that no
+    ///     screen adopts is exported without a `shouldEmit` or `attributeProvider` call.
     ///   - autoTerminationAttribute: Optional `(key, value)` stamped on live spans at start for a backend
     ///     to close on unclean exit. `nil` = vendor-neutral. Embrace: `("emb.auto_termination.code", "user_abandon")`.
     ///   - now: Clock for deterministic tests.

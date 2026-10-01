@@ -30,6 +30,7 @@ enum OTelSDKKeys {
         OTelSemanticConventions.Attribute.screenName,
         OTelSemanticConventions.Attribute.screenTTIMs,
         OTelSemanticConventions.Attribute.screenTTFRMs,
+        OTelSemanticConventions.Attribute.screenTTIReadyFallback,
     ]
 
     static let fragmentTTI: Set<String> = [

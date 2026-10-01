@@ -48,6 +48,8 @@ public protocol TTIMetricsReceiver<ScreenIdentifier>: ScreenMetricsReceiver {
 /// Opt-in live-measurement variant of ``TTIMetricsReceiver`` — measurement started when the screen is created, ended
 /// when TTI resolves; `cancel()` covers abandonment. Requires iOS 16. No start `Date` is passed (unlike
 /// rendering), so the measurement's wall-clock duration may differ slightly from the `TTIMetrics.tti` attribute.
+/// `screenTTIMeasurementEnded` can come long after the TTI end (on `TTIMetrics.readyFallback`, at
+/// `viewWillDisappear`); `TTIMetrics.reportDelay` gives the gap, so the measurement can be ended at the TTI end.
 public protocol LiveTTIMetricsReceiver<ScreenIdentifier>: TTIMetricsReceiver {
     func screenTTIMeasurementStarted(screen: ScreenIdentifier) -> (any MeasurementHandle)?
     func screenTTIMeasurementEnded(

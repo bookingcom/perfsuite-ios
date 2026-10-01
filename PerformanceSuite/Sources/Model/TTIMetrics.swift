@@ -26,7 +26,15 @@ public struct TTIMetrics: CustomStringConvertible, Equatable {
     /// You probably want to exclude such TTI measurements.
     public let appStartInfo: AppStartInfo
 
+    /// `true` when `screenIsReady()` was never called and TTI fell back to `viewDidAppear` at `viewWillDisappear`.
+    public var readyFallback: Bool = false
+
+    /// Time from the TTI end, `max(screenIsReady, viewDidAppear)`, to the moment these metrics were reported.
+    /// Large mostly on the `readyFallback` path, where the report waits for `viewWillDisappear`.
+    public var reportDelay: DispatchTimeInterval = .zero
+
     public var description: String {
-        return "tti: \(tti.milliseconds ?? 0) ms, ttfr: \(ttfr.milliseconds ?? 0) ms"
+        let base = "tti: \(tti.milliseconds ?? 0) ms, ttfr: \(ttfr.milliseconds ?? 0) ms"
+        return readyFallback ? base + ", ready_fallback: true" : base
     }
 }

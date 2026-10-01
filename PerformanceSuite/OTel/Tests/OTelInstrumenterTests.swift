@@ -327,6 +327,49 @@ final class OTelInstrumenterTests: XCTestCase {
         XCTAssertTrue(span.ended)
         XCTAssertEqual(span.attributes["screen.tti.ms"]?.intValue, 800)
         XCTAssertEqual(span.attributes["screen.ttfr.ms"]?.intValue, 50)
+        XCTAssertEqual(span.attributes["screen.tti.ready_fallback"]?.boolValue, false)
+        XCTAssertEqual(span.firstEndTime, Date(timeIntervalSince1970: 1_700_000_000), "zero delay ends at now")
+    }
+
+    func testScreenTTIFallbackSpanEndsAtTheTTIEndNotAtReportTime() throws {
+        let provider = MockTracerProvider()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let instrumenter = makeInstrumenter(provider: provider, now: now)
+
+        let context = instrumenter.screenTTIMeasurementStarted(screen: .homescreen)
+        instrumenter.screenTTIMeasurementEnded(
+            metrics: TTIMetrics(
+                tti: .milliseconds(700), ttfr: .milliseconds(50), appStartInfo: .empty,
+                readyFallback: true, reportDelay: .milliseconds(5_500)
+            ),
+            screen: .homescreen,
+            context: context
+        )
+
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertEqual(span.attributes["screen.tti.ready_fallback"]?.boolValue, true)
+        XCTAssertEqual(span.firstEndTime, now.addingTimeInterval(-5.5))
+        XCTAssertEqual(span.endCalls.count, 1)
+    }
+
+    func testScreenTTISpanWithNegativeOrNeverReportDelayEndsAtNow() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        for delay in [DispatchTimeInterval.milliseconds(-20), .never] {
+            let provider = MockTracerProvider()
+            let instrumenter = makeInstrumenter(provider: provider, now: now)
+
+            let context = instrumenter.screenTTIMeasurementStarted(screen: .homescreen)
+            instrumenter.screenTTIMeasurementEnded(
+                metrics: TTIMetrics(
+                    tti: .milliseconds(700), ttfr: .milliseconds(50), appStartInfo: .empty, reportDelay: delay
+                ),
+                screen: .homescreen,
+                context: context
+            )
+
+            let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+            XCTAssertEqual(span.firstEndTime, now, "\(delay) must not move the end past now")
+        }
     }
 
     func testScreenTTIMeasurementEndedWithNilContextEmitsNothing() throws {

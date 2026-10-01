@@ -37,6 +37,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
     private var ttiCalculated = false
     private var sameRunLoopAsTheInit = false
     private var ignoreThisScreen = false
+    private var readyFellBack = false
 
     private var customCreationTime: DispatchTime?
 
@@ -137,6 +138,8 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         let action = {
             if self.shouldReportTTI && self.screenIsReadyTime == nil {
                 self.screenIsReadyTime = self.viewDidAppearTime
+                // With no `viewDidAppear` yet nothing reports here, and a later readiness call is not a fallback.
+                self.readyFellBack = self.viewDidAppearTime != nil
                 self.reportTTIIfNeeded()
             }
         }
@@ -191,7 +194,13 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         }
 
 
-        let metrics = TTIMetrics(tti: tti, ttfr: ttfr, appStartInfo: AppInfoHolder.appStartInfo)
+        let metrics = TTIMetrics(
+            tti: tti,
+            ttfr: ttfr,
+            appStartInfo: AppInfoHolder.appStartInfo,
+            readyFallback: readyFellBack,
+            reportDelay: ttiEndTime.distance(to: timeProvider.now())
+        )
         let context = self.measurementHandle
         self.measurementHandle = nil
         PerformanceMonitoring.consumerQueue.async {

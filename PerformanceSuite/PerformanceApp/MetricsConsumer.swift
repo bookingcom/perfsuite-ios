@@ -68,6 +68,11 @@ class MetricsConsumer: PerformanceSuiteMetricsReceiver {
         interop?.send(message: Message.fragmentTTI(duration: metrics.tti.milliseconds ?? -1, fragment: identifier))
     }
 
+    func fragmentRenderingMetricsReceived(metrics: RenderingMetrics, fragment identifier: String) {
+        log("fragmentRenderingMetricsReceived \(identifier) \(metrics)")
+        interop?.send(message: Message.fragmentRendering(duration: metrics.freezeTime.milliseconds ?? -1, fragment: identifier))
+    }
+
     func fatalHangReceived(info: HangInfo) {
         log("fatalHangReceived \(info)")
         let message: Message = info.duringStartup ? .startupFatalHang : .fatalHang

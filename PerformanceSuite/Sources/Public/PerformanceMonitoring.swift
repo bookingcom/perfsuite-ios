@@ -26,8 +26,13 @@ public struct Experiments {
     /// feature existed, and no measurement is opened on the caller's thread.
     public var pendingScreenTTIMeasurements: Bool
 
-    public init(pendingScreenTTIMeasurements: Bool = true) {
+    /// Whether fragment-level rendering metrics (freeze time, session duration, etc.) are collected
+    /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
+    public var fragmentRenderingMetrics: Bool
+
+    public init(pendingScreenTTIMeasurements: Bool = true, fragmentRenderingMetrics: Bool = false) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
+        self.fragmentRenderingMetrics = fragmentRenderingMetrics
     }
 }
 
@@ -130,6 +135,21 @@ public enum PerformanceMonitoring {
         }
     }
 
+    /// Start measuring rendering metrics (freeze time, session duration, etc.) for a fragment.
+    /// - Parameter identifier: identifier of your fragment.
+    /// - Returns: trackable object; call `fragmentRenderingFinished()` when the fragment is no longer visible.
+    public static func startFragmentRendering<FragmentIdentifier>(identifier: FragmentIdentifier) -> FragmentRenderingTrackable {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        if let reporter = appReporters.compactMap({ $0 as? AnyFragmentRenderingReporter }).first {
+            return reporter.start(identifier: identifier)
+        } else {
+            return EmptyFragmentRenderingTrackable()
+        }
+    }
+
 
     /// The information about the recent app start
     public static var appStartInfo: AppStartInfo { AppInfoHolder.appStartInfo }
@@ -161,11 +181,12 @@ public enum PerformanceMonitoring {
         }
     }
 
+    @discardableResult
     private static func appendRenderingObservers(
         config: Config, vcObservers: inout [ViewControllerObserver], appReporters: inout [AppMetricsReporter]
-    ) {
+    ) -> FramesMeter? {
         guard config.renderingEnabled else {
-            return
+            return nil
         }
         let framesMeter = DefaultFramesMeter()
 
@@ -184,6 +205,8 @@ public enum PerformanceMonitoring {
             #endif
             appReporters.append(appRenderingReporter)
         }
+
+        return framesMeter
     }
 
     private static func appendStartupObservers(
@@ -292,6 +315,23 @@ public enum PerformanceMonitoring {
         appReporters.append(fragmentTTIReporter)
     }
 
+    private static func makeFragmentRenderingReporter<F: FragmentRenderingMetricsReceiver>(
+        metricsReceiver: F, framesMeter: FramesMeter
+    ) -> AppMetricsReporter {
+        AnyFragmentRenderingReporter(
+            reporter: FragmentRenderingReporter(metricsReceiver: metricsReceiver, framesMeter: framesMeter))
+    }
+
+    private static func appendFragmentRenderingReporter(
+        config: Config, framesMeter: FramesMeter, appReporters: inout [AppMetricsReporter]
+    ) {
+        guard let fragmentRenderingReceiver = config.fragmentRenderingReceiver else {
+            return
+        }
+        let reporter = makeFragmentRenderingReporter(metricsReceiver: fragmentRenderingReceiver, framesMeter: framesMeter)
+        appReporters.append(reporter)
+    }
+
     private static func makeObservers(
         config: Config,
         storage: Storage,
@@ -304,7 +344,10 @@ public enum PerformanceMonitoring {
         var appReporters = [AppMetricsReporter]()
 
         appendTTIObservers(config: config, vcObservers: &vcObservers)
-        appendRenderingObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
+        let framesMeter = appendRenderingObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
+        if let framesMeter, experiments.fragmentRenderingMetrics {
+            appendFragmentRenderingReporter(config: config, framesMeter: framesMeter, appReporters: &appReporters)
+        }
         let startupProvider = appendStartupObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
         let deps = TerminationDependencies(startupProvider: startupProvider, storage: storage, didCrashPreviously: didCrashPreviously)
 

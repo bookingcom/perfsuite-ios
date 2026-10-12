@@ -132,7 +132,9 @@ extension PerformanceMonitoringTests: PerformanceSuiteMetricsReceiver {
     }
 
     func fragmentTTIMetricsReceived(metrics: PerformanceSuite.TTIMetrics, fragment identifier: String) {
+    }
 
+    func fragmentRenderingMetricsReceived(metrics: PerformanceSuite.RenderingMetrics, fragment identifier: String) {
     }
 
     func fatalHangReceived(info: PerformanceSuite.HangInfo) {

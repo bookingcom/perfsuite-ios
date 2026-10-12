@@ -17,19 +17,20 @@ public enum ConfigItem {
     case viewControllerLeaks(ViewControllerLeaksReceiver)
     case logging(any ViewControllerLoggingReceiver)
     case fragmentTTI(any FragmentTTIMetricsReceiver)
+    case fragmentRendering(any FragmentRenderingMetricsReceiver)
 }
 
 public typealias Config = [ConfigItem]
 
 public typealias PerformanceSuiteMetricsReceiver = TTIMetricsReceiver & RenderingMetricsReceiver & AppRenderingMetricsReceiver
 & WatchdogTerminationsReceiver & HangsReceiver & ViewControllerLeaksReceiver & StartupTimeReceiver & ViewControllerLoggingReceiver
-& FragmentTTIMetricsReceiver
+& FragmentTTIMetricsReceiver & FragmentRenderingMetricsReceiver
 
 
 extension ConfigItem {
     var isRendering: Bool {
         switch self {
-        case .appLevelRendering, .screenLevelRendering:
+        case .appLevelRendering, .screenLevelRendering, .fragmentRendering:
             return true
         default:
             return false
@@ -146,6 +147,16 @@ extension Config {
         }
     }
 
+    var fragmentRenderingReceiver: (any FragmentRenderingMetricsReceiver)? {
+        findReceiver(title: "fragmentRendering") { item in
+            if case .fragmentRendering(let result) = item {
+                return result
+            } else {
+                return nil
+            }
+        }
+    }
+
     public static func all(receiver: any PerformanceSuiteMetricsReceiver) -> Self {
         [
             .screenLevelTTI(receiver),
@@ -157,6 +168,7 @@ extension Config {
             .viewControllerLeaks(receiver),
             .logging(receiver),
             .fragmentTTI(receiver),
+            .fragmentRendering(receiver),
         ]
     }
 }

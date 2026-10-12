@@ -66,4 +66,10 @@ extension ConfigItem {
     ) -> ConfigItem {
         .fragmentTTI(MultiFragmentTTIMetricsReceiver(receivers: receivers))
     }
+
+    public static func fragmentRendering<Fragment>(
+        _ receivers: [any FragmentRenderingMetricsReceiver<Fragment>]
+    ) -> ConfigItem {
+        .fragmentRendering(MultiFragmentRenderingMetricsReceiver(receivers: receivers))
+    }
 }

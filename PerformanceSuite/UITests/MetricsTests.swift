@@ -45,6 +45,20 @@ class MetricsTests: BaseTests {
         try assertDuration(fragment: fragment3, duration: 100)
     }
 
+    func testFragmentRendering() throws {
+        performFirstLaunch()
+        let fragment1 = Message.fragmentRendering(duration: 0, fragment: "fragment1")
+        assertNoMessages(fragment1)
+
+        app.staticTexts["Fragment Rendering"].tap()
+        waitForMessage { $0 == fragment1 }
+
+        let foundMessage = try XCTUnwrap(client.messages.first(where: { $0 == fragment1 }))
+        if case .fragmentRendering(let duration, _) = foundMessage {
+            XCTAssertGreaterThan(duration, 200)
+        }
+    }
+
     func testFreezeTime() throws {
         performFirstLaunch()
         let ftMessage = Message.freezeTime(duration: 0, screen: "list")

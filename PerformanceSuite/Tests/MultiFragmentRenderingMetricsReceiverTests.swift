@@ -9,7 +9,7 @@ import XCTest
 @testable import PerformanceSuite
 
 @available(iOS 16.0, *)
-final class MultiFragmentRenderingMetricsReceiverTests: XCTestCase {
+final class MultiFragmentRenderingReceiverTests: XCTestCase {
 
     private final class StringFragmentReceiverStub: FragmentRenderingMetricsReceiver {
         var received: [(RenderingMetrics, String)] = []

@@ -42,6 +42,10 @@ struct MenuView: View {
                     Text("Fragment TTI")
                 }
 
+                NavigationLink(destination: FragmentRenderingView()) {
+                    Text("Fragment Rendering")
+                }
+
                 let renderingMode = ListMode("2", cellSleep: 0.1, delayInterval: 1, scrollOnAppear: true, popOnAppear: true)
                 NavigationLink(destination: ListView(mode: renderingMode)) {
                     Text("Freeze Time")

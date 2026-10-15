@@ -39,6 +39,7 @@ public enum Message: Codable, Equatable {
     case freezeTime(duration: Int, screen: String)
     case tti(duration: Int, screen: String)
     case fragmentTTI(duration: Int, fragment: String)
+    case fragmentRendering(duration: Int, fragment: String)
     case hangStarted
     case startupHangStarted
     case startupNonFatalHang
@@ -71,6 +72,9 @@ public enum Message: Codable, Equatable {
             return screenA == screenB
 
         case let (.fragmentTTI(_, fragmentA), .fragmentTTI(_, fragmentB)):
+            return fragmentA == fragmentB
+
+        case let (.fragmentRendering(_, fragmentA), .fragmentRendering(_, fragmentB)):
             return fragmentA == fragmentB
 
         default:

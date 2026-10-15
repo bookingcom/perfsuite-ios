@@ -259,5 +259,5 @@ func preconditionFailureInTests(message: String, file: StaticString, line: UInt)
         Swift.preconditionFailure(message, file: file, line: line)
     }
 }
-private var preconditionFailureExpectation: XCTestExpectation?
-private let preconditionFailureQueue = DispatchQueue(label: "preconditionFailureQueue")
+var preconditionFailureExpectation: XCTestExpectation?
+let preconditionFailureQueue = DispatchQueue(label: "preconditionFailureQueue")

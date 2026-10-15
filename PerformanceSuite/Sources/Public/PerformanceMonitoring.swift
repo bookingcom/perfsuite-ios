@@ -26,8 +26,13 @@ public struct Experiments {
     /// feature existed, and no measurement is opened on the caller's thread.
     public var pendingScreenTTIMeasurements: Bool
 
-    public init(pendingScreenTTIMeasurements: Bool = true) {
+    /// Whether fragment-level rendering metrics (freeze time, session duration, etc.) are collected
+    /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
+    public var fragmentRenderingMetrics: Bool
+
+    public init(pendingScreenTTIMeasurements: Bool = true, fragmentRenderingMetrics: Bool = false) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
+        self.fragmentRenderingMetrics = fragmentRenderingMetrics
     }
 }
 
@@ -83,7 +88,6 @@ public enum PerformanceMonitoring {
         }
     }
 
-
     /// Method to stop PerformanceSuite monitoring.
     public static func disable() throws {
         lock.lock()
@@ -130,6 +134,21 @@ public enum PerformanceMonitoring {
         }
     }
 
+    /// Start measuring rendering metrics (freeze time, session duration, etc.) for a fragment.
+    /// - Parameter identifier: identifier of your fragment.
+    /// - Returns: trackable object; call `fragmentRenderingFinished()` when the fragment is no longer visible.
+    public static func startFragmentRendering<FragmentIdentifier>(identifier: FragmentIdentifier) -> FragmentRenderingTrackable {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        if let reporter = appReporters.compactMap({ $0 as? AnyFragmentRenderingReporter }).first {
+            return reporter.start(identifier: identifier)
+        } else {
+            return EmptyFragmentRenderingTrackable()
+        }
+    }
+
 
     /// The information about the recent app start
     public static var appStartInfo: AppStartInfo { AppInfoHolder.appStartInfo }
@@ -161,11 +180,12 @@ public enum PerformanceMonitoring {
         }
     }
 
+    @discardableResult
     private static func appendRenderingObservers(
         config: Config, vcObservers: inout [ViewControllerObserver], appReporters: inout [AppMetricsReporter]
-    ) {
+    ) -> FramesMeter? {
         guard config.renderingEnabled else {
-            return
+            return nil
         }
         let framesMeter = DefaultFramesMeter()
 
@@ -184,6 +204,8 @@ public enum PerformanceMonitoring {
             #endif
             appReporters.append(appRenderingReporter)
         }
+
+        return framesMeter
     }
 
     private static func appendStartupObservers(
@@ -304,7 +326,10 @@ public enum PerformanceMonitoring {
         var appReporters = [AppMetricsReporter]()
 
         appendTTIObservers(config: config, vcObservers: &vcObservers)
-        appendRenderingObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
+        let framesMeter = appendRenderingObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
+        if let framesMeter, experiments.fragmentRenderingMetrics {
+            appendFragmentRenderingReporter(config: config, framesMeter: framesMeter, appReporters: &appReporters)
+        }
         let startupProvider = appendStartupObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
         let deps = TerminationDependencies(startupProvider: startupProvider, storage: storage, didCrashPreviously: didCrashPreviously)
 
@@ -325,52 +350,6 @@ public enum PerformanceMonitoring {
         appendFragmentTTIReporter(config: config, appReporters: &appReporters)
 
         return (vcObservers, appReporters)
-    }
-}
-
-// MARK: - Queues
-
-extension PerformanceMonitoring {
-
-    /// This method might be used in tests to replace `PerformanceMonitoring.queue` with the main queue and after the test revert it back.
-    /// It might be useful in tests, where you test methods which should be called from `PerformanceMonitoring.queue`.
-    /// - Parameter newQueue: new queue to set as `PerformanceMonitoring.queue`
-    /// - Returns:old queue, which was replaced
-    @discardableResult
-    static func changeQueueForTests(_ newQueue: DispatchQueue) -> DispatchQueue {
-        let oldQueue = queue
-        // Clear the key from the queue being swapped out so it isn't left permanently identified as
-        // PM.queue (e.g. a test swapping in `.main` must not leave `.main` keyed after it restores,
-        // which would make later `runOnQueue` calls on main run inline instead of dispatching).
-        oldQueue.setSpecific(key: queueKey, value: nil)
-        queue = newQueue
-        // Re-stamp queueKey so runOnQueue detects the swapped-in queue (see runOnQueue).
-        newQueue.setSpecific(key: queueKey, value: ())
-        return oldQueue
-    }
-
-    /// This queue is used for all the monitoring logic. It is interactive because we should react faster for proper measurements
-    /// It is `var`, not `let` only to be able to replace it in tests. Do not change it in production.
-    static private(set) var queue: DispatchQueue = {
-        let q = DispatchQueue(label: "performance_suite_monitoring_queue", qos: .userInteractive)
-        q.setSpecific(key: queueKey, value: ())
-        return q
-    }()
-
-    /// This queue is used to send data to the consumer. It is background because we don't need to be fast there
-    static let consumerQueue = DispatchQueue(label: "performance_suite_consumer_queue", qos: .background)
-
-    /// Identifies PM.queue so runOnQueue runs inline instead of deadlocking on queue.sync.
-    static let queueKey = DispatchSpecificKey<Void>()
-
-    // Run `work` on `PerformanceMonitoring.queue` synchronously. Inline when already on PM.queue
-    // (detected via queueKey); avoids the queue.sync self-deadlock when tests swap queue to .main.
-    static func runOnQueue(_ work: () -> Void) {
-        if DispatchQueue.getSpecific(key: queueKey) != nil {
-            work()
-        } else {
-            queue.sync(execute: work)
-        }
     }
 }
 

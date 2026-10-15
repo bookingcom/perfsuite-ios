@@ -30,9 +30,11 @@ final class FragmentRenderingReporterTests: XCTestCase {
 
         XCTAssertTrue(framesMeter.isStarted)
 
-        framesMeter.report(frameDuration: 0.032, refreshRateDuration: 0.016)
-        framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
-        framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        PerformanceMonitoring.queue.sync {
+            framesMeter.report(frameDuration: 0.032, refreshRateDuration: 0.016)
+            framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+            framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        }
 
         trackable.fragmentRenderingFinished()
 
@@ -55,9 +57,9 @@ final class FragmentRenderingReporterTests: XCTestCase {
 
         let trackable = reporter.start(identifier: "my_fragment")
 
-        PerformanceMonitoring.queue.sync {}
-
-        framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        PerformanceMonitoring.queue.sync {
+            framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        }
 
         trackable.fragmentRenderingFinished()
 
@@ -86,9 +88,9 @@ final class FragmentRenderingReporterTests: XCTestCase {
 
         let trackable = reporter.start(identifier: "my_fragment")
 
-        PerformanceMonitoring.queue.sync {}
-
-        framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        PerformanceMonitoring.queue.sync {
+            framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        }
         appStateListener.wasInBackground = true
         trackable.fragmentRenderingFinished()
 
@@ -110,9 +112,9 @@ final class FragmentRenderingReporterTests: XCTestCase {
         let trackable1 = reporter.start(identifier: "fragment_a")
         let trackable2 = reporter.start(identifier: "fragment_b")
 
-        PerformanceMonitoring.queue.sync {}
-
-        framesMeter.report(frameDuration: 0.032, refreshRateDuration: 0.016)
+        PerformanceMonitoring.queue.sync {
+            framesMeter.report(frameDuration: 0.032, refreshRateDuration: 0.016)
+        }
 
         trackable1.fragmentRenderingFinished()
 
@@ -125,7 +127,9 @@ final class FragmentRenderingReporterTests: XCTestCase {
 
         metricsReceiver.clear()
 
-        framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        PerformanceMonitoring.queue.sync {
+            framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+        }
 
         trackable2.fragmentRenderingFinished()
 
@@ -146,8 +150,9 @@ final class FragmentRenderingReporterTests: XCTestCase {
 
         autoreleasepool {
             _ = reporter.start(identifier: "abandoned")
-            PerformanceMonitoring.queue.sync {}
-            framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+            PerformanceMonitoring.queue.sync {
+                framesMeter.report(frameDuration: 0.016, refreshRateDuration: 0.016)
+            }
         }
 
         PerformanceMonitoring.queue.sync {}

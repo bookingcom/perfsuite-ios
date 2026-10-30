@@ -77,4 +77,32 @@ final class RenderingMetricsTests: XCTestCase {
         XCTAssertNotEqual(bareZero, anchoredZero,
                           "An anchored .zero is distinguishable from bare .zero")
     }
+
+    func testFrameMetricsCountsDroppedFrames() {
+        let frame = RenderingMetrics.metrics(frameDuration: 0.05, refreshRateDuration: 0.0167)
+
+        XCTAssertEqual(frame.expectedFrames, 3)
+        XCTAssertEqual(frame.droppedFrames, 2)
+    }
+
+    func testFrameMetricsWithZeroRefreshRateDurationDoesNotCountDroppedFrames() {
+        let frame = RenderingMetrics.metrics(frameDuration: 0.05, refreshRateDuration: 0)
+
+        XCTAssertEqual(frame.expectedFrames, 1)
+        XCTAssertEqual(frame.droppedFrames, 0)
+    }
+
+    func testFrameMetricsWithNegativeRefreshRateDurationDoesNotCountDroppedFrames() {
+        let frame = RenderingMetrics.metrics(frameDuration: 0.05, refreshRateDuration: -0.0167)
+
+        XCTAssertEqual(frame.expectedFrames, 1)
+        XCTAssertEqual(frame.droppedFrames, 0)
+    }
+
+    func testFrameMetricsWithTinyRefreshRateDurationDoesNotOverflow() {
+        let frame = RenderingMetrics.metrics(frameDuration: 0.05, refreshRateDuration: 1e-300)
+
+        XCTAssertEqual(frame.expectedFrames, 1)
+        XCTAssertEqual(frame.droppedFrames, 0)
+    }
 }

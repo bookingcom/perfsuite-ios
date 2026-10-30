@@ -161,8 +161,13 @@ public struct RenderingMetrics: CustomStringConvertible, Equatable {
         let slowFrames = frameDuration >= slowFrameThreshold ? 1 : 0
         let expectedFrames: Int
         let droppedFrames: Int
-        if frameDuration > (refreshRateDuration + refreshRateDurationThreshold) {
-            expectedFrames = Int(round(frameDuration / refreshRateDuration))
+        // `refreshRateDuration` comes from the display link and isn't guaranteed to be positive.
+        // A zero, negative or tiny value makes the ratio infinite, NaN or too big, and `Int(_:)` traps on it.
+        let expectedFramesRatio = (frameDuration / refreshRateDuration).rounded()
+        if frameDuration > (refreshRateDuration + refreshRateDurationThreshold),
+           refreshRateDuration > 0,
+           expectedFramesRatio < Double(Int.max) {
+            expectedFrames = Int(expectedFramesRatio)
             droppedFrames = expectedFrames - 1
         } else {
             expectedFrames = 1

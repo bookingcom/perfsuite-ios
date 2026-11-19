@@ -12,45 +12,33 @@ import XCTest
 
 extension XCTestCase {
 
-    /// Posts `willResignActive` while a `consumerQueue` item waits for the main thread, the way a receiver
+    /// Posts `willResignActive` on main while a `consumerQueue` item waits for main, the way a receiver
     /// posting to a `queue: .main` notification observer does. If the `willResignActive` handling waits for
-    /// `consumerQueue` without a bound, main and `consumerQueue` wait for each other forever.
+    /// `consumerQueue` without a bound, main and `consumerQueue` wait for each other.
     ///
-    /// A serial queue stands in for the main thread, so a deadlock fails the test instead of freezing the
-    /// runner. The cycle is broken afterwards, so later tests can still use `consumerQueue`.
+    /// The `consumerQueue` item gives up waiting after a timeout, which breaks the deadlock so the test fails
+    /// instead of freezing the runner.
     func assertWillResignActiveDoesNotDeadlock(file: StaticString = #filePath, line: UInt = #line) {
-        let fakeMain = DispatchQueue(label: "fake_main_queue")
-        // Tests usually run `PerformanceMonitoring.queue` on `.main`, which would move the blocking wait onto
-        // the real main thread.
-        let previousQueue = PerformanceMonitoring.changeQueueForTests(DispatchQueue(label: "test_monitoring_queue"))
-        defer {
-            PerformanceMonitoring.changeQueueForTests(previousQueue)
-        }
-
+        precondition(Thread.isMainThread)
         let consumerIsWaiting = DispatchSemaphore(value: 0)
         let mainWorkDone = DispatchSemaphore(value: 0)
-        let resignHandled = expectation(description: "willResignActive handled")
+        let consumerDone = expectation(description: "consumerQueue item finished")
+        var mainWorkTimedOut = false
 
-        // Main is busy (e.g. starting an auth session) when the system deactivates the scene.
-        fakeMain.async {
-            consumerIsWaiting.wait()
-            NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-            resignHandled.fulfill()
-        }
-        // Queued for main behind the deactivation, and waited for synchronously.
         PerformanceMonitoring.consumerQueue.async {
-            fakeMain.async {
+            DispatchQueue.main.async {
                 mainWorkDone.signal()
             }
             consumerIsWaiting.signal()
-            mainWorkDone.wait()
+            mainWorkTimedOut = mainWorkDone.wait(timeout: .now() + 2) == .timedOut
+            consumerDone.fulfill()
         }
+        consumerIsWaiting.wait()
 
-        let result = XCTWaiter().wait(for: [resignHandled], timeout: 2)
-        XCTAssertEqual(result, .completed, "willResignActive deadlocked waiting for consumerQueue", file: file, line: line)
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
 
-        mainWorkDone.signal()
-        fakeMain.sync {}
+        wait(for: [consumerDone], timeout: 5)
+        XCTAssertFalse(mainWorkTimedOut, "willResignActive deadlocked waiting for consumerQueue", file: file, line: line)
         PerformanceMonitoring.consumerQueue.sync {}
     }
 }

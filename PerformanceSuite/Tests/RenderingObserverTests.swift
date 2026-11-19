@@ -313,6 +313,26 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "disappear after a resign-end must not double-report")
     }
 
+    func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
+        let metricsReceiver = LiveRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
+
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
+        waitForEvents()
+
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+
+        assertWillResignActiveDoesNotDeadlock()
+
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "the live measurement still ends once consumerQueue drains")
+    }
+
     private func waitForEvents() {
         let exp = expectation(description: "runloop")
         DispatchQueue.main.asyncAfter(deadline: .now()) {

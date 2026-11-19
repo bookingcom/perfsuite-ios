@@ -130,26 +130,34 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private func handleWillResignActive() {
         // Synchronous so the live span ends within this notification turn — before the backend ends
         // the session on didEnterBackground and auto-terminates the still-open span.
+        var delivery: DispatchSemaphore?
         PerformanceMonitoring.runOnQueue {
-            self.endForBackground()
+            delivery = self.endForBackground()
         }
+        _ = delivery?.wait(timeout: .now() + PerformanceMonitoring.lifecycleDeliveryTimeout)
     }
 
-    private func endForBackground() {
+    /// Returns the delivery to wait for when it is queued rather than run synchronously.
+    private func endForBackground() -> DispatchSemaphore? {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-        guard didAppearProcessed, let context = measurementHandle, !endedForBackground else { return }
+        guard didAppearProcessed, let context = measurementHandle, !endedForBackground else { return nil }
         framesMeter.unsubscribe(receiver: self)
         let metrics = self.metrics
         self.measurementHandle = nil
         self.endedForBackground = true
-        // Synchronous finalize to win the race against the backend's session-end auto-termination.
-        PerformanceMonitoring.consumerQueue.sync {
+        let deliver = {
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                 live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
             } else {
                 self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
             }
         }
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            return PerformanceMonitoring.deliverOnConsumerQueue(deliver)
+        }
+        // Synchronous finalize to win the race against the backend's session-end auto-termination.
+        PerformanceMonitoring.consumerQueue.sync(execute: deliver)
+        return nil
     }
 
     private func handleDidBecomeActive() {

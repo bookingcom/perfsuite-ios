@@ -30,9 +30,20 @@ public struct Experiments {
     /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
     public var fragmentRenderingMetrics: Bool
 
-    public init(pendingScreenTTIMeasurements: Bool = true, fragmentRenderingMetrics: Bool = false) {
+    /// Whether ending live rendering sessions on `willResignActive` / `willTerminate` waits for
+    /// `consumerQueue` for a limited time only. With `false` the wait has no limit, so main deadlocks if a
+    /// `consumerQueue` item is waiting for main at that moment, e.g. a receiver posting to a `queue: .main`
+    /// notification observer. Defaults to `false`.
+    public var fixFatalHangOnResignActive: Bool
+
+    public init(
+        pendingScreenTTIMeasurements: Bool = true,
+        fragmentRenderingMetrics: Bool = false,
+        fixFatalHangOnResignActive: Bool = false
+    ) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
         self.fragmentRenderingMetrics = fragmentRenderingMetrics
+        self.fixFatalHangOnResignActive = fixFatalHangOnResignActive
     }
 }
 

@@ -123,7 +123,10 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     /// finish before the process dies); `didEnterBackground` is async to keep the transition off main
     /// and avoid a `main → PM.queue → consumerQueue → main` deadlock. A finalize that misses
     /// suspension is covered by the caller-injected auto-termination attribute.
+    /// With `Experiments.fixFatalHangOnResignActive`, `synchronously` waits at most `lifecycleDeliveryTimeout`.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
+        let boundedWait = synchronously && PerformanceMonitoring.experiments.fixFatalHangOnResignActive
+        var delivery: DispatchSemaphore?
         PerformanceMonitoring.runOnQueue {
             self.scheduledSending?.cancel()
             self.scheduledSending = nil
@@ -136,12 +139,15 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
                 (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
                 completion?()
             }
-            if synchronously {
+            if boundedWait {
+                delivery = PerformanceMonitoring.deliverOnConsumerQueue(deliver)
+            } else if synchronously {
                 PerformanceMonitoring.consumerQueue.sync(execute: deliver)
             } else {
                 PerformanceMonitoring.consumerQueue.async(execute: deliver)
             }
         }
+        _ = delivery?.wait(timeout: .now() + PerformanceMonitoring.lifecycleDeliveryTimeout)
     }
 
     @objc private func appDidBecomeActive() {

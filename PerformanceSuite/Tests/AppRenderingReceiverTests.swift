@@ -196,6 +196,23 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+
+        assertWillResignActiveDoesNotDeadlock()
+
+        XCTAssertEqual(metricsReceiver.endedCount, 1, "the session still ends once consumerQueue drains")
+        _ = receiver
+    }
+
     func testDidBecomeActiveStartsSession() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()

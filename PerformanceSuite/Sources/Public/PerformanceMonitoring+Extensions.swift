@@ -60,6 +60,23 @@ extension PerformanceMonitoring {
     /// This queue is used to send data to the consumer. It is background because we don't need to be fast there
     static let consumerQueue = DispatchQueue(label: "performance_suite_consumer_queue", qos: .background)
 
+    /// How long app-lifecycle handling waits for `consumerQueue` to end live sessions,
+    /// with `Experiments.fixFatalHangOnResignActive` enabled.
+    static let lifecycleDeliveryTimeout: DispatchTimeInterval = .milliseconds(200)
+
+    /// Runs `work` on `consumerQueue` without waiting for it. Wait on the result outside `queue`, at most
+    /// `lifecycleDeliveryTimeout`: unlike `consumerQueue.sync`, this can't deadlock when a `consumerQueue`
+    /// item is waiting for the caller's thread.
+    static func deliverOnConsumerQueue(_ work: @escaping () -> Void) -> DispatchSemaphore {
+        let delivered = DispatchSemaphore(value: 0)
+        // A semaphore doesn't pass the waiter's priority on to `consumerQueue` like `sync` does.
+        consumerQueue.async(qos: .userInitiated, flags: .enforceQoS) {
+            work()
+            delivered.signal()
+        }
+        return delivered
+    }
+
     /// Identifies PM.queue so runOnQueue runs inline instead of deadlocking on queue.sync.
     static let queueKey = DispatchSpecificKey<Void>()
 

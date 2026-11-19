@@ -147,7 +147,9 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
                 PerformanceMonitoring.consumerQueue.async(execute: deliver)
             }
         }
-        _ = delivery?.wait(timeout: .now() + PerformanceMonitoring.lifecycleDeliveryTimeout)
+        if let delivery {
+            PerformanceMonitoring.waitForConsumerQueue(delivery)
+        }
     }
 
     @objc private func appDidBecomeActive() {

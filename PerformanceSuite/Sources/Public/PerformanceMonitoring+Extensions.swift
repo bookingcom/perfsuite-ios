@@ -64,9 +64,9 @@ extension PerformanceMonitoring {
     /// with `Experiments.fixFatalHangOnResignActive` enabled.
     static let lifecycleDeliveryTimeout: DispatchTimeInterval = .milliseconds(200)
 
-    /// Runs `work` on `consumerQueue` without waiting for it. Wait on the result outside `queue`, at most
-    /// `lifecycleDeliveryTimeout`: unlike `consumerQueue.sync`, this can't deadlock when a `consumerQueue`
-    /// item is waiting for the caller's thread.
+    /// Runs `work` on `consumerQueue` without waiting for it. Pass the result to `waitForConsumerQueue`
+    /// outside `queue`: unlike `consumerQueue.sync`, this can't deadlock when a `consumerQueue` item is
+    /// waiting for the caller's thread.
     static func deliverOnConsumerQueue(_ work: @escaping () -> Void) -> DispatchSemaphore {
         let delivered = DispatchSemaphore(value: 0)
         // A semaphore doesn't pass the waiter's priority on to `consumerQueue` like `sync` does.
@@ -75,6 +75,36 @@ extension PerformanceMonitoring {
             delivered.signal()
         }
         return delivered
+    }
+
+    /// Waits at most `lifecycleDeliveryTimeout` for a delivery from `deliverOnConsumerQueue`. After a wait
+    /// times out, later waits return immediately until `consumerQueue` drains: it is serial, so nothing
+    /// queued behind the stalled item can finish sooner, and several observers would add up their timeouts.
+    static func waitForConsumerQueue(_ delivered: DispatchSemaphore) {
+        guard !isConsumerQueueStalled else {
+            return
+        }
+        if delivered.wait(timeout: .now() + lifecycleDeliveryTimeout) == .timedOut {
+            isConsumerQueueStalled = true
+            consumerQueue.async {
+                isConsumerQueueStalled = false
+            }
+        }
+    }
+
+    private static let consumerQueueStalledLock = NSLock()
+    private static var consumerQueueStalled = false
+    private static var isConsumerQueueStalled: Bool {
+        get {
+            consumerQueueStalledLock.lock()
+            defer { consumerQueueStalledLock.unlock() }
+            return consumerQueueStalled
+        }
+        set {
+            consumerQueueStalledLock.lock()
+            defer { consumerQueueStalledLock.unlock() }
+            consumerQueueStalled = newValue
+        }
     }
 
     /// Identifies PM.queue so runOnQueue runs inline instead of deadlocking on queue.sync.

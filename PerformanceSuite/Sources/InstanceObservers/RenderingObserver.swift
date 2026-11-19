@@ -134,7 +134,9 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         PerformanceMonitoring.runOnQueue {
             delivery = self.endForBackground()
         }
-        _ = delivery?.wait(timeout: .now() + PerformanceMonitoring.lifecycleDeliveryTimeout)
+        if let delivery {
+            PerformanceMonitoring.waitForConsumerQueue(delivery)
+        }
     }
 
     /// Returns the delivery to wait for when it is queued rather than run synchronously.

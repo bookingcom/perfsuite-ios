@@ -69,8 +69,8 @@ extension PerformanceMonitoring {
     /// waiting for the caller's thread.
     static func deliverOnConsumerQueue(_ work: @escaping () -> Void) -> DispatchSemaphore {
         let delivered = DispatchSemaphore(value: 0)
-        // A semaphore doesn't pass the waiter's priority on to `consumerQueue` like `sync` does.
-        consumerQueue.async(qos: .userInitiated, flags: .enforceQoS) {
+        // A semaphore doesn't pass main's priority on to `consumerQueue` like `sync` does.
+        consumerQueue.async(qos: .userInteractive, flags: .enforceQoS) {
             work()
             delivered.signal()
         }

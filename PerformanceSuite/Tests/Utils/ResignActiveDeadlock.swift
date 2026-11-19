@@ -20,25 +20,34 @@ extension XCTestCase {
     /// instead of freezing the runner.
     func assertWillResignActiveDoesNotDeadlock(file: StaticString = #filePath, line: UInt = #line) {
         precondition(Thread.isMainThread)
-        let consumerIsWaiting = DispatchSemaphore(value: 0)
-        let mainWorkDone = DispatchSemaphore(value: 0)
+        let consumerStarted = expectation(description: "consumerQueue item started")
         let consumerDone = expectation(description: "consumerQueue item finished")
+        let mainWorkDone = DispatchSemaphore(value: 0)
         var mainWorkTimedOut = false
 
-        PerformanceMonitoring.consumerQueue.async {
-            DispatchQueue.main.async {
-                mainWorkDone.signal()
-            }
-            consumerIsWaiting.signal()
+        // Same QoS as main, so main waiting for this item isn't reported as a priority inversion.
+        PerformanceMonitoring.consumerQueue.async(qos: .userInteractive, flags: .enforceQoS) {
+            consumerStarted.fulfill()
             mainWorkTimedOut = mainWorkDone.wait(timeout: .now() + 2) == .timedOut
             consumerDone.fulfill()
         }
-        consumerIsWaiting.wait()
+        wait(for: [consumerStarted], timeout: 5)
 
+        // Main work the consumer item waits for, which main can only run after the current turn.
+        DispatchQueue.main.async {
+            mainWorkDone.signal()
+        }
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
 
         wait(for: [consumerDone], timeout: 5)
         XCTAssertFalse(mainWorkTimedOut, "willResignActive deadlocked waiting for consumerQueue", file: file, line: line)
-        PerformanceMonitoring.consumerQueue.sync {}
+
+        // Let the deliveries queued by willResignActive run. A `consumerQueue.sync` from main would itself be
+        // reported as waiting on a lower-QoS thread.
+        let drained = expectation(description: "consumerQueue drained")
+        PerformanceMonitoring.consumerQueue.async(qos: .userInteractive, flags: .enforceQoS) {
+            drained.fulfill()
+        }
+        wait(for: [drained], timeout: 5)
     }
 }

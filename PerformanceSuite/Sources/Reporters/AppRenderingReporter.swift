@@ -127,11 +127,13 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     /// which may wait for main, and `OTelInstrumenter` ends its live span on its own.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.async {
                 PerformanceMonitoring.consumerQueue.async(execute: self.takeSessionEnd(completion: completion))
             }
             return
         }
+        // fixFatalHangOnResignActive: base implementation; remove on cleanup, with the `synchronously` parameter.
         PerformanceMonitoring.runOnQueue {
             let deliver = self.takeSessionEnd(completion: completion)
             if synchronously {
@@ -165,11 +167,13 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
             (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(at: startedAt)
         }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             // Session ends are queued through `queue` too, so this stays behind the previous session's end.
             PerformanceMonitoring.queue.async {
                 PerformanceMonitoring.consumerQueue.async(execute: start)
             }
         } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
             PerformanceMonitoring.consumerQueue.async(execute: start)
         }
     }

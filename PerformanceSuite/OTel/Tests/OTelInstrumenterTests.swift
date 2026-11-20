@@ -445,6 +445,7 @@ final class OTelInstrumenterTests: XCTestCase {
         XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 4_000)
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testWillResignActiveEndsOpenRenderingSpansWithLatestMetrics() throws {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
@@ -478,6 +479,7 @@ final class OTelInstrumenterTests: XCTestCase {
         XCTAssertEqual(appSpan.endCalls.count, 1)
     }
 
+    // fixFatalHangOnResignActive: base behavior; remove on cleanup.
     func testWillResignActiveLeavesRenderingSpansToPerformanceSuiteWithoutExperiment() throws {
         let provider = MockTracerProvider()
         let instrumenter = makeInstrumenter(provider: provider)

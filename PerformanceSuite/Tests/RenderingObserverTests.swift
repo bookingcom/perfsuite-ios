@@ -259,6 +259,7 @@ class RenderingObserverTests: XCTestCase {
         )
     }
 
+    // fixFatalHangOnResignActive: base behavior; on cleanup, wait for the asynchronous end after willResignActive.
     func testWillResignActiveEndsLiveMeasurementThenDidBecomeActiveRestarts() {
         // A screen-rendering span straddles an app background (no viewWillDisappear fires). End it
         // synchronously on willResignActive — winning the race against the backend's didEnterBackground
@@ -293,6 +294,7 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.endedCalls.count, 2, "the restarted session ends normally on disappear")
     }
 
+    // fixFatalHangOnResignActive: base behavior; on cleanup, wait for the asynchronous end after willResignActive.
     func testWillResignActiveThenDisappearDoesNotDoubleReport() {
         // After a resign-driven end with no restart, a later real viewWillDisappear must not
         // re-report the already-ended span.
@@ -313,6 +315,7 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "disappear after a resign-end must not double-report")
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
         let metricsReceiver = LiveRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -333,6 +336,7 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "the live measurement still ends once consumerQueue drains")
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testScreenRenderingUpdatedSendsMetricsSoFarAfterDroppedFrames() {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {

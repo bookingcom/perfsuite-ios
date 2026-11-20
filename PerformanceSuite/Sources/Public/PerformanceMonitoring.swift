@@ -30,6 +30,7 @@ public struct Experiments {
     /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
     public var fragmentRenderingMetrics: Bool
 
+    // fixFatalHangOnResignActive: remove on cleanup.
     /// Whether ending live rendering sessions on `willResignActive` / `willTerminate` stops waiting for
     /// `consumerQueue`. With `false` main waits for it, so main deadlocks if a `consumerQueue` item is waiting
     /// for main at that moment, e.g. a receiver posting to a `queue: .main` notification observer. With `true`
@@ -53,6 +54,7 @@ public enum PerformanceMonitoring {
     private(set) static var appReporters: [AppMetricsReporter] = []
     private static let lock = NSLock()
     private static var viewControllerSubscriberEnabled = false
+    // fixFatalHangOnResignActive: `OTelInstrumenter` reads this; make it internal again on cleanup.
     public internal(set) static var experiments = Experiments()
 
 

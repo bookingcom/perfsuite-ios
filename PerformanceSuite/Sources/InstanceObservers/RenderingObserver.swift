@@ -136,12 +136,14 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
 
     private func handleWillResignActive() {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             // `OTelInstrumenter` ends its own span within this turn, so nothing here has to wait.
             PerformanceMonitoring.queue.async {
                 self.endForBackground()
             }
             return
         }
+        // fixFatalHangOnResignActive: base implementation; remove on cleanup.
         // Synchronous so the live span ends within this notification turn — before the backend ends
         // the session on didEnterBackground and auto-terminates the still-open span.
         PerformanceMonitoring.runOnQueue {
@@ -165,8 +167,10 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             }
         }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             PerformanceMonitoring.consumerQueue.async(execute: deliver)
         } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
             // Synchronous finalize to win the race against the backend's session-end auto-termination.
             PerformanceMonitoring.consumerQueue.sync(execute: deliver)
         }
@@ -228,6 +232,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// Sends the metrics so far to a live receiver a few seconds after frames were dropped, so it has a recent
     /// snapshot when it ends the measurement on its own (`OTelInstrumenter` does on willResignActive).
     private func scheduleUpdateIfNeeded() {
+        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
         guard PerformanceMonitoring.experiments.fixFatalHangOnResignActive,
             scheduledUpdate == nil,
             measurementHandle != nil

@@ -133,6 +133,7 @@ public protocol LiveRenderingMetricsReceiver<ScreenIdentifier>: RenderingMetrics
         screen: ScreenIdentifier,
         context: (any MeasurementHandle)?
     )
+    // fixFatalHangOnResignActive: keep on cleanup; drop the experiment from the doc comment.
     /// Called on `consumerQueue` with the metrics so far, a few seconds after frames were dropped, while
     /// `Experiments.fixFatalHangOnResignActive` is enabled. Lets the receiver end the measurement on its own
     /// with recent metrics, e.g. on `willResignActive`.

@@ -138,6 +138,7 @@ extension OTelInstrumenter:
         )
         guard let span else { return nil }
         let context = OTelSpanContext(span: span)
+        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             renderingSpans.add(context)
         }
@@ -150,6 +151,7 @@ extension OTelInstrumenter:
         context: (any MeasurementHandle)?
     ) {
         guard let ctx = context as? OTelSpanContext else { return }
+        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // Not in `renderingSpans` once ended on willResignActive.
             guard renderingSpans.remove(ctx) else { return }

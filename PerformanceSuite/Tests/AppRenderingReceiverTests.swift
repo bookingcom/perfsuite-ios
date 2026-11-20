@@ -180,6 +180,7 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: base behavior; remove on cleanup.
     func testWillResignActiveEndsSessionSynchronously() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -196,6 +197,7 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -213,6 +215,7 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testSessionEndIsDeliveredBeforeTheNextSessionStart() {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
@@ -246,6 +249,7 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: base behavior; on cleanup, let the main queue run before checking the counts.
     func testBackgroundCycleEndsThenRestarts() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()

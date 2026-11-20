@@ -317,6 +317,10 @@ class RenderingObserverTests: XCTestCase {
 
     // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
         let metricsReceiver = LiveRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
         let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
@@ -325,11 +329,6 @@ class RenderingObserverTests: XCTestCase {
         observer.afterViewWillAppear()
         observer.afterViewDidAppear()
         waitForEvents()
-
-        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
-        defer {
-            PerformanceMonitoring.experiments = Experiments()
-        }
 
         assertWillResignActiveDoesNotDeadlock()
 
@@ -360,6 +359,40 @@ class RenderingObserverTests: XCTestCase {
         waitForEvents()
         XCTAssertEqual(
             metricsReceiver.liveMetrics.first?.current.droppedFrames, 18, "the ended measurement keeps its final metrics")
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testWillChangeEndsOnResignAndRestartsOnBecomeActive() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let listener = AppStateListenerStub()
+        let metricsReceiver = LiveRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let observer = RenderingObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter,
+            makeAppStateListener: { listener })
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
+        waitForEvents()
+        framesMeter.report(frameDuration: 0.16, refreshRateDuration: 0.016)
+
+        listener.willChange()
+        listener.isInBackground = true
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 1)
+        XCTAssertEqual(metricsReceiver.endedCalls.first?.metrics.droppedFrames, 9)
+
+        listener.willChange()
+        listener.isInBackground = false
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.liveMetrics.count, 2, "restarted with fresh metrics")
+
+        observer.beforeViewWillDisappear()
+        waitForEvents()
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 2)
     }
 
     private func waitForEvents() {

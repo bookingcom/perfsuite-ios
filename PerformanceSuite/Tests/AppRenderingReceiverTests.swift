@@ -199,15 +199,14 @@ class AppRenderingReceiverTests: XCTestCase {
 
     // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
-        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
-        let framesMeter = FramesMeterStub()
-        let receiver = AppRenderingReporter(
-            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
-
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
             PerformanceMonitoring.experiments = Experiments()
         }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
 
         assertWillResignActiveDoesNotDeadlock()
 

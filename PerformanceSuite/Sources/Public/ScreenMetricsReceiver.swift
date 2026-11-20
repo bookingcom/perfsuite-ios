@@ -142,13 +142,3 @@ public protocol LiveRenderingMetricsReceiver<ScreenIdentifier>: RenderingMetrics
         liveMetrics: LiveRenderingMetrics
     ) -> (any MeasurementHandle)?
 }
-
-public extension LiveRenderingMetricsReceiver {
-    func screenRenderingStarted(
-        screen: ScreenIdentifier,
-        sessionStarted: Date,
-        liveMetrics: LiveRenderingMetrics
-    ) -> (any MeasurementHandle)? {
-        screenRenderingStarted(screen: screen, sessionStarted: sessionStarted)
-    }
-}

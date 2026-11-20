@@ -40,12 +40,6 @@ public protocol LiveAppRenderingMetricsReceiver: AppRenderingMetricsReceiver {
     func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics)
 }
 
-public extension LiveAppRenderingMetricsReceiver {
-    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
-        appRenderingSessionStarted(at: startedAt)
-    }
-}
-
 
 final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
 

@@ -213,6 +213,26 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    func testSessionEndIsDeliveredBeforeTheNextSessionStart() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        waitForThreshold()
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertEqual(metricsReceiver.sessionEvents, ["started", "ended", "started"])
+        _ = receiver
+    }
+
     func testDidBecomeActiveStartsSession() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -267,13 +287,16 @@ final class LiveAppRenderingMetricsReceiverStub: LiveAppRenderingMetricsReceiver
     var appRenderingMetrics: RenderingMetrics?
     var startedCount = 0
     var endedCount = 0
+    var sessionEvents: [String] = []
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         appRenderingMetrics = metrics
     }
     func appRenderingSessionStarted(at startedAt: Date) {
         startedCount += 1
+        sessionEvents.append("started")
     }
     func appRenderingSessionEnded() {
         endedCount += 1
+        sessionEvents.append("ended")
     }
 }

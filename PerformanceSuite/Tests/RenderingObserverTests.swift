@@ -333,6 +333,34 @@ class RenderingObserverTests: XCTestCase {
         XCTAssertEqual(metricsReceiver.endedCalls.count, 1, "the live measurement still ends once consumerQueue drains")
     }
 
+    func testScreenRenderingUpdatedSendsMetricsSoFarAfterDroppedFrames() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let metricsReceiver = LiveRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let observer = RenderingObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter, updateThrottleInterval: 0.01)
+
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
+        waitForEvents()
+
+        framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
+        framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
+        let throttle = expectation(description: "throttle")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            throttle.fulfill()
+        }
+        wait(for: [throttle], timeout: 1)
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        XCTAssertEqual(metricsReceiver.updatedMetrics.count, 1, "updates are throttled")
+        XCTAssertEqual(metricsReceiver.updatedMetrics.first?.droppedFrames, 18, "the update carries the session's metrics so far")
+    }
+
     private func waitForEvents() {
         let exp = expectation(description: "runloop")
         DispatchQueue.main.asyncAfter(deadline: .now()) {
@@ -408,6 +436,7 @@ final class LiveRenderingMetricsReceiverStub: LiveRenderingMetricsReceiver {
 
     var startedContexts: [StubContext] = []
     var endedCalls: [EndedCall] = []
+    var updatedMetrics: [RenderingMetrics] = []
 
     func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
         return viewController
@@ -427,5 +456,9 @@ final class LiveRenderingMetricsReceiverStub: LiveRenderingMetricsReceiver {
 
     func screenRenderingEnded(metrics: RenderingMetrics, screen: UIViewController, context: (any MeasurementHandle)?) {
         endedCalls.append(EndedCall(metrics: metrics, screen: screen, context: context))
+    }
+
+    func screenRenderingUpdated(metrics: RenderingMetrics, screen: UIViewController, context: (any MeasurementHandle)?) {
+        updatedMetrics.append(metrics)
     }
 }

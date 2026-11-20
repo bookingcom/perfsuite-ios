@@ -37,6 +37,9 @@ class AppStateListenerTests: XCTestCase {
         let observer = DefaultAppStateListener()
         var states: [Bool] = []
         observer.willChange = { states.append(observer.isInBackground) }
+        // Becoming active while not in background (like after launch) isn't a change.
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertEqual(states, [])
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
         XCTAssertEqual(states, [false])
         XCTAssertTrue(observer.isInBackground)

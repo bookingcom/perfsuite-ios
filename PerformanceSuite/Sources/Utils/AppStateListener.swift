@@ -13,8 +13,9 @@ public protocol AppStateListener: AnyObject {
 
     var didChange: () -> Void { get set }
 
-    /// Called synchronously on main before the state above changes, so work done here finishes within the
-    /// `willResignActive` / `didBecomeActive` notification turn. `didChange` follows asynchronously.
+    /// Called synchronously on main before `isInBackground` changes, so work done here finishes within the
+    /// `willResignActive` / `didBecomeActive` notification turn. Not called when the state doesn't change, e.g. on
+    /// the first `didBecomeActive` after launch. `didChange` follows asynchronously.
     var willChange: () -> Void { get set }
 }
 
@@ -49,7 +50,9 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appWillResignActive() {
-        willChange()
+        if !isInBackground {
+            willChange()
+        }
         lock.lock()
         wasInBackgroundStorage = true
         isInBackgroundStorage = true
@@ -61,7 +64,9 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appDidBecomeActive() {
-        willChange()
+        if isInBackground {
+            willChange()
+        }
         self.lock.lock()
         self.isInBackgroundStorage = false
         self.lock.unlock()

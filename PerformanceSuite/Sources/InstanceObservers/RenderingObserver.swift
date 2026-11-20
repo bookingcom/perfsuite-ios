@@ -13,13 +13,14 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         screen: R.ScreenIdentifier,
         metricsReceiver: R,
         framesMeter: FramesMeter,
-        updateThrottleInterval: TimeInterval = 5
+        updateThrottleInterval: TimeInterval = 5,
+        makeAppStateListener: () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
         self.updateThrottleInterval = updateThrottleInterval
-        registerAppLifecycleObservers()
+        registerAppLifecycleObservers(makeAppStateListener: makeAppStateListener)
     }
 
     private let screen: R.ScreenIdentifier
@@ -48,6 +49,8 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// Block-based app-lifecycle observers (RenderingObserver is generic, so it can't expose @objc
     /// selectors). Removed in deinit.
     private var lifecycleObservers: [any NSObjectProtocol] = []
+    /// Replaces `lifecycleObservers` with `Experiments.fixFatalHangOnResignActive` enabled.
+    private var appStateListener: AppStateListener?
     /// Pending `screenRenderingUpdated`, with `Experiments.fixFatalHangOnResignActive` enabled.
     /// Set/read only on PerformanceMonitoring.queue.
     private var scheduledUpdate: DispatchWorkItem?
@@ -124,14 +127,29 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// auto-terminated by the backend (e.g. Embrace, `user_abandon`). End it synchronously on
     /// willResignActive — which precedes the backend's didEnterBackground session-end — and restart it
     /// on didBecomeActive while the screen is still visible. Mirrors AppRenderingReporter's handling.
-    private func registerAppLifecycleObservers() {
-        let resign = NotificationCenter.default.addObserver(
-            forName: UIApplication.willResignActiveNotification, object: nil, queue: nil
-        ) { [weak self] _ in self?.handleWillResignActive() }
-        let active = NotificationCenter.default.addObserver(
-            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
-        ) { [weak self] _ in self?.handleDidBecomeActive() }
-        lifecycleObservers = [resign, active]
+    private func registerAppLifecycleObservers(makeAppStateListener: () -> AppStateListener) {
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            let listener = makeAppStateListener()
+            listener.willChange = { [weak self, weak listener] in
+                // Called before the state changes: not in background yet means the app is resigning active.
+                if listener?.isInBackground == false {
+                    self?.handleWillResignActive()
+                } else {
+                    self?.handleDidBecomeActive()
+                }
+            }
+            appStateListener = listener
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `lifecycleObservers`.
+            let resign = NotificationCenter.default.addObserver(
+                forName: UIApplication.willResignActiveNotification, object: nil, queue: nil
+            ) { [weak self] _ in self?.handleWillResignActive() }
+            let active = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
+            ) { [weak self] _ in self?.handleDidBecomeActive() }
+            lifecycleObservers = [resign, active]
+        }
     }
 
     private func handleWillResignActive() {

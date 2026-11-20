@@ -21,7 +21,7 @@ final class AppRenderingSessionAccumulator {
 
     private let emitter: OTelSpanEmitter
     private let now: () -> Date
-    private let appStateListener: AppStateListener
+    private let makeAppStateListener: () -> AppStateListener
 
     /// Guards sessionStartedAt/activeSpan/accumulated across emitter calls: a concurrent chunk must
     /// not setAttribute on a span another path already ended (OTel silently drops such writes).
@@ -29,23 +29,16 @@ final class AppRenderingSessionAccumulator {
     private var sessionStartedAt: Date?
     private var activeSpan: (any OpenTelemetryApi.Span)?
     private var accumulated: RenderingMetrics = .zero
+    private var appStateListener: AppStateListener?
 
     init(
         emitter: OTelSpanEmitter,
         now: @escaping () -> Date = Date.init,
-        appStateListener: AppStateListener = DefaultAppStateListener()
+        makeAppStateListener: @escaping () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self.emitter = emitter
         self.now = now
-        self.appStateListener = appStateListener
-        // Ends the open span before a backend auto-terminates it when its session ends on didEnterBackground.
-        appStateListener.willChange = { [weak self, weak appStateListener] in
-            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-            // Still in the foreground in `willChange`: the app is resigning active.
-            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive, appStateListener?.isInBackground == false {
-                self?.appRenderingSessionEnded()
-            }
-        }
+        self.makeAppStateListener = makeAppStateListener
     }
 
     deinit {
@@ -76,9 +69,27 @@ final class AppRenderingSessionAccumulator {
         lock.lock()
         defer { lock.unlock() }
         guard activeSpan == nil else { return }
+        // Not in `init`: it runs before `PerformanceMonitoring.enable` sets the experiments.
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup, moved to `init`.
+            observeResignActiveIfNeeded()
+        }
         sessionStartedAt = startedAt
         accumulated = .zero
         activeSpan = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
+    }
+
+    /// Ends the open span before a backend auto-terminates it when its session ends on didEnterBackground.
+    private func observeResignActiveIfNeeded() {
+        guard appStateListener == nil else { return }
+        let listener = makeAppStateListener()
+        listener.willChange = { [weak self, weak listener] in
+            // Still in the foreground in `willChange`: the app is resigning active.
+            if listener?.isInBackground == false {
+                self?.appRenderingSessionEnded()
+            }
+        }
+        appStateListener = listener
     }
 
     /// Finalises the open span; idempotent when no session is open.

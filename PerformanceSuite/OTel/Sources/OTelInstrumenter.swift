@@ -96,7 +96,7 @@ public final class OTelInstrumenter<Screen, Fragment> {
         self.appRenderingAccumulator = AppRenderingSessionAccumulator(
             emitter: emitter,
             now: now,
-            appStateListener: appStateListenerFactory()
+            makeAppStateListener: appStateListenerFactory
         )
     }
 

@@ -32,4 +32,14 @@ class AppStateListenerTests: XCTestCase {
         XCTAssertTrue(observer.wasInBackground)
         XCTAssertFalse(observer.isInBackground)
     }
+
+    func testWillResignActiveIsCalledSynchronouslyOnResignActiveAndTerminate() throws {
+        let observer = DefaultAppStateListener()
+        var calls = 0
+        observer.willResignActive = { calls += 1 }
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertEqual(calls, 1)
+        NotificationCenter.default.post(name: UIApplication.willTerminateNotification, object: nil)
+        XCTAssertEqual(calls, 2)
+    }
 }

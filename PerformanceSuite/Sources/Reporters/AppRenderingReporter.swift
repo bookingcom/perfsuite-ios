@@ -161,7 +161,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     @objc private func appDidBecomeActive() {
         // Capture start on main; deliver on consumerQueue so it's FIFO-ordered after a prior session's close.
         let startedAt = Date()
-        let start = {
+        let start: () -> Void = {
             (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(at: startedAt)
         }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {

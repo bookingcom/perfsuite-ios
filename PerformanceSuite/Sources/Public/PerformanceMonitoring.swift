@@ -30,9 +30,19 @@ public struct Experiments {
     /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
     public var fragmentRenderingMetrics: Bool
 
-    public init(pendingScreenTTIMeasurements: Bool = true, fragmentRenderingMetrics: Bool = false) {
+    // fixFatalHangOnResignActive: remove on cleanup.
+    /// Whether main stops waiting for `consumerQueue` when live rendering sessions end on `willResignActive`.
+    /// The wait deadlocks if a `consumerQueue` item is waiting for main. Defaults to `false`.
+    public var fixFatalHangOnResignActive: Bool
+
+    public init(
+        pendingScreenTTIMeasurements: Bool = true,
+        fragmentRenderingMetrics: Bool = false,
+        fixFatalHangOnResignActive: Bool = false
+    ) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
         self.fragmentRenderingMetrics = fragmentRenderingMetrics
+        self.fixFatalHangOnResignActive = fixFatalHangOnResignActive
     }
 }
 
@@ -41,7 +51,8 @@ public enum PerformanceMonitoring {
     private(set) static var appReporters: [AppMetricsReporter] = []
     private static let lock = NSLock()
     private static var viewControllerSubscriberEnabled = false
-    static var experiments = Experiments()
+    // fixFatalHangOnResignActive: public only for receivers to check the experiment; make it internal again on cleanup.
+    public internal(set) static var experiments = Experiments()
 
 
     /// Method to start PerformanceSuite

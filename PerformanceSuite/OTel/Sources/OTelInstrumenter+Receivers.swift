@@ -117,6 +117,7 @@ extension OTelInstrumenter:
 
     public func renderingMetricsReceived(metrics: RenderingMetrics, screen: Screen) {}
 
+    // fixFatalHangOnResignActive: base implementation; remove on cleanup.
     public func screenRenderingStarted(
         screen: Screen,
         sessionStarted: Date
@@ -145,9 +146,16 @@ extension OTelInstrumenter:
         screen: Screen,
         context: (any MeasurementHandle)?
     ) {
-        guard let ctx = context as? OTelSpanContext else { return }
-        emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
-        ctx.span.end(time: now())
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            // No-op if the span already ended itself on willResignActive.
+            (context as? OTelRenderingSpanContext)?.end()
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            guard let ctx = context as? OTelSpanContext else { return }
+            emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
+            ctx.span.end(time: now())
+        }
     }
 
     // MARK: - FragmentTTIMetricsReceiver
@@ -195,6 +203,7 @@ extension OTelInstrumenter:
         appRenderingAccumulator.appRenderingMetricsReceived(metrics: metrics)
     }
 
+    // fixFatalHangOnResignActive: base implementation; remove on cleanup.
     public func appRenderingSessionStarted(at startedAt: Date) {
         appRenderingAccumulator.appRenderingSessionStarted(at: startedAt)
     }

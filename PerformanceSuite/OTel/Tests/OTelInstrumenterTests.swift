@@ -36,6 +36,31 @@ private enum TestFragment: Equatable {
     case footer
 }
 
+/// Hands out one listener per span, so a test can resign the app for all of them.
+private final class AppStateListenerSpies {
+    private final class Spy: AppStateListener {
+        var wasInBackground = false
+        var isInBackground = false
+        var didChange: () -> Void = {}
+        var willChange: () -> Void = {}
+    }
+
+    private var spies: [Spy] = []
+
+    func make() -> AppStateListener {
+        let spy = Spy()
+        spies.append(spy)
+        return spy
+    }
+
+    func resignActive() {
+        spies.forEach {
+            $0.willChange()
+            $0.isInBackground = true
+        }
+    }
+}
+
 /// File-scope so `String(describing: type(of:))` yields the clean class name
 /// "SampleViewController" (a function-local class would mangle to "… #1 in …").
 private final class SampleViewController: UIViewController {}
@@ -53,7 +78,8 @@ final class OTelInstrumenterTests: XCTestCase {
         loggerProvider: MockLoggerProvider? = nil,
         attributeProvider: OTelAttributeProvider? = nil,
         autoTerminationAttribute: (key: String, value: String)? = nil,
-        now: Date = Date(timeIntervalSince1970: 1_700_000_000)
+        now: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        appStateListeners: AppStateListenerSpies = AppStateListenerSpies()
     ) -> OTelInstrumenter<TestScreen, TestFragment> {
         OTelInstrumenter<TestScreen, TestFragment>(
             screenIdentifier: nil,
@@ -63,7 +89,8 @@ final class OTelInstrumenterTests: XCTestCase {
             instrumentationVersion: "1.7.0",
             attributeProvider: attributeProvider,
             autoTerminationAttribute: autoTerminationAttribute,
-            now: { now }
+            now: { now },
+            appStateListenerFactory: appStateListeners.make
         )
     }
 
@@ -443,6 +470,57 @@ final class OTelInstrumenterTests: XCTestCase {
         XCTAssertTrue(span.ended)
         XCTAssertEqual(span.attributes["rendering.dropped_frames"]?.intValue, 5)
         XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 4_000)
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testRenderingSpansEndThemselvesOnResignActiveWithLatestMetrics() throws {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let provider = MockTracerProvider()
+        let appStateListeners = AppStateListenerSpies()
+        let instrumenter = makeInstrumenter(provider: provider, appStateListeners: appStateListeners)
+        let context = instrumenter.screenRenderingStarted(
+            screen: .homescreen,
+            sessionStarted: Date(timeIntervalSince1970: 1_699_999_000),
+            liveMetrics: LiveRenderingMetrics(renderingMetrics(sessionMs: 3_000))
+        )
+        instrumenter.appRenderingSessionStarted(
+            at: Date(timeIntervalSince1970: 1_699_999_000),
+            liveMetrics: LiveRenderingMetrics(renderingMetrics(sessionMs: 2_000))
+        )
+        instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 1_000))
+
+        appStateListeners.resignActive()
+
+        let screenSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "screen-rendering.homescreen" }?.startedSpan)
+        let appSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "app-rendering" }?.startedSpan)
+        XCTAssertEqual(screenSpan.endCalls.count, 1)
+        XCTAssertEqual(screenSpan.attributes["rendering.session_duration.ms"]?.intValue, 3_000)
+        XCTAssertEqual(screenSpan.status, .unset)
+        XCTAssertEqual(appSpan.endCalls.count, 1)
+        XCTAssertEqual(appSpan.attributes["rendering.session_duration.ms"]?.intValue, 2_000)
+
+        // The ends PerformanceSuite delivers afterwards find the spans already ended.
+        instrumenter.screenRenderingEnded(metrics: renderingMetrics(sessionMs: 4_000), screen: .homescreen, context: context)
+        instrumenter.appRenderingSessionEnded()
+        XCTAssertEqual(screenSpan.endCalls.count, 1)
+        XCTAssertEqual(screenSpan.attributes["rendering.session_duration.ms"]?.intValue, 3_000)
+        XCTAssertEqual(appSpan.endCalls.count, 1)
+    }
+
+    // fixFatalHangOnResignActive: base behavior; remove on cleanup.
+    func testRenderingSpansStayOpenOnResignActiveWithoutExperiment() throws {
+        let provider = MockTracerProvider()
+        let appStateListeners = AppStateListenerSpies()
+        let instrumenter = makeInstrumenter(provider: provider, appStateListeners: appStateListeners)
+        _ = instrumenter.screenRenderingStarted(screen: .homescreen, sessionStarted: Date(timeIntervalSince1970: 1_699_999_000))
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
+
+        appStateListeners.resignActive()
+
+        XCTAssertTrue(provider.tracer.builders.allSatisfy { $0.startedSpan?.ended == false })
     }
 
     // MARK: - Live spans: Fragment TTI

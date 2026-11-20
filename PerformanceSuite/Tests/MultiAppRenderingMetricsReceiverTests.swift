@@ -81,6 +81,9 @@ final class MultiAppRenderingMetricsReceiverTests: XCTestCase {
             func appRenderingMetricsReceived(metrics: RenderingMetrics) { received.append(metrics) }
             func appRenderingSessionStarted(at startedAt: Date) { startedDates.append(startedAt) }
             func appRenderingSessionEnded() { sessionEndedCount += 1 }
+            func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
+                startedDates.append(startedAt)
+            }
         }
 
         let legacy = AppRenderingStub()

@@ -34,6 +34,10 @@ public protocol AppRenderingMetricsReceiver: AnyObject {
 public protocol LiveAppRenderingMetricsReceiver: AppRenderingMetricsReceiver {
     func appRenderingSessionStarted(at startedAt: Date)
     func appRenderingSessionEnded()
+    // fixFatalHangOnResignActive: keep on cleanup, replacing `appRenderingSessionStarted(at:)`.
+    /// Like `appRenderingSessionStarted(at:)`, with the session's metrics so far, used with
+    /// `Experiments.fixFatalHangOnResignActive` enabled.
+    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics)
 }
 
 
@@ -92,12 +96,21 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     private let framesMeter: FramesMeter
     private var metrics = RenderingMetrics.zero
     private var scheduledSending: DispatchWorkItem?
+    /// The session's metrics so far, with `Experiments.fixFatalHangOnResignActive` enabled.
+    /// Set/read only on PerformanceMonitoring.queue.
+    private var liveMetrics: LiveRenderingMetrics?
     private let sendingThrottleInterval: TimeInterval
 
     func frameTicked(frameDuration: CFTimeInterval, refreshRateDuration: CFTimeInterval) {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let currentMetrics = RenderingMetrics.metrics(frameDuration: frameDuration, refreshRateDuration: refreshRateDuration)
         self.metrics = self.metrics + currentMetrics
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if let liveMetrics {
+                liveMetrics.update(liveMetrics.current + currentMetrics)
+            }
+        }
         guard currentMetrics.droppedFrames > 0 else {
             return
         }
@@ -119,27 +132,47 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     }
 
     /// Drains the pending throttled chunk, then signals session-end (FIFO on serial consumerQueue:
-    /// queued chunks → drain chunk → end). `synchronously` is `true` only for `willTerminate` (must
-    /// finish before the process dies); `didEnterBackground` is async to keep the transition off main
-    /// and avoid a `main → PM.queue → consumerQueue → main` deadlock. A finalize that misses
-    /// suspension is covered by the caller-injected auto-termination attribute.
+    /// queued chunks → drain chunk → end). `synchronously` is `true` for `willResignActive` and
+    /// `willTerminate`, so the end finishes within that notification turn; `didEnterBackground` is async.
+    /// A finalize that misses suspension is covered by the caller-injected auto-termination attribute.
+    /// With `Experiments.fixFatalHangOnResignActive` nothing waits: `consumerQueue` runs receiver code,
+    /// which may wait for main.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
-        PerformanceMonitoring.runOnQueue {
-            self.scheduledSending?.cancel()
-            self.scheduledSending = nil
-            let metrics = self.metrics
-            self.metrics = .zero
-            let deliver = {
-                if metrics != .zero {
-                    self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.liveMetrics = nil
+                self.scheduledSending?.cancel()
+                self.scheduledSending = nil
+                let metrics = self.metrics
+                self.metrics = .zero
+                PerformanceMonitoring.consumerQueue.async {
+                    if metrics != .zero {
+                        self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
+                    }
+                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
+                    completion?()
                 }
-                (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
-                completion?()
             }
-            if synchronously {
-                PerformanceMonitoring.consumerQueue.sync(execute: deliver)
-            } else {
-                PerformanceMonitoring.consumerQueue.async(execute: deliver)
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup, with the `synchronously` parameter.
+            PerformanceMonitoring.runOnQueue {
+                self.scheduledSending?.cancel()
+                self.scheduledSending = nil
+                let metrics = self.metrics
+                self.metrics = .zero
+                let deliver = {
+                    if metrics != .zero {
+                        self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
+                    }
+                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
+                    completion?()
+                }
+                if synchronously {
+                    PerformanceMonitoring.consumerQueue.sync(execute: deliver)
+                } else {
+                    PerformanceMonitoring.consumerQueue.async(execute: deliver)
+                }
             }
         }
     }
@@ -147,8 +180,22 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     @objc private func appDidBecomeActive() {
         // Capture start on main; deliver on consumerQueue so it's FIFO-ordered after a prior session's close.
         let startedAt = Date()
-        PerformanceMonitoring.consumerQueue.async {
-            (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(at: startedAt)
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            // Session ends are queued through `queue` too, so this stays behind the previous session's end.
+            PerformanceMonitoring.queue.async {
+                let liveMetrics = LiveRenderingMetrics(.zero)
+                self.liveMetrics = liveMetrics
+                PerformanceMonitoring.consumerQueue.async {
+                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(
+                        at: startedAt, liveMetrics: liveMetrics)
+                }
+            }
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            PerformanceMonitoring.consumerQueue.async {
+                (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(at: startedAt)
+            }
         }
     }
 

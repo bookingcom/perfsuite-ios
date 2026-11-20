@@ -29,8 +29,11 @@ final class MockSpanBuilder: SpanBuilder {
     private(set) var attributes: [String: AttributeValue] = [:]
     private(set) var startedSpan: MockSpan?
 
-    init(spanName: String) {
+    private let onStartSpan: () -> Void
+
+    init(spanName: String, onStartSpan: @escaping () -> Void = {}) {
         self.spanName = spanName
+        self.onStartSpan = onStartSpan
     }
 
     // MARK: - Parent / linking
@@ -89,6 +92,7 @@ final class MockSpanBuilder: SpanBuilder {
     // MARK: - Start
 
     func startSpan() -> any Span {
+        onStartSpan()
         let span = MockSpan(name: spanName, kind: spanKind ?? .internal, startTime: startTime, attributes: attributes)
         startedSpan = span
         return span

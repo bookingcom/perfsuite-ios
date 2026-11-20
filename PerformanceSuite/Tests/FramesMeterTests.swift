@@ -93,4 +93,5 @@ class AppStateListenerStub: AppStateListener {
     var wasInBackground: Bool = false
     var isInBackground: Bool = false
     var didChange: () -> Void = {}
+    var willChange: () -> Void = {}
 }

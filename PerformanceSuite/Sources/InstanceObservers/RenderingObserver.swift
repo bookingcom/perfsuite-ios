@@ -179,21 +179,26 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         let metrics = self.metrics
         self.measurementHandle = nil
         self.endedForBackground = true
-        let deliver = {
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
-            } else {
-                self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
-            }
-        }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             cancelScheduledUpdate()
-            PerformanceMonitoring.consumerQueue.async(execute: deliver)
+            PerformanceMonitoring.consumerQueue.async {
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+                    live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
+                } else {
+                    self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
+                }
+            }
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup.
             // Synchronous finalize to win the race against the backend's session-end auto-termination.
-            PerformanceMonitoring.consumerQueue.sync(execute: deliver)
+            PerformanceMonitoring.consumerQueue.sync {
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+                    live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
+                } else {
+                    self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
+                }
+            }
         }
     }
 
@@ -243,8 +248,11 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let currentMetrics = RenderingMetrics.metrics(frameDuration: frameDuration, refreshRateDuration: refreshRateDuration)
         self.metrics = self.metrics + currentMetrics
-        if currentMetrics.droppedFrames > 0 {
-            scheduleUpdateIfNeeded()
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if currentMetrics.droppedFrames > 0 {
+                scheduleUpdateIfNeeded()
+            }
         }
     }
 
@@ -253,11 +261,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// Sends the session's metrics so far to a live receiver, at most once per `updateThrottleInterval`
     /// after a dropped frame.
     private func scheduleUpdateIfNeeded() {
-        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-        guard PerformanceMonitoring.experiments.fixFatalHangOnResignActive,
-            scheduledUpdate == nil,
-            measurementHandle != nil
-        else {
+        guard scheduledUpdate == nil, measurementHandle != nil else {
             return
         }
         let workItem = DispatchWorkItem { [weak self] in

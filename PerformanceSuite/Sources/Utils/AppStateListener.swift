@@ -42,14 +42,26 @@ public final class DefaultAppStateListener: AppStateListener {
 
     public var didChange: () -> Void {
         get {
-            lock.lock()
-            defer { lock.unlock() }
-            return didChangeStorage
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                lock.lock()
+                defer { lock.unlock() }
+                return didChangeStorage
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                return didChangeStorage
+            }
         }
         set {
-            lock.lock()
-            defer { lock.unlock() }
-            didChangeStorage = newValue
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                lock.lock()
+                defer { lock.unlock() }
+                didChangeStorage = newValue
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                didChangeStorage = newValue
+            }
         }
     }
 

@@ -111,16 +111,15 @@ public final class OTelInstrumenter<Screen, Fragment> {
     /// module's locks: with `Experiments.fixFatalHangOnResignActive` PerformanceSuite delivers these session
     /// ends asynchronously and no longer waits for its receivers.
     func endSpansOnResignActive() {
-        // fixFatalHangOnResignActive: keep on cleanup, without this guard.
-        guard PerformanceMonitoring.experiments.fixFatalHangOnResignActive else {
-            return
-        }
-        appRenderingAccumulator.appRenderingSessionEnded()
-        for (context, metrics) in renderingSpans.removeAll() where context.span.isRecording {
-            if let metrics {
-                emitter.applyRenderingAttributes(span: context.span, metrics: metrics)
+        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            appRenderingAccumulator.appRenderingSessionEnded()
+            for (context, metrics) in renderingSpans.removeAll() where context.span.isRecording {
+                if let metrics {
+                    emitter.applyRenderingAttributes(span: context.span, metrics: metrics)
+                }
+                context.span.end(time: now())
             }
-            context.span.end(time: now())
         }
     }
 

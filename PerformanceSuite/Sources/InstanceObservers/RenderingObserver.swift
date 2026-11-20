@@ -141,13 +141,13 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             PerformanceMonitoring.queue.async {
                 self.endForBackground()
             }
-            return
-        }
-        // fixFatalHangOnResignActive: base implementation; remove on cleanup.
-        // Synchronous so the live span ends within this notification turn — before the backend ends
-        // the session on didEnterBackground and auto-terminates the still-open span.
-        PerformanceMonitoring.runOnQueue {
-            self.endForBackground()
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            // Synchronous so the live span ends within this notification turn — before the backend ends
+            // the session on didEnterBackground and auto-terminates the still-open span.
+            PerformanceMonitoring.runOnQueue {
+                self.endForBackground()
+            }
         }
     }
 

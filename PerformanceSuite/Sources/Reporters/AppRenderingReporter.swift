@@ -131,15 +131,15 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
             PerformanceMonitoring.queue.async {
                 PerformanceMonitoring.consumerQueue.async(execute: self.takeSessionEnd(completion: completion))
             }
-            return
-        }
-        // fixFatalHangOnResignActive: base implementation; remove on cleanup, with the `synchronously` parameter.
-        PerformanceMonitoring.runOnQueue {
-            let deliver = self.takeSessionEnd(completion: completion)
-            if synchronously {
-                PerformanceMonitoring.consumerQueue.sync(execute: deliver)
-            } else {
-                PerformanceMonitoring.consumerQueue.async(execute: deliver)
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup, with the `synchronously` parameter.
+            PerformanceMonitoring.runOnQueue {
+                let deliver = self.takeSessionEnd(completion: completion)
+                if synchronously {
+                    PerformanceMonitoring.consumerQueue.sync(execute: deliver)
+                } else {
+                    PerformanceMonitoring.consumerQueue.async(execute: deliver)
+                }
             }
         }
     }

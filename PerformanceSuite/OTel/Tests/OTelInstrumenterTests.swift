@@ -445,6 +445,50 @@ final class OTelInstrumenterTests: XCTestCase {
         XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 4_000)
     }
 
+    func testWillResignActiveEndsOpenRenderingSpansWithLatestMetrics() throws {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let provider = MockTracerProvider()
+        let instrumenter = makeInstrumenter(provider: provider)
+        let context = instrumenter.screenRenderingStarted(
+            screen: .homescreen,
+            sessionStarted: Date(timeIntervalSince1970: 1_699_999_000)
+        )
+        instrumenter.screenRenderingUpdated(metrics: renderingMetrics(sessionMs: 3_000), screen: .homescreen, context: context)
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
+        instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 2_000))
+
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+
+        let screenSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "screen-rendering.homescreen" }?.startedSpan)
+        let appSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "app-rendering" }?.startedSpan)
+        XCTAssertEqual(screenSpan.endCalls.count, 1)
+        XCTAssertEqual(screenSpan.attributes["rendering.session_duration.ms"]?.intValue, 3_000)
+        XCTAssertEqual(screenSpan.status, .unset)
+        XCTAssertEqual(appSpan.endCalls.count, 1)
+        XCTAssertEqual(appSpan.attributes["rendering.session_duration.ms"]?.intValue, 2_000)
+
+        // The ends PerformanceSuite delivers afterwards find the spans already ended.
+        instrumenter.screenRenderingEnded(metrics: renderingMetrics(sessionMs: 4_000), screen: .homescreen, context: context)
+        instrumenter.appRenderingSessionEnded()
+        XCTAssertEqual(screenSpan.endCalls.count, 1)
+        XCTAssertEqual(screenSpan.attributes["rendering.session_duration.ms"]?.intValue, 3_000)
+        XCTAssertEqual(appSpan.endCalls.count, 1)
+    }
+
+    func testWillResignActiveLeavesRenderingSpansToPerformanceSuiteWithoutExperiment() throws {
+        let provider = MockTracerProvider()
+        let instrumenter = makeInstrumenter(provider: provider)
+        _ = instrumenter.screenRenderingStarted(screen: .homescreen, sessionStarted: Date(timeIntervalSince1970: 1_699_999_000))
+        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
+
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+
+        XCTAssertTrue(provider.tracer.builders.allSatisfy { $0.startedSpan?.ended == false })
+    }
+
     // MARK: - Live spans: Fragment TTI
 
     func testFragmentTTIMeasurementStartedReturnsLiveContext() throws {

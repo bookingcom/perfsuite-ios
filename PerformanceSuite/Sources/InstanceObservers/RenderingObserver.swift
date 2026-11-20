@@ -12,17 +12,20 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     init(
         screen: R.ScreenIdentifier,
         metricsReceiver: R,
-        framesMeter: FramesMeter
+        framesMeter: FramesMeter,
+        updateThrottleInterval: TimeInterval = 5
     ) {
         self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
+        self.updateThrottleInterval = updateThrottleInterval
         registerAppLifecycleObservers()
     }
 
     private let screen: R.ScreenIdentifier
     private let metricsReceiver: R
     private let framesMeter: FramesMeter
+    private let updateThrottleInterval: TimeInterval
 
 
     private var metrics = RenderingMetrics.zero
@@ -45,6 +48,9 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// Block-based app-lifecycle observers (RenderingObserver is generic, so it can't expose @objc
     /// selectors). Removed in deinit.
     private var lifecycleObservers: [any NSObjectProtocol] = []
+    /// Pending `screenRenderingUpdated`, with `Experiments.fixFatalHangOnResignActive` enabled.
+    /// Set/read only on PerformanceMonitoring.queue.
+    private var scheduledUpdate: DispatchWorkItem?
 
     func beforeInit() {}
 
@@ -100,6 +106,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         // disappear: unsubscribe the FramesMeter, report, and end the live span.
         if !endedForBackground {
             framesMeter.unsubscribe(receiver: self)
+            cancelScheduledUpdate()
             reportMetricsIfNeeded()
         }
         // Reset the latch + counters so a reused VC instance starts a clean session next appearance.
@@ -128,22 +135,25 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     }
 
     private func handleWillResignActive() {
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // `OTelInstrumenter` ends its own span within this turn, so nothing here has to wait.
+            PerformanceMonitoring.queue.async {
+                self.endForBackground()
+            }
+            return
+        }
         // Synchronous so the live span ends within this notification turn — before the backend ends
         // the session on didEnterBackground and auto-terminates the still-open span.
-        var delivery: DispatchSemaphore?
         PerformanceMonitoring.runOnQueue {
-            delivery = self.endForBackground()
-        }
-        if let delivery {
-            PerformanceMonitoring.waitForConsumerQueue(delivery)
+            self.endForBackground()
         }
     }
 
-    /// Returns the delivery to wait for when it is queued rather than run synchronously.
-    private func endForBackground() -> DispatchSemaphore? {
+    private func endForBackground() {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-        guard didAppearProcessed, let context = measurementHandle, !endedForBackground else { return nil }
+        guard didAppearProcessed, let context = measurementHandle, !endedForBackground else { return }
         framesMeter.unsubscribe(receiver: self)
+        cancelScheduledUpdate()
         let metrics = self.metrics
         self.measurementHandle = nil
         self.endedForBackground = true
@@ -155,11 +165,11 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             }
         }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            return PerformanceMonitoring.deliverOnConsumerQueue(deliver)
+            PerformanceMonitoring.consumerQueue.async(execute: deliver)
+        } else {
+            // Synchronous finalize to win the race against the backend's session-end auto-termination.
+            PerformanceMonitoring.consumerQueue.sync(execute: deliver)
         }
-        // Synchronous finalize to win the race against the backend's session-end auto-termination.
-        PerformanceMonitoring.consumerQueue.sync(execute: deliver)
-        return nil
     }
 
     private func handleDidBecomeActive() {
@@ -208,6 +218,47 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let currentMetrics = RenderingMetrics.metrics(frameDuration: frameDuration, refreshRateDuration: refreshRateDuration)
         self.metrics = self.metrics + currentMetrics
+        if currentMetrics.droppedFrames > 0 {
+            scheduleUpdateIfNeeded()
+        }
+    }
+
+    // MARK: - Live updates
+
+    /// Sends the metrics so far to a live receiver a few seconds after frames were dropped, so it has a recent
+    /// snapshot when it ends the measurement on its own (`OTelInstrumenter` does on willResignActive).
+    private func scheduleUpdateIfNeeded() {
+        guard PerformanceMonitoring.experiments.fixFatalHangOnResignActive,
+            scheduledUpdate == nil,
+            measurementHandle != nil
+        else {
+            return
+        }
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.sendUpdate()
+        }
+        scheduledUpdate = workItem
+        PerformanceMonitoring.queue.asyncAfter(deadline: .now() + updateThrottleInterval, execute: workItem)
+    }
+
+    private func sendUpdate() {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        scheduledUpdate = nil
+        guard #available(iOS 16.0, *),
+            let live = metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier>,
+            let context = measurementHandle
+        else {
+            return
+        }
+        let metrics = self.metrics
+        PerformanceMonitoring.consumerQueue.async {
+            live.screenRenderingUpdated(metrics: metrics, screen: self.screen, context: context)
+        }
+    }
+
+    private func cancelScheduledUpdate() {
+        scheduledUpdate?.cancel()
+        scheduledUpdate = nil
     }
 
     deinit {

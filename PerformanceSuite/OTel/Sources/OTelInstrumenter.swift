@@ -35,7 +35,9 @@ public final class OTelInstrumenter<Screen, Fragment> {
     let emitter: OTelSpanEmitter
     let logEmitter: OTelLogEmitter
     let appRenderingAccumulator: AppRenderingSessionAccumulator
+    let renderingSpans = OTelRenderingSpans()
     let now: () -> Date
+    private var lifecycleObservers: [any NSObjectProtocol] = []
 
     /// In-flight hang span. Guarded by `hangContextLock` since the public receiver methods could be
     /// called off the documented serial consumerQueue.
@@ -93,6 +95,32 @@ public final class OTelInstrumenter<Screen, Fragment> {
             emitter: emitter,
             now: now
         )
+        lifecycleObservers = [UIApplication.willResignActiveNotification, UIApplication.willTerminateNotification].map {
+            NotificationCenter.default.addObserver(forName: $0, object: nil, queue: nil) { [weak self] _ in
+                self?.endSpansOnResignActive()
+            }
+        }
+    }
+
+    deinit {
+        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    /// Ends the live spans a backend would otherwise auto-terminate when its session ends on didEnterBackground,
+    /// with the latest metrics reported for them. Runs within the notification turn and waits only on this
+    /// module's locks: with `Experiments.fixFatalHangOnResignActive` PerformanceSuite delivers these session
+    /// ends asynchronously and no longer waits for its receivers.
+    func endSpansOnResignActive() {
+        guard PerformanceMonitoring.experiments.fixFatalHangOnResignActive else {
+            return
+        }
+        appRenderingAccumulator.appRenderingSessionEnded()
+        for (context, metrics) in renderingSpans.removeAll() where context.span.isRecording {
+            if let metrics {
+                emitter.applyRenderingAttributes(span: context.span, metrics: metrics)
+            }
+            context.span.end(time: now())
+        }
     }
 
     // MARK: - ScreenMetricsReceiver

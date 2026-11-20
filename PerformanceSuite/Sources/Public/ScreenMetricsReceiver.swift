@@ -133,4 +133,20 @@ public protocol LiveRenderingMetricsReceiver<ScreenIdentifier>: RenderingMetrics
         screen: ScreenIdentifier,
         context: (any MeasurementHandle)?
     )
+    /// Called on `consumerQueue` with the metrics so far, a few seconds after frames were dropped, while
+    /// `Experiments.fixFatalHangOnResignActive` is enabled. Lets the receiver end the measurement on its own
+    /// with recent metrics, e.g. on `willResignActive`.
+    func screenRenderingUpdated(
+        metrics: RenderingMetrics,
+        screen: ScreenIdentifier,
+        context: (any MeasurementHandle)?
+    )
+}
+
+public extension LiveRenderingMetricsReceiver {
+    func screenRenderingUpdated(
+        metrics: RenderingMetrics,
+        screen: ScreenIdentifier,
+        context: (any MeasurementHandle)?
+    ) {}
 }

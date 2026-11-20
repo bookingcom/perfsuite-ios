@@ -123,40 +123,54 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     /// finish before the process dies); `didEnterBackground` is async to keep the transition off main
     /// and avoid a `main → PM.queue → consumerQueue → main` deadlock. A finalize that misses
     /// suspension is covered by the caller-injected auto-termination attribute.
-    /// With `Experiments.fixFatalHangOnResignActive`, `synchronously` waits at most `lifecycleDeliveryTimeout`.
+    /// With `Experiments.fixFatalHangOnResignActive` nothing waits: `consumerQueue` runs receiver code,
+    /// which may wait for main, and `OTelInstrumenter` ends its live span on its own.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
-        let boundedWait = synchronously && PerformanceMonitoring.experiments.fixFatalHangOnResignActive
-        var delivery: DispatchSemaphore?
-        PerformanceMonitoring.runOnQueue {
-            self.scheduledSending?.cancel()
-            self.scheduledSending = nil
-            let metrics = self.metrics
-            self.metrics = .zero
-            let deliver = {
-                if metrics != .zero {
-                    self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
-                }
-                (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
-                completion?()
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            PerformanceMonitoring.queue.async {
+                PerformanceMonitoring.consumerQueue.async(execute: self.takeSessionEnd(completion: completion))
             }
-            if boundedWait {
-                delivery = PerformanceMonitoring.deliverOnConsumerQueue(deliver)
-            } else if synchronously {
+            return
+        }
+        PerformanceMonitoring.runOnQueue {
+            let deliver = self.takeSessionEnd(completion: completion)
+            if synchronously {
                 PerformanceMonitoring.consumerQueue.sync(execute: deliver)
             } else {
                 PerformanceMonitoring.consumerQueue.async(execute: deliver)
             }
         }
-        if let delivery {
-            PerformanceMonitoring.waitForConsumerQueue(delivery)
+    }
+
+    /// Takes the pending chunk and returns the delivery of it and of the session end, to run on `consumerQueue`.
+    private func takeSessionEnd(completion: (() -> Void)?) -> () -> Void {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        scheduledSending?.cancel()
+        scheduledSending = nil
+        let metrics = self.metrics
+        self.metrics = .zero
+        return {
+            if metrics != .zero {
+                self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
+            }
+            (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
+            completion?()
         }
     }
 
     @objc private func appDidBecomeActive() {
         // Capture start on main; deliver on consumerQueue so it's FIFO-ordered after a prior session's close.
         let startedAt = Date()
-        PerformanceMonitoring.consumerQueue.async {
+        let start = {
             (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(at: startedAt)
+        }
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // Session ends are queued through `queue` too, so this stays behind the previous session's end.
+            PerformanceMonitoring.queue.async {
+                PerformanceMonitoring.consumerQueue.async(execute: start)
+            }
+        } else {
+            PerformanceMonitoring.consumerQueue.async(execute: start)
         }
     }
 

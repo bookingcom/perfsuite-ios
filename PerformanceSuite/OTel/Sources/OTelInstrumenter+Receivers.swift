@@ -137,7 +137,11 @@ extension OTelInstrumenter:
             context: .screenRendering(ScreenContext(screenName: name))
         )
         guard let span else { return nil }
-        return OTelSpanContext(span: span)
+        let context = OTelSpanContext(span: span)
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            renderingSpans.add(context)
+        }
+        return context
     }
 
     public func screenRenderingEnded(
@@ -146,8 +150,22 @@ extension OTelInstrumenter:
         context: (any MeasurementHandle)?
     ) {
         guard let ctx = context as? OTelSpanContext else { return }
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // Not in `renderingSpans` once ended on willResignActive.
+            guard renderingSpans.remove(ctx) else { return }
+        }
         emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
         ctx.span.end(time: now())
+    }
+
+    public func screenRenderingUpdated(
+        metrics: RenderingMetrics,
+        screen: Screen,
+        context: (any MeasurementHandle)?
+    ) {
+        guard let ctx = context as? OTelSpanContext, renderingSpans.update(ctx, metrics: metrics) else { return }
+        // Also gives a span the backend auto-terminates recent counters.
+        emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
     }
 
     // MARK: - FragmentTTIMetricsReceiver

@@ -63,4 +63,12 @@ public final class MultiRenderingMetricsReceiver<Screen>: LiveRenderingMetricsRe
             receiver.renderingMetricsReceived(metrics: metrics, screen: screen)
         }
     }
+
+    public func screenRenderingUpdated(
+        metrics: RenderingMetrics,
+        screen: Screen,
+        context: (any MeasurementHandle)?
+    ) {
+        liveReceiver?.screenRenderingUpdated(metrics: metrics, screen: screen, context: context)
+    }
 }

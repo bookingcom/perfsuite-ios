@@ -30,10 +30,11 @@ public struct Experiments {
     /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
     public var fragmentRenderingMetrics: Bool
 
-    /// Whether ending live rendering sessions on `willResignActive` / `willTerminate` waits for
-    /// `consumerQueue` for a limited time only. With `false` the wait has no limit, so main deadlocks if a
-    /// `consumerQueue` item is waiting for main at that moment, e.g. a receiver posting to a `queue: .main`
-    /// notification observer. Defaults to `false`.
+    /// Whether ending live rendering sessions on `willResignActive` / `willTerminate` stops waiting for
+    /// `consumerQueue`. With `false` main waits for it, so main deadlocks if a `consumerQueue` item is waiting
+    /// for main at that moment, e.g. a receiver posting to a `queue: .main` notification observer. With `true`
+    /// session ends are delivered asynchronously, and `OTelInstrumenter` ends its open spans on its own.
+    /// Defaults to `false`.
     public var fixFatalHangOnResignActive: Bool
 
     public init(
@@ -52,7 +53,7 @@ public enum PerformanceMonitoring {
     private(set) static var appReporters: [AppMetricsReporter] = []
     private static let lock = NSLock()
     private static var viewControllerSubscriberEnabled = false
-    static var experiments = Experiments()
+    public internal(set) static var experiments = Experiments()
 
 
     /// Method to start PerformanceSuite

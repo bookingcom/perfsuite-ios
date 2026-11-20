@@ -31,6 +31,10 @@ final class AppRenderingSessionAccumulator {
     private var accumulated: RenderingMetrics = .zero
     private var appStateListener: AppStateListener?
     private var liveMetrics: LiveRenderingMetrics?
+    /// With `Experiments.fixFatalHangOnResignActive` the tracer is called outside `lock`: a start creating its
+    /// span, and an end requested meanwhile, which ends that span as soon as it exists.
+    private var isStartingSession = false
+    private var isEndRequested = false
 
     init(
         emitter: OTelSpanEmitter,
@@ -56,15 +60,19 @@ final class AppRenderingSessionAccumulator {
 
     /// Re-applies cumulative counters to the live span so an auto-terminated span ships latest data.
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
-        lock.lock()
-        defer { lock.unlock() }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            if let span = activeSpan, let liveMetrics {
+            lock.lock()
+            let span = activeSpan
+            let liveMetrics = self.liveMetrics
+            lock.unlock()
+            if let span, let liveMetrics {
                 emitter.applyRenderingAttributes(span: span, metrics: liveMetrics.current)
             }
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `accumulated`.
+            lock.lock()
+            defer { lock.unlock() }
             accumulated = accumulated + metrics
             if let span = activeSpan {
                 emitter.applyRenderingAttributes(span: span, metrics: accumulated)
@@ -86,18 +94,41 @@ final class AppRenderingSessionAccumulator {
     // fixFatalHangOnResignActive: variant implementation; keep on cleanup, replacing `appRenderingSessionStarted(at:)`.
     /// Like `appRenderingSessionStarted(at:)`, and ends the span itself with `liveMetrics` when the app resigns active.
     func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard activeSpan == nil else { return }
         // Here rather than in `init`: nothing should observe the app before PerformanceSuite is enabled,
         // and receivers are created before `PerformanceMonitoring.enable`.
         observeResignActiveIfNeeded()
+        lock.lock()
+        guard activeSpan == nil, !isStartingSession else {
+            lock.unlock()
+            return
+        }
+        isStartingSession = true
         self.liveMetrics = liveMetrics
         sessionStartedAt = startedAt
-        activeSpan = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
+        lock.unlock()
+
+        let span = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
+
+        lock.lock()
+        isStartingSession = false
+        guard isEndRequested else {
+            activeSpan = span
+            lock.unlock()
+            return
+        }
+        isEndRequested = false
+        sessionStartedAt = nil
+        lock.unlock()
+        emitter.finalizeAppRenderingLiveSpan(
+            span: span,
+            metrics: liveMetrics.current,
+            sessionStartedAt: startedAt,
+            sessionEndedAt: now()
+        )
     }
 
     /// Ends the open span before a backend auto-terminates it when its session ends on didEnterBackground.
+    /// Called on `consumerQueue` only, like the other session callbacks.
     private func observeResignActiveIfNeeded() {
         guard appStateListener == nil else { return }
         let listener = makeAppStateListener()
@@ -110,32 +141,51 @@ final class AppRenderingSessionAccumulator {
         appStateListener = listener
     }
 
-
     /// Finalises the open span; idempotent when no session is open.
     func appRenderingSessionEnded() {
-        let endedAt = now()
-        lock.lock()
-        defer { lock.unlock() }
-        guard let span = activeSpan, let started = sessionStartedAt else {
-            accumulated = .zero
-            sessionStartedAt = nil
-            return
-        }
-        let metricsSnapshot: RenderingMetrics
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            metricsSnapshot = liveMetrics?.current ?? .zero
+            endSession()
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup.
-            metricsSnapshot = accumulated
+            let endedAt = now()
+            lock.lock()
+            defer { lock.unlock() }
+            guard let span = activeSpan, let started = sessionStartedAt else {
+                accumulated = .zero
+                sessionStartedAt = nil
+                return
+            }
+            let metricsSnapshot = accumulated
+            activeSpan = nil
+            sessionStartedAt = nil
+            accumulated = .zero
+            // No `metrics != .zero` gate — empty sessions are signal.
+            emitter.finalizeAppRenderingLiveSpan(
+                span: span,
+                metrics: metricsSnapshot,
+                sessionStartedAt: started,
+                sessionEndedAt: endedAt
+            )
+        }
+    }
+
+    /// Takes the open span under `lock` and finalizes it outside, so ending on main never waits for the tracer.
+    private func endSession() {
+        let endedAt = now()
+        lock.lock()
+        guard let span = activeSpan, let started = sessionStartedAt, let liveMetrics else {
+            isEndRequested = isStartingSession
+            lock.unlock()
+            return
         }
         activeSpan = nil
         sessionStartedAt = nil
-        accumulated = .zero
+        lock.unlock()
         // No `metrics != .zero` gate — empty sessions are signal.
         emitter.finalizeAppRenderingLiveSpan(
             span: span,
-            metrics: metricsSnapshot,
+            metrics: liveMetrics.current,
             sessionStartedAt: started,
             sessionEndedAt: endedAt
         )

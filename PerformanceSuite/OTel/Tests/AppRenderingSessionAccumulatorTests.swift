@@ -57,6 +57,43 @@ final class AppRenderingSessionAccumulatorTests: XCTestCase {
 
     // MARK: - Live-span lifecycle
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testEndingWhileTheStartIsInTheTracerDoesNotWaitAndEndsTheSpan() throws {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let provider = MockTracerProvider()
+        let inStartSpan = DispatchSemaphore(value: 0)
+        let finishStartSpan = DispatchSemaphore(value: 0)
+        provider.tracer.onStartSpan = {
+            inStartSpan.signal()
+            finishStartSpan.wait()
+        }
+        let accumulator = makeAccumulator(provider: provider)
+        let started = expectation(description: "session started")
+        DispatchQueue.global().async {
+            accumulator.appRenderingSessionStarted(
+                at: self.pinnedNow, liveMetrics: LiveRenderingMetrics(self.renderingMetrics(sessionMs: 2_000)))
+            started.fulfill()
+        }
+        inStartSpan.wait()
+        // Releases the tracer anyway, so a regression fails the test instead of freezing it.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+            finishStartSpan.signal()
+        }
+
+        let endStarted = Date()
+        accumulator.appRenderingSessionEnded()
+        XCTAssertLessThan(Date().timeIntervalSince(endStarted), 1, "the end doesn't wait for the tracer")
+        finishStartSpan.signal()
+        wait(for: [started], timeout: 1)
+
+        let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
+        XCTAssertEqual(span.endCalls.count, 1, "the requested end runs once the span exists")
+        XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 2_000)
+    }
+
     func testSessionStartOpensLiveSpanWithAutoTerminationCode() throws {
         let provider = MockTracerProvider()
         let accumulator = makeAccumulator(provider: provider)

@@ -35,9 +35,8 @@ public final class OTelInstrumenter<Screen, Fragment> {
     let emitter: OTelSpanEmitter
     let logEmitter: OTelLogEmitter
     let appRenderingAccumulator: AppRenderingSessionAccumulator
-    let renderingSpans = OTelRenderingSpans()
     let now: () -> Date
-    private var lifecycleObservers: [any NSObjectProtocol] = []
+    let appStateListenerFactory: () -> AppStateListener
 
     /// In-flight hang span. Guarded by `hangContextLock` since the public receiver methods could be
     /// called off the documented serial consumerQueue.
@@ -59,6 +58,7 @@ public final class OTelInstrumenter<Screen, Fragment> {
     ///   - autoTerminationAttribute: Optional `(key, value)` stamped on live spans at start for a backend
     ///     to close on unclean exit. `nil` = vendor-neutral. Embrace: `("emb.auto_termination.code", "user_abandon")`.
     ///   - now: Clock for deterministic tests.
+    ///   - appStateListenerFactory: App state source for the rendering spans, which end themselves on `willResignActive`.
     public init(
         screenIdentifier: ((UIViewController) -> Screen?)? = nil,
         tracerProvider: (any TracerProvider)? = nil,
@@ -69,10 +69,12 @@ public final class OTelInstrumenter<Screen, Fragment> {
         attributeProvider: OTelAttributeProvider? = nil,
         shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)? = nil,
         autoTerminationAttribute: (key: String, value: String)? = nil,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        appStateListenerFactory: @escaping () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self._screenIdentifier = screenIdentifier
         self.now = now
+        self.appStateListenerFactory = appStateListenerFactory
         let emitter = OTelSpanEmitter(
             tracerProvider: tracerProvider,
             instrumentationName: instrumentationName,
@@ -93,34 +95,9 @@ public final class OTelInstrumenter<Screen, Fragment> {
         )
         self.appRenderingAccumulator = AppRenderingSessionAccumulator(
             emitter: emitter,
-            now: now
+            now: now,
+            appStateListener: appStateListenerFactory()
         )
-        lifecycleObservers = [UIApplication.willResignActiveNotification, UIApplication.willTerminateNotification].map {
-            NotificationCenter.default.addObserver(forName: $0, object: nil, queue: nil) { [weak self] _ in
-                self?.endSpansOnResignActive()
-            }
-        }
-    }
-
-    deinit {
-        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
-    }
-
-    /// Ends the live spans a backend would otherwise auto-terminate when its session ends on didEnterBackground,
-    /// with the latest metrics reported for them. Runs within the notification turn and waits only on this
-    /// module's locks: with `Experiments.fixFatalHangOnResignActive` PerformanceSuite delivers these session
-    /// ends asynchronously and no longer waits for its receivers.
-    func endSpansOnResignActive() {
-        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            appRenderingAccumulator.appRenderingSessionEnded()
-            for (context, metrics) in renderingSpans.removeAll() where context.span.isRecording {
-                if let metrics {
-                    emitter.applyRenderingAttributes(span: context.span, metrics: metrics)
-                }
-                context.span.end(time: now())
-            }
-        }
     }
 
     // MARK: - ScreenMetricsReceiver

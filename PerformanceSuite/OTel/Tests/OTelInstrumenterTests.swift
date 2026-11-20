@@ -36,6 +36,28 @@ private enum TestFragment: Equatable {
     case footer
 }
 
+/// Hands out one listener per span, so a test can resign the app for all of them.
+private final class AppStateListenerSpies {
+    private final class Spy: AppStateListener {
+        var wasInBackground = false
+        var isInBackground = false
+        var didChange: () -> Void = {}
+        var willResignActive: () -> Void = {}
+    }
+
+    private var spies: [Spy] = []
+
+    func make() -> AppStateListener {
+        let spy = Spy()
+        spies.append(spy)
+        return spy
+    }
+
+    func resignActive() {
+        spies.forEach { $0.willResignActive() }
+    }
+}
+
 /// File-scope so `String(describing: type(of:))` yields the clean class name
 /// "SampleViewController" (a function-local class would mangle to "… #1 in …").
 private final class SampleViewController: UIViewController {}
@@ -53,7 +75,8 @@ final class OTelInstrumenterTests: XCTestCase {
         loggerProvider: MockLoggerProvider? = nil,
         attributeProvider: OTelAttributeProvider? = nil,
         autoTerminationAttribute: (key: String, value: String)? = nil,
-        now: Date = Date(timeIntervalSince1970: 1_700_000_000)
+        now: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        appStateListeners: AppStateListenerSpies = AppStateListenerSpies()
     ) -> OTelInstrumenter<TestScreen, TestFragment> {
         OTelInstrumenter<TestScreen, TestFragment>(
             screenIdentifier: nil,
@@ -63,7 +86,8 @@ final class OTelInstrumenterTests: XCTestCase {
             instrumentationVersion: "1.7.0",
             attributeProvider: attributeProvider,
             autoTerminationAttribute: autoTerminationAttribute,
-            now: { now }
+            now: { now },
+            appStateListenerFactory: appStateListeners.make
         )
     }
 
@@ -446,13 +470,14 @@ final class OTelInstrumenterTests: XCTestCase {
     }
 
     // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
-    func testWillResignActiveEndsOpenRenderingSpansWithLatestMetrics() throws {
+    func testRenderingSpansEndThemselvesOnResignActiveWithLatestMetrics() throws {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
             PerformanceMonitoring.experiments = Experiments()
         }
         let provider = MockTracerProvider()
-        let instrumenter = makeInstrumenter(provider: provider)
+        let appStateListeners = AppStateListenerSpies()
+        let instrumenter = makeInstrumenter(provider: provider, appStateListeners: appStateListeners)
         let context = instrumenter.screenRenderingStarted(
             screen: .homescreen,
             sessionStarted: Date(timeIntervalSince1970: 1_699_999_000)
@@ -461,7 +486,7 @@ final class OTelInstrumenterTests: XCTestCase {
         instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 2_000))
 
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        appStateListeners.resignActive()
 
         let screenSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "screen-rendering.homescreen" }?.startedSpan)
         let appSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "app-rendering" }?.startedSpan)
@@ -480,13 +505,14 @@ final class OTelInstrumenterTests: XCTestCase {
     }
 
     // fixFatalHangOnResignActive: base behavior; remove on cleanup.
-    func testWillResignActiveLeavesRenderingSpansToPerformanceSuiteWithoutExperiment() throws {
+    func testRenderingSpansStayOpenOnResignActiveWithoutExperiment() throws {
         let provider = MockTracerProvider()
-        let instrumenter = makeInstrumenter(provider: provider)
+        let appStateListeners = AppStateListenerSpies()
+        let instrumenter = makeInstrumenter(provider: provider, appStateListeners: appStateListeners)
         _ = instrumenter.screenRenderingStarted(screen: .homescreen, sessionStarted: Date(timeIntervalSince1970: 1_699_999_000))
         instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
 
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        appStateListeners.resignActive()
 
         XCTAssertTrue(provider.tracer.builders.allSatisfy { $0.startedSpan?.ended == false })
     }

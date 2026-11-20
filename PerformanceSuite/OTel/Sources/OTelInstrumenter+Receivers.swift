@@ -137,12 +137,13 @@ extension OTelInstrumenter:
             context: .screenRendering(ScreenContext(screenName: name))
         )
         guard let span else { return nil }
-        let context = OTelSpanContext(span: span)
-        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            renderingSpans.add(context)
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            return OTelRenderingSpanContext(span: span, emitter: emitter, now: now, appStateListener: appStateListenerFactory())
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            return OTelSpanContext(span: span)
         }
-        return context
     }
 
     public func screenRenderingEnded(
@@ -150,14 +151,16 @@ extension OTelInstrumenter:
         screen: Screen,
         context: (any MeasurementHandle)?
     ) {
-        guard let ctx = context as? OTelSpanContext else { return }
-        // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            // Not in `renderingSpans` once ended on willResignActive.
-            guard renderingSpans.remove(ctx) else { return }
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            // No-op if the span already ended itself on willResignActive.
+            (context as? OTelRenderingSpanContext)?.end(metrics: metrics)
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            guard let ctx = context as? OTelSpanContext else { return }
+            emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
+            ctx.span.end(time: now())
         }
-        emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
-        ctx.span.end(time: now())
     }
 
     public func screenRenderingUpdated(
@@ -165,9 +168,7 @@ extension OTelInstrumenter:
         screen: Screen,
         context: (any MeasurementHandle)?
     ) {
-        guard let ctx = context as? OTelSpanContext, renderingSpans.update(ctx, metrics: metrics) else { return }
-        // Also gives a span the backend auto-terminates recent counters.
-        emitter.applyRenderingAttributes(span: ctx.span, metrics: metrics)
+        (context as? OTelRenderingSpanContext)?.update(metrics: metrics)
     }
 
     // MARK: - FragmentTTIMetricsReceiver

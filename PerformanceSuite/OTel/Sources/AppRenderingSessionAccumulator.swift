@@ -13,13 +13,15 @@ import PerformanceSuite
 #endif
 
 /// Owns the open `app-rendering` live span for each foreground session. `AppRenderingReporter` drives
-/// the lifecycle on `PerformanceMonitoring.consumerQueue` (start → chunks → end), so this type holds
-/// no observers and open/close can't race across queues. The span carries the caller-injected
-/// auto-termination attribute (if any) for unclean exits. Chunks before the first start are dropped.
+/// the lifecycle on `PerformanceMonitoring.consumerQueue` (start → chunks → end). With
+/// `Experiments.fixFatalHangOnResignActive` it also ends the span itself on `willResignActive`; the end
+/// delivered afterwards is then a no-op. The span carries the caller-injected auto-termination attribute
+/// (if any) for unclean exits. Chunks before the first start are dropped.
 final class AppRenderingSessionAccumulator {
 
     private let emitter: OTelSpanEmitter
     private let now: () -> Date
+    private let appStateListener: AppStateListener
 
     /// Guards sessionStartedAt/activeSpan/accumulated across emitter calls: a concurrent chunk must
     /// not setAttribute on a span another path already ended (OTel silently drops such writes).
@@ -28,9 +30,21 @@ final class AppRenderingSessionAccumulator {
     private var activeSpan: (any OpenTelemetryApi.Span)?
     private var accumulated: RenderingMetrics = .zero
 
-    init(emitter: OTelSpanEmitter, now: @escaping () -> Date = Date.init) {
+    init(
+        emitter: OTelSpanEmitter,
+        now: @escaping () -> Date = Date.init,
+        appStateListener: AppStateListener = DefaultAppStateListener()
+    ) {
         self.emitter = emitter
         self.now = now
+        self.appStateListener = appStateListener
+        // Ends the open span before a backend auto-terminates it when its session ends on didEnterBackground.
+        appStateListener.willResignActive = { [weak self] in
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                self?.appRenderingSessionEnded()
+            }
+        }
     }
 
     deinit {

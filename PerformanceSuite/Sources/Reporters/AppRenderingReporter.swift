@@ -124,7 +124,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     /// and avoid a `main → PM.queue → consumerQueue → main` deadlock. A finalize that misses
     /// suspension is covered by the caller-injected auto-termination attribute.
     /// With `Experiments.fixFatalHangOnResignActive` nothing waits: `consumerQueue` runs receiver code,
-    /// which may wait for main, and `OTelInstrumenter` ends its live span on its own.
+    /// which may wait for main.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.

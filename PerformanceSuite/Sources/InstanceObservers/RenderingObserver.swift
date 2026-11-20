@@ -109,7 +109,10 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         // disappear: unsubscribe the FramesMeter, report, and end the live span.
         if !endedForBackground {
             framesMeter.unsubscribe(receiver: self)
-            cancelScheduledUpdate()
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+                cancelScheduledUpdate()
+            }
             reportMetricsIfNeeded()
         }
         // Reset the latch + counters so a reused VC instance starts a clean session next appearance.
@@ -155,7 +158,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private func handleWillResignActive() {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            // `OTelInstrumenter` ends its own span within this turn, so nothing here has to wait.
+            // Doesn't wait for `consumerQueue`: it runs receiver code, which may wait for main.
             PerformanceMonitoring.queue.async {
                 self.endForBackground()
             }
@@ -173,7 +176,6 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         guard didAppearProcessed, let context = measurementHandle, !endedForBackground else { return }
         framesMeter.unsubscribe(receiver: self)
-        cancelScheduledUpdate()
         let metrics = self.metrics
         self.measurementHandle = nil
         self.endedForBackground = true
@@ -186,6 +188,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         }
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            cancelScheduledUpdate()
             PerformanceMonitoring.consumerQueue.async(execute: deliver)
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup.
@@ -247,8 +250,8 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
 
     // MARK: - Live updates
 
-    /// Sends the metrics so far to a live receiver a few seconds after frames were dropped, so it has a recent
-    /// snapshot when it ends the measurement on its own (`OTelInstrumenter` does on willResignActive).
+    /// Sends the session's metrics so far to a live receiver, at most once per `updateThrottleInterval`
+    /// after a dropped frame.
     private func scheduleUpdateIfNeeded() {
         // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
         guard PerformanceMonitoring.experiments.fixFatalHangOnResignActive,

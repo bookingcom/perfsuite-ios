@@ -32,9 +32,9 @@ final class AppRenderingSessionAccumulator {
     private var appStateListener: AppStateListener?
     private var liveMetrics: LiveRenderingMetrics?
     /// With `Experiments.fixFatalHangOnResignActive` the tracer is called outside `lock`: a start creating its
-    /// span, and an end requested meanwhile, which ends that span as soon as it exists.
+    /// span, and the time of an end requested meanwhile, which ends that span as soon as it exists.
     private var isStartingSession = false
-    private var isEndRequested = false
+    private var requestedEndAt: Date?
 
     init(
         emitter: OTelSpanEmitter,
@@ -111,19 +111,19 @@ final class AppRenderingSessionAccumulator {
 
         lock.lock()
         isStartingSession = false
-        guard isEndRequested else {
+        guard let endedAt = requestedEndAt else {
             activeSpan = span
             lock.unlock()
             return
         }
-        isEndRequested = false
+        requestedEndAt = nil
         sessionStartedAt = nil
         lock.unlock()
         emitter.finalizeAppRenderingLiveSpan(
             span: span,
             metrics: liveMetrics.current,
             sessionStartedAt: startedAt,
-            sessionEndedAt: now()
+            sessionEndedAt: endedAt
         )
     }
 
@@ -175,7 +175,9 @@ final class AppRenderingSessionAccumulator {
         let endedAt = now()
         lock.lock()
         guard let span = activeSpan, let started = sessionStartedAt, let liveMetrics else {
-            isEndRequested = isStartingSession
+            if isStartingSession, requestedEndAt == nil {
+                requestedEndAt = endedAt
+            }
             lock.unlock()
             return
         }

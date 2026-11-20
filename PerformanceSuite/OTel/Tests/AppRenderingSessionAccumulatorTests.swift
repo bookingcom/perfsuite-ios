@@ -58,7 +58,7 @@ final class AppRenderingSessionAccumulatorTests: XCTestCase {
     // MARK: - Live-span lifecycle
 
     // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
-    func testEndingWhileTheStartIsInTheTracerDoesNotWaitAndEndsTheSpan() throws {
+    func testEndingWhileTheStartIsInTheTracerDoesNotWaitAndEndsTheSpanAtTheRequestedTime() throws {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
             PerformanceMonitoring.experiments = Experiments()
@@ -70,7 +70,8 @@ final class AppRenderingSessionAccumulatorTests: XCTestCase {
             inStartSpan.signal()
             finishStartSpan.wait()
         }
-        let accumulator = makeAccumulator(provider: provider)
+        var clock = pinnedNow
+        let accumulator = makeAccumulator(provider: provider, now: { clock })
         let started = expectation(description: "session started")
         DispatchQueue.global().async {
             accumulator.appRenderingSessionStarted(
@@ -83,14 +84,19 @@ final class AppRenderingSessionAccumulatorTests: XCTestCase {
             finishStartSpan.signal()
         }
 
+        let endRequestedAt = pinnedNow.addingTimeInterval(3)
+        clock = endRequestedAt
         let endStarted = Date()
         accumulator.appRenderingSessionEnded()
         XCTAssertLessThan(Date().timeIntervalSince(endStarted), 1, "the end doesn't wait for the tracer")
+        clock = endRequestedAt.addingTimeInterval(10)
         finishStartSpan.signal()
         wait(for: [started], timeout: 1)
 
         let span = try XCTUnwrap(provider.tracer.lastBuilder?.startedSpan)
         XCTAssertEqual(span.endCalls.count, 1, "the requested end runs once the span exists")
+        XCTAssertEqual(span.firstEndTime, endRequestedAt, "the span ends when the end was requested")
+        XCTAssertEqual(span.attributes["app.session.duration.ms"]?.intValue, 3_000)
         XCTAssertEqual(span.attributes["rendering.session_duration.ms"]?.intValue, 2_000)
     }
 

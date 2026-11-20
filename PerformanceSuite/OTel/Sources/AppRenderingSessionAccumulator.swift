@@ -69,9 +69,10 @@ final class AppRenderingSessionAccumulator {
         lock.lock()
         defer { lock.unlock() }
         guard activeSpan == nil else { return }
-        // Not in `init`: it runs before `PerformanceMonitoring.enable` sets the experiments.
+        // Here rather than in `init`: nothing should observe the app before PerformanceSuite is enabled,
+        // and receivers are created before `PerformanceMonitoring.enable`.
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            // fixFatalHangOnResignActive: variant implementation; keep on cleanup, moved to `init`.
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup, without the flag check.
             observeResignActiveIfNeeded()
         }
         sessionStartedAt = startedAt

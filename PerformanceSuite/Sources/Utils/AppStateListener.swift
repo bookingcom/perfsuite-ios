@@ -13,8 +13,8 @@ public protocol AppStateListener: AnyObject {
 
     var didChange: () -> Void { get set }
 
-    /// Like `didChange`, but called synchronously on main, after the state above changed: work done here finishes
-    /// within the `willResignActive` / `didBecomeActive` / `willTerminate` notification turn.
+    /// Called synchronously on main before the state above changes, so work done here finishes within the
+    /// `willResignActive` / `didBecomeActive` notification turn. `didChange` follows asynchronously.
     var willChange: () -> Void { get set }
 }
 
@@ -30,11 +30,6 @@ public final class DefaultAppStateListener: AppStateListener {
             self,
             selector: #selector(appDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification,
-            object: nil)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appWillTerminate),
-            name: UIApplication.willTerminateNotification,
             object: nil)
     }
 
@@ -54,11 +49,11 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appWillResignActive() {
+        willChange()
         lock.lock()
         wasInBackgroundStorage = true
         isInBackgroundStorage = true
         lock.unlock()
-        willChange()
 
         PerformanceMonitoring.queue.async {
             self.didChange()
@@ -66,18 +61,14 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appDidBecomeActive() {
+        willChange()
         self.lock.lock()
         self.isInBackgroundStorage = false
         self.lock.unlock()
-        willChange()
 
         PerformanceMonitoring.queue.async {
             self.didChange()
         }
-    }
-
-    @objc private func appWillTerminate() {
-        willChange()
     }
 
     public var wasInBackground: Bool {

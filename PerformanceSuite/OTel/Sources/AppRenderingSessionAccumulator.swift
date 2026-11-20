@@ -41,7 +41,8 @@ final class AppRenderingSessionAccumulator {
         // Ends the open span before a backend auto-terminates it when its session ends on didEnterBackground.
         appStateListener.willChange = { [weak self, weak appStateListener] in
             // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive, appStateListener?.isInBackground == true {
+            // Still in the foreground in `willChange`: the app is resigning active.
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive, appStateListener?.isInBackground == false {
                 self?.appRenderingSessionEnded()
             }
         }

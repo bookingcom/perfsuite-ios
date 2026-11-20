@@ -33,15 +33,15 @@ class AppStateListenerTests: XCTestCase {
         XCTAssertFalse(observer.isInBackground)
     }
 
-    func testWillChangeIsCalledSynchronouslyWithTheNewState() throws {
+    func testWillChangeIsCalledSynchronouslyBeforeTheStateChanges() throws {
         let observer = DefaultAppStateListener()
         var states: [Bool] = []
         observer.willChange = { states.append(observer.isInBackground) }
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-        XCTAssertEqual(states, [true])
+        XCTAssertEqual(states, [false])
+        XCTAssertTrue(observer.isInBackground)
         NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
-        XCTAssertEqual(states, [true, false])
-        NotificationCenter.default.post(name: UIApplication.willTerminateNotification, object: nil)
-        XCTAssertEqual(states, [true, false, false])
+        XCTAssertEqual(states, [false, true])
+        XCTAssertFalse(observer.isInBackground)
     }
 }

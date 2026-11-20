@@ -31,7 +31,8 @@ final class OTelRenderingSpanContext: MeasurementHandle {
         self.now = now
         self.appStateListener = appStateListener
         appStateListener.willChange = { [weak self, weak appStateListener] in
-            if appStateListener?.isInBackground == true {
+            // Still in the foreground in `willChange`: the app is resigning active.
+            if appStateListener?.isInBackground == false {
                 self?.end(metrics: nil)
             }
         }

@@ -7,10 +7,16 @@
 
 import UIKit
 
+/// Tracks whether the app is active, from the moment the listener is created. A new listener assumes the app
+/// is active, whatever its actual state.
 public protocol AppStateListener: AnyObject {
+    /// Whether the app resigned active at least once since the listener was created.
     var wasInBackground: Bool { get }
+    /// Whether the app isn't active: `true` from `willResignActive` until `didBecomeActive`, so also while a
+    /// system alert or Control Center covers the app, not only in background.
     var isInBackground: Bool { get }
 
+    /// Called on `PerformanceMonitoring.queue` after each `willResignActive` / `didBecomeActive`.
     var didChange: () -> Void { get set }
 
     /// Called synchronously on main before `isInBackground` changes, so work done here finishes within the
@@ -34,7 +40,18 @@ public final class DefaultAppStateListener: AppStateListener {
             object: nil)
     }
 
-    public var didChange: () -> Void = {}
+    public var didChange: () -> Void {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return didChangeStorage
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            didChangeStorage = newValue
+        }
+    }
 
     public var willChange: () -> Void {
         get {
@@ -92,6 +109,7 @@ public final class DefaultAppStateListener: AppStateListener {
 
     private var isInBackgroundStorage = false
     private var wasInBackgroundStorage = false
+    private var didChangeStorage: () -> Void = {}
     private var willChangeStorage: () -> Void = {}
     private let lock = NSLock()
 }

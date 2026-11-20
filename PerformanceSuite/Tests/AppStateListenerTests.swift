@@ -33,7 +33,12 @@ class AppStateListenerTests: XCTestCase {
         XCTAssertFalse(observer.isInBackground)
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testWillChangeIsCalledSynchronouslyBeforeTheStateChanges() throws {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
         let observer = DefaultAppStateListener()
         var states: [Bool] = []
         observer.willChange = { states.append(observer.isInBackground) }

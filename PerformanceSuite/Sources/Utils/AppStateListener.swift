@@ -79,8 +79,11 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appWillResignActive() {
-        if !isInBackground {
-            willChange()
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if !isInBackground {
+                willChange()
+            }
         }
         lock.lock()
         wasInBackgroundStorage = true
@@ -93,8 +96,11 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appDidBecomeActive() {
-        if isInBackground {
-            willChange()
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if isInBackground {
+                willChange()
+            }
         }
         self.lock.lock()
         self.isInBackgroundStorage = false

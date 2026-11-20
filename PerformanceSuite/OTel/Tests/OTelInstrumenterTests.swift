@@ -483,11 +483,14 @@ final class OTelInstrumenterTests: XCTestCase {
         let instrumenter = makeInstrumenter(provider: provider, appStateListeners: appStateListeners)
         let context = instrumenter.screenRenderingStarted(
             screen: .homescreen,
-            sessionStarted: Date(timeIntervalSince1970: 1_699_999_000)
+            sessionStarted: Date(timeIntervalSince1970: 1_699_999_000),
+            liveMetrics: LiveRenderingMetrics(renderingMetrics(sessionMs: 3_000))
         )
-        instrumenter.screenRenderingUpdated(metrics: renderingMetrics(sessionMs: 3_000), screen: .homescreen, context: context)
-        instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
-        instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 2_000))
+        instrumenter.appRenderingSessionStarted(
+            at: Date(timeIntervalSince1970: 1_699_999_000),
+            liveMetrics: LiveRenderingMetrics(renderingMetrics(sessionMs: 2_000))
+        )
+        instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 1_000))
 
         appStateListeners.resignActive()
 

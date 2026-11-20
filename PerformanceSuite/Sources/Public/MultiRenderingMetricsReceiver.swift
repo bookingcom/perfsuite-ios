@@ -64,11 +64,11 @@ public final class MultiRenderingMetricsReceiver<Screen>: LiveRenderingMetricsRe
         }
     }
 
-    public func screenRenderingUpdated(
-        metrics: RenderingMetrics,
+    public func screenRenderingStarted(
         screen: Screen,
-        context: (any MeasurementHandle)?
-    ) {
-        liveReceiver?.screenRenderingUpdated(metrics: metrics, screen: screen, context: context)
+        sessionStarted: Date,
+        liveMetrics: LiveRenderingMetrics
+    ) -> (any MeasurementHandle)? {
+        liveReceiver?.screenRenderingStarted(screen: screen, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
     }
 }

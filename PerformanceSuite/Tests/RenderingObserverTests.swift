@@ -337,32 +337,24 @@ class RenderingObserverTests: XCTestCase {
     }
 
     // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
-    func testScreenRenderingUpdatedSendsMetricsSoFarAfterDroppedFrames() {
+    func testLiveMetricsHaveTheMeasurementMetricsSoFar() {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
             PerformanceMonitoring.experiments = Experiments()
         }
         let metricsReceiver = LiveRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
-        let observer = RenderingObserver(
-            screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter, updateThrottleInterval: 0.01)
+        let observer = RenderingObserver(screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter)
 
         observer.beforeInit()
         observer.afterViewWillAppear()
         observer.afterViewDidAppear()
         waitForEvents()
-
         framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
         framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
-        let throttle = expectation(description: "throttle")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            throttle.fulfill()
-        }
-        wait(for: [throttle], timeout: 1)
-        PerformanceMonitoring.consumerQueue.sync {}
 
-        XCTAssertEqual(metricsReceiver.updatedMetrics.count, 1, "updates are throttled")
-        XCTAssertEqual(metricsReceiver.updatedMetrics.first?.droppedFrames, 18, "the update carries the session's metrics so far")
+        XCTAssertEqual(metricsReceiver.liveMetrics.count, 1)
+        XCTAssertEqual(metricsReceiver.liveMetrics.first?.current.droppedFrames, 18)
     }
 
     private func waitForEvents() {
@@ -440,7 +432,7 @@ final class LiveRenderingMetricsReceiverStub: LiveRenderingMetricsReceiver {
 
     var startedContexts: [StubContext] = []
     var endedCalls: [EndedCall] = []
-    var updatedMetrics: [RenderingMetrics] = []
+    var liveMetrics: [LiveRenderingMetrics] = []
 
     func screenIdentifier(for viewController: UIViewController) -> UIViewController? {
         return viewController
@@ -462,7 +454,10 @@ final class LiveRenderingMetricsReceiverStub: LiveRenderingMetricsReceiver {
         endedCalls.append(EndedCall(metrics: metrics, screen: screen, context: context))
     }
 
-    func screenRenderingUpdated(metrics: RenderingMetrics, screen: UIViewController, context: (any MeasurementHandle)?) {
-        updatedMetrics.append(metrics)
+    func screenRenderingStarted(
+        screen: UIViewController, sessionStarted: Date, liveMetrics: LiveRenderingMetrics
+    ) -> (any MeasurementHandle)? {
+        self.liveMetrics.append(liveMetrics)
+        return screenRenderingStarted(screen: screen, sessionStarted: sessionStarted)
     }
 }

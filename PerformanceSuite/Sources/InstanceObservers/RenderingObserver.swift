@@ -13,20 +13,17 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         screen: R.ScreenIdentifier,
         metricsReceiver: R,
         framesMeter: FramesMeter,
-        updateThrottleInterval: TimeInterval = 5,
         makeAppStateListener: () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
-        self.updateThrottleInterval = updateThrottleInterval
         registerAppLifecycleObservers(makeAppStateListener: makeAppStateListener)
     }
 
     private let screen: R.ScreenIdentifier
     private let metricsReceiver: R
     private let framesMeter: FramesMeter
-    private let updateThrottleInterval: TimeInterval
 
 
     private var metrics = RenderingMetrics.zero
@@ -51,9 +48,9 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private var lifecycleObservers: [any NSObjectProtocol] = []
     /// Replaces `lifecycleObservers` with `Experiments.fixFatalHangOnResignActive` enabled.
     private var appStateListener: AppStateListener?
-    /// Pending `screenRenderingUpdated`, with `Experiments.fixFatalHangOnResignActive` enabled.
+    /// `metrics` of the open live measurement, with `Experiments.fixFatalHangOnResignActive` enabled.
     /// Set/read only on PerformanceMonitoring.queue.
-    private var scheduledUpdate: DispatchWorkItem?
+    private var liveMetrics: LiveRenderingMetrics?
 
     func beforeInit() {}
 
@@ -71,10 +68,22 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             // mutated) to avoid racing a beforeViewWillDisappear that lands mid-start. Live receivers
             // build the measurement handle here (thread-safely); only resolved on iOS 16.
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                self.measurementHandle = live.screenRenderingStarted(
-                    screen: self.screen,
-                    sessionStarted: sessionStarted
-                )
+                if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                    // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                    let liveMetrics = LiveRenderingMetrics(self.metrics)
+                    self.liveMetrics = liveMetrics
+                    self.measurementHandle = live.screenRenderingStarted(
+                        screen: self.screen,
+                        sessionStarted: sessionStarted,
+                        liveMetrics: liveMetrics
+                    )
+                } else {
+                    // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                    self.measurementHandle = live.screenRenderingStarted(
+                        screen: self.screen,
+                        sessionStarted: sessionStarted
+                    )
+                }
             }
             self.didAppearProcessed = true
             // Sync-push-pop queued the disappear before setup ran; finish the (zero-length) session now.
@@ -111,7 +120,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             framesMeter.unsubscribe(receiver: self)
             if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
                 // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-                cancelScheduledUpdate()
+                liveMetrics = nil
             }
             reportMetricsIfNeeded()
         }
@@ -181,7 +190,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         self.endedForBackground = true
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            cancelScheduledUpdate()
+            liveMetrics = nil
             PerformanceMonitoring.consumerQueue.async {
                 if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                     live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
@@ -212,7 +221,16 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             self.metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
             self.framesMeter.subscribe(receiver: self)
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
+                if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                    // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                    let liveMetrics = LiveRenderingMetrics(self.metrics)
+                    self.liveMetrics = liveMetrics
+                    self.measurementHandle = live.screenRenderingStarted(
+                        screen: self.screen, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
+                } else {
+                    // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                    self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
+                }
             }
         }
     }
@@ -250,45 +268,8 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         self.metrics = self.metrics + currentMetrics
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-            if currentMetrics.droppedFrames > 0 {
-                scheduleUpdateIfNeeded()
-            }
+            liveMetrics?.update(self.metrics)
         }
-    }
-
-    // MARK: - Live updates
-
-    /// Sends the session's metrics so far to a live receiver, at most once per `updateThrottleInterval`
-    /// after a dropped frame.
-    private func scheduleUpdateIfNeeded() {
-        guard scheduledUpdate == nil, measurementHandle != nil else {
-            return
-        }
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.sendUpdate()
-        }
-        scheduledUpdate = workItem
-        PerformanceMonitoring.queue.asyncAfter(deadline: .now() + updateThrottleInterval, execute: workItem)
-    }
-
-    private func sendUpdate() {
-        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
-        scheduledUpdate = nil
-        guard #available(iOS 16.0, *),
-            let live = metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier>,
-            let context = measurementHandle
-        else {
-            return
-        }
-        let metrics = self.metrics
-        PerformanceMonitoring.consumerQueue.async {
-            live.screenRenderingUpdated(metrics: metrics, screen: self.screen, context: context)
-        }
-    }
-
-    private func cancelScheduledUpdate() {
-        scheduledUpdate?.cancel()
-        scheduledUpdate = nil
     }
 
     deinit {

@@ -216,6 +216,27 @@ class AppRenderingReceiverTests: XCTestCase {
     }
 
     // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testLiveMetricsHaveTheSessionMetricsSoFar() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        waitForThreshold()
+        PerformanceMonitoring.consumerQueue.sync {}
+        framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
+        framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
+
+        XCTAssertEqual(metricsReceiver.liveMetrics?.current.droppedFrames, 18)
+        _ = receiver
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
     func testSessionEndIsDeliveredBeforeTheNextSessionStart() {
         PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
         defer {
@@ -292,6 +313,7 @@ final class LiveAppRenderingMetricsReceiverStub: LiveAppRenderingMetricsReceiver
     var startedCount = 0
     var endedCount = 0
     var sessionEvents: [String] = []
+    var liveMetrics: LiveRenderingMetrics?
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         appRenderingMetrics = metrics
     }
@@ -302,5 +324,9 @@ final class LiveAppRenderingMetricsReceiverStub: LiveAppRenderingMetricsReceiver
     func appRenderingSessionEnded() {
         endedCount += 1
         sessionEvents.append("ended")
+    }
+    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
+        self.liveMetrics = liveMetrics
+        appRenderingSessionStarted(at: startedAt)
     }
 }

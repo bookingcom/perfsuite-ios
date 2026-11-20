@@ -30,6 +30,7 @@ final class AppRenderingSessionAccumulator {
     private var activeSpan: (any OpenTelemetryApi.Span)?
     private var accumulated: RenderingMetrics = .zero
     private var appStateListener: AppStateListener?
+    private var liveMetrics: LiveRenderingMetrics?
 
     init(
         emitter: OTelSpanEmitter,
@@ -69,12 +70,21 @@ final class AppRenderingSessionAccumulator {
         lock.lock()
         defer { lock.unlock() }
         guard activeSpan == nil else { return }
+        sessionStartedAt = startedAt
+        accumulated = .zero
+        activeSpan = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
+    }
+
+    // fixFatalHangOnResignActive: variant implementation; keep on cleanup, replacing `appRenderingSessionStarted(at:)`.
+    /// Like `appRenderingSessionStarted(at:)`, and ends the span itself with `liveMetrics` when the app resigns active.
+    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard activeSpan == nil else { return }
         // Here rather than in `init`: nothing should observe the app before PerformanceSuite is enabled,
         // and receivers are created before `PerformanceMonitoring.enable`.
-        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            // fixFatalHangOnResignActive: variant implementation; keep on cleanup, without the flag check.
-            observeResignActiveIfNeeded()
-        }
+        observeResignActiveIfNeeded()
+        self.liveMetrics = liveMetrics
         sessionStartedAt = startedAt
         accumulated = .zero
         activeSpan = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
@@ -87,10 +97,27 @@ final class AppRenderingSessionAccumulator {
         listener.willChange = { [weak self, weak listener] in
             // Still in the foreground in `willChange`: the app is resigning active.
             if listener?.isInBackground == false {
-                self?.appRenderingSessionEnded()
+                self?.endSessionWithLiveMetrics()
             }
         }
         appStateListener = listener
+    }
+
+    private func endSessionWithLiveMetrics() {
+        let endedAt = now()
+        lock.lock()
+        defer { lock.unlock() }
+        guard let span = activeSpan, let started = sessionStartedAt, let liveMetrics else { return }
+        activeSpan = nil
+        sessionStartedAt = nil
+        accumulated = .zero
+        self.liveMetrics = nil
+        emitter.finalizeAppRenderingLiveSpan(
+            span: span,
+            metrics: liveMetrics.current,
+            sessionStartedAt: started,
+            sessionEndedAt: endedAt
+        )
     }
 
     /// Finalises the open span; idempotent when no session is open.

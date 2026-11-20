@@ -34,6 +34,16 @@ public protocol AppRenderingMetricsReceiver: AnyObject {
 public protocol LiveAppRenderingMetricsReceiver: AppRenderingMetricsReceiver {
     func appRenderingSessionStarted(at startedAt: Date)
     func appRenderingSessionEnded()
+    // fixFatalHangOnResignActive: keep on cleanup, replacing `appRenderingSessionStarted(at:)`.
+    /// Like `appRenderingSessionStarted(at:)`, with the session's metrics so far, used with
+    /// `Experiments.fixFatalHangOnResignActive` enabled.
+    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics)
+}
+
+public extension LiveAppRenderingMetricsReceiver {
+    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
+        appRenderingSessionStarted(at: startedAt)
+    }
 }
 
 
@@ -92,12 +102,23 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     private let framesMeter: FramesMeter
     private var metrics = RenderingMetrics.zero
     private var scheduledSending: DispatchWorkItem?
+    /// The session's metrics so far, with `Experiments.fixFatalHangOnResignActive` enabled.
+    /// Set/read only on PerformanceMonitoring.queue.
+    private var sessionMetrics = RenderingMetrics.zero
+    private var liveMetrics: LiveRenderingMetrics?
     private let sendingThrottleInterval: TimeInterval
 
     func frameTicked(frameDuration: CFTimeInterval, refreshRateDuration: CFTimeInterval) {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let currentMetrics = RenderingMetrics.metrics(frameDuration: frameDuration, refreshRateDuration: refreshRateDuration)
         self.metrics = self.metrics + currentMetrics
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if let liveMetrics {
+                sessionMetrics = sessionMetrics + currentMetrics
+                liveMetrics.update(sessionMetrics)
+            }
+        }
         guard currentMetrics.droppedFrames > 0 else {
             return
         }
@@ -129,6 +150,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.async {
+                self.liveMetrics = nil
                 self.scheduledSending?.cancel()
                 self.scheduledSending = nil
                 let metrics = self.metrics
@@ -171,8 +193,12 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             // Session ends are queued through `queue` too, so this stays behind the previous session's end.
             PerformanceMonitoring.queue.async {
+                self.sessionMetrics = .zero
+                let liveMetrics = LiveRenderingMetrics(.zero)
+                self.liveMetrics = liveMetrics
                 PerformanceMonitoring.consumerQueue.async {
-                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(at: startedAt)
+                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(
+                        at: startedAt, liveMetrics: liveMetrics)
                 }
             }
         } else {

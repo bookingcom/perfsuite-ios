@@ -133,20 +133,22 @@ public protocol LiveRenderingMetricsReceiver<ScreenIdentifier>: RenderingMetrics
         screen: ScreenIdentifier,
         context: (any MeasurementHandle)?
     )
-    // fixFatalHangOnResignActive: keep on cleanup; drop the experiment from the doc comment.
-    /// Called on `consumerQueue` with the session's metrics so far, a few seconds after frames were dropped,
-    /// while `Experiments.fixFatalHangOnResignActive` is enabled.
-    func screenRenderingUpdated(
-        metrics: RenderingMetrics,
+    // fixFatalHangOnResignActive: keep on cleanup, replacing `screenRenderingStarted(screen:sessionStarted:)`.
+    /// Like `screenRenderingStarted(screen:sessionStarted:)`, with the measurement's metrics so far, used with
+    /// `Experiments.fixFatalHangOnResignActive` enabled.
+    func screenRenderingStarted(
         screen: ScreenIdentifier,
-        context: (any MeasurementHandle)?
-    )
+        sessionStarted: Date,
+        liveMetrics: LiveRenderingMetrics
+    ) -> (any MeasurementHandle)?
 }
 
 public extension LiveRenderingMetricsReceiver {
-    func screenRenderingUpdated(
-        metrics: RenderingMetrics,
+    func screenRenderingStarted(
         screen: ScreenIdentifier,
-        context: (any MeasurementHandle)?
-    ) {}
+        sessionStarted: Date,
+        liveMetrics: LiveRenderingMetrics
+    ) -> (any MeasurementHandle)? {
+        screenRenderingStarted(screen: screen, sessionStarted: sessionStarted)
+    }
 }

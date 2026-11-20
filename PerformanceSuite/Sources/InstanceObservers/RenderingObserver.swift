@@ -26,7 +26,28 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private let framesMeter: FramesMeter
 
 
-    private var metrics = RenderingMetrics.zero
+    /// Set/read only on PerformanceMonitoring.queue.
+    private var metrics: RenderingMetrics {
+        get {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                return liveMetrics.current
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `storedMetrics`.
+                return storedMetrics
+            }
+        }
+        set {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                liveMetrics.update(newValue)
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `storedMetrics`.
+                storedMetrics = newValue
+            }
+        }
+    }
+    private var storedMetrics = RenderingMetrics.zero
 
     /// Live measurement handle returned by `metricsReceiver.screenRenderingStarted`. Stored on
     /// `PerformanceMonitoring.queue`. Consumed at `beforeViewWillDisappear` (success path)
@@ -48,9 +69,10 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private var lifecycleObservers: [any NSObjectProtocol] = []
     /// Replaces `lifecycleObservers` with `Experiments.fixFatalHangOnResignActive` enabled.
     private var appStateListener: AppStateListener?
-    /// `metrics` of the open live measurement, with `Experiments.fixFatalHangOnResignActive` enabled.
-    /// Set/read only on PerformanceMonitoring.queue.
-    private var liveMetrics: LiveRenderingMetrics?
+    /// Storage of `metrics` with `Experiments.fixFatalHangOnResignActive` enabled, shared with the live receiver.
+    /// Replaced when a measurement ends, so that measurement keeps its final metrics. Set only on
+    /// PerformanceMonitoring.queue.
+    private var liveMetrics = LiveRenderingMetrics(.zero)
 
     func beforeInit() {}
 
@@ -70,12 +92,10 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                 if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
                     // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-                    let liveMetrics = LiveRenderingMetrics(self.metrics)
-                    self.liveMetrics = liveMetrics
                     self.measurementHandle = live.screenRenderingStarted(
                         screen: self.screen,
                         sessionStarted: sessionStarted,
-                        liveMetrics: liveMetrics
+                        liveMetrics: self.liveMetrics
                     )
                 } else {
                     // fixFatalHangOnResignActive: base implementation; remove on cleanup.
@@ -119,10 +139,13 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         if !endedForBackground {
             framesMeter.unsubscribe(receiver: self)
             if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-                // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-                liveMetrics = nil
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                reportMetricsIfNeeded()
+                liveMetrics = LiveRenderingMetrics(.zero)
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                reportMetricsIfNeeded()
             }
-            reportMetricsIfNeeded()
         }
         // Reset the latch + counters so a reused VC instance starts a clean session next appearance.
         // Without this, a second sync push-then-pop runs the disappear before the re-appear setup —
@@ -190,7 +213,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         self.endedForBackground = true
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            liveMetrics = nil
+            liveMetrics = LiveRenderingMetrics(.zero)
             PerformanceMonitoring.consumerQueue.async {
                 if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                     live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
@@ -223,10 +246,8 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                 if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
                     // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-                    let liveMetrics = LiveRenderingMetrics(self.metrics)
-                    self.liveMetrics = liveMetrics
                     self.measurementHandle = live.screenRenderingStarted(
-                        screen: self.screen, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
+                        screen: self.screen, sessionStarted: sessionStarted, liveMetrics: self.liveMetrics)
                 } else {
                     // fixFatalHangOnResignActive: base implementation; remove on cleanup.
                     self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
@@ -266,10 +287,6 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         let currentMetrics = RenderingMetrics.metrics(frameDuration: frameDuration, refreshRateDuration: refreshRateDuration)
         self.metrics = self.metrics + currentMetrics
-        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-            liveMetrics?.update(self.metrics)
-        }
     }
 
     deinit {

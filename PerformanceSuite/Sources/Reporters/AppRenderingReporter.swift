@@ -104,7 +104,6 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     private var scheduledSending: DispatchWorkItem?
     /// The session's metrics so far, with `Experiments.fixFatalHangOnResignActive` enabled.
     /// Set/read only on PerformanceMonitoring.queue.
-    private var sessionMetrics = RenderingMetrics.zero
     private var liveMetrics: LiveRenderingMetrics?
     private let sendingThrottleInterval: TimeInterval
 
@@ -115,8 +114,7 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
             if let liveMetrics {
-                sessionMetrics = sessionMetrics + currentMetrics
-                liveMetrics.update(sessionMetrics)
+                liveMetrics.update(liveMetrics.current + currentMetrics)
             }
         }
         guard currentMetrics.droppedFrames > 0 else {
@@ -193,7 +191,6 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             // Session ends are queued through `queue` too, so this stays behind the previous session's end.
             PerformanceMonitoring.queue.async {
-                self.sessionMetrics = .zero
                 let liveMetrics = LiveRenderingMetrics(.zero)
                 self.liveMetrics = liveMetrics
                 PerformanceMonitoring.consumerQueue.async {

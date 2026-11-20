@@ -149,7 +149,7 @@ extension OTelInstrumenter:
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             // No-op if the span already ended itself on willResignActive.
-            (context as? OTelRenderingSpanContext)?.end(metrics: metrics)
+            (context as? OTelRenderingSpanContext)?.end()
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup.
             guard let ctx = context as? OTelSpanContext else { return }

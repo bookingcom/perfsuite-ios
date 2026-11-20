@@ -39,13 +39,14 @@ final class OTelRenderingSpanContext: MeasurementHandle {
         self.appStateListener = appStateListener
         appStateListener.willChange = { [weak self, weak appStateListener] in
             // Still in the foreground in `willChange`: the app is resigning active.
-            if appStateListener?.isInBackground == false, let self {
-                self.end(metrics: self.liveMetrics.current)
+            if appStateListener?.isInBackground == false {
+                self?.end()
             }
         }
     }
 
-    func end(metrics: RenderingMetrics) {
+    /// Ends the span with its metrics so far; PerformanceSuite stops updating them when the measurement ends.
+    func end() {
         lock.lock()
         guard !isEnded else {
             lock.unlock()
@@ -53,7 +54,7 @@ final class OTelRenderingSpanContext: MeasurementHandle {
         }
         isEnded = true
         lock.unlock()
-        emitter.applyRenderingAttributes(span: span, metrics: metrics)
+        emitter.applyRenderingAttributes(span: span, metrics: liveMetrics.current)
         span.end(time: now())
     }
 

@@ -58,9 +58,17 @@ final class AppRenderingSessionAccumulator {
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         lock.lock()
         defer { lock.unlock() }
-        accumulated = accumulated + metrics
-        if let span = activeSpan {
-            emitter.applyRenderingAttributes(span: span, metrics: accumulated)
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            if let span = activeSpan, let liveMetrics {
+                emitter.applyRenderingAttributes(span: span, metrics: liveMetrics.current)
+            }
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `accumulated`.
+            accumulated = accumulated + metrics
+            if let span = activeSpan {
+                emitter.applyRenderingAttributes(span: span, metrics: accumulated)
+            }
         }
     }
 
@@ -86,7 +94,6 @@ final class AppRenderingSessionAccumulator {
         observeResignActiveIfNeeded()
         self.liveMetrics = liveMetrics
         sessionStartedAt = startedAt
-        accumulated = .zero
         activeSpan = emitter.startAppRenderingLiveSpan(sessionStartedAt: startedAt)
     }
 
@@ -97,28 +104,12 @@ final class AppRenderingSessionAccumulator {
         listener.willChange = { [weak self, weak listener] in
             // Still in the foreground in `willChange`: the app is resigning active.
             if listener?.isInBackground == false {
-                self?.endSessionWithLiveMetrics()
+                self?.appRenderingSessionEnded()
             }
         }
         appStateListener = listener
     }
 
-    private func endSessionWithLiveMetrics() {
-        let endedAt = now()
-        lock.lock()
-        defer { lock.unlock() }
-        guard let span = activeSpan, let started = sessionStartedAt, let liveMetrics else { return }
-        activeSpan = nil
-        sessionStartedAt = nil
-        accumulated = .zero
-        self.liveMetrics = nil
-        emitter.finalizeAppRenderingLiveSpan(
-            span: span,
-            metrics: liveMetrics.current,
-            sessionStartedAt: started,
-            sessionEndedAt: endedAt
-        )
-    }
 
     /// Finalises the open span; idempotent when no session is open.
     func appRenderingSessionEnded() {
@@ -130,7 +121,14 @@ final class AppRenderingSessionAccumulator {
             sessionStartedAt = nil
             return
         }
-        let metricsSnapshot = accumulated
+        let metricsSnapshot: RenderingMetrics
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            metricsSnapshot = liveMetrics?.current ?? .zero
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            metricsSnapshot = accumulated
+        }
         activeSpan = nil
         sessionStartedAt = nil
         accumulated = .zero

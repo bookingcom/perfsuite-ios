@@ -355,6 +355,11 @@ class RenderingObserverTests: XCTestCase {
 
         XCTAssertEqual(metricsReceiver.liveMetrics.count, 1)
         XCTAssertEqual(metricsReceiver.liveMetrics.first?.current.droppedFrames, 18)
+
+        observer.beforeViewWillDisappear()
+        waitForEvents()
+        XCTAssertEqual(
+            metricsReceiver.liveMetrics.first?.current.droppedFrames, 18, "the ended measurement keeps its final metrics")
     }
 
     private func waitForEvents() {

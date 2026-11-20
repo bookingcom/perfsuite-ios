@@ -14,7 +14,7 @@ import PerformanceSuite
 
 /// Owns the open `app-rendering` live span for each foreground session. `AppRenderingReporter` drives
 /// the lifecycle on `PerformanceMonitoring.consumerQueue` (start → chunks → end). With
-/// `Experiments.fixFatalHangOnResignActive` it also ends the span itself on `willResignActive`; the end
+/// `Experiments.fixFatalHangOnResignActive` it also ends the span itself when the app resigns active; the end
 /// delivered afterwards is then a no-op. The span carries the caller-injected auto-termination attribute
 /// (if any) for unclean exits. Chunks before the first start are dropped.
 final class AppRenderingSessionAccumulator {
@@ -39,9 +39,9 @@ final class AppRenderingSessionAccumulator {
         self.now = now
         self.appStateListener = appStateListener
         // Ends the open span before a backend auto-terminates it when its session ends on didEnterBackground.
-        appStateListener.willResignActive = { [weak self] in
+        appStateListener.willChange = { [weak self, weak appStateListener] in
             // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
-            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive, appStateListener?.isInBackground == true {
                 self?.appRenderingSessionEnded()
             }
         }

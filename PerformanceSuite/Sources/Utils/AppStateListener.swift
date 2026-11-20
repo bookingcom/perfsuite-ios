@@ -13,9 +13,9 @@ public protocol AppStateListener: AnyObject {
 
     var didChange: () -> Void { get set }
 
-    /// Called synchronously on main on `willResignActive` and `willTerminate`, so work done here finishes within
-    /// that notification turn.
-    var willResignActive: () -> Void { get set }
+    /// Like `didChange`, but called synchronously on main, after the state above changed: work done here finishes
+    /// within the `willResignActive` / `didBecomeActive` / `willTerminate` notification turn.
+    var willChange: () -> Void { get set }
 }
 
 public final class DefaultAppStateListener: AppStateListener {
@@ -40,16 +40,16 @@ public final class DefaultAppStateListener: AppStateListener {
 
     public var didChange: () -> Void = {}
 
-    public var willResignActive: () -> Void {
+    public var willChange: () -> Void {
         get {
             lock.lock()
             defer { lock.unlock() }
-            return willResignActiveStorage
+            return willChangeStorage
         }
         set {
             lock.lock()
             defer { lock.unlock() }
-            willResignActiveStorage = newValue
+            willChangeStorage = newValue
         }
     }
 
@@ -58,7 +58,7 @@ public final class DefaultAppStateListener: AppStateListener {
         wasInBackgroundStorage = true
         isInBackgroundStorage = true
         lock.unlock()
-        willResignActive()
+        willChange()
 
         PerformanceMonitoring.queue.async {
             self.didChange()
@@ -69,6 +69,7 @@ public final class DefaultAppStateListener: AppStateListener {
         self.lock.lock()
         self.isInBackgroundStorage = false
         self.lock.unlock()
+        willChange()
 
         PerformanceMonitoring.queue.async {
             self.didChange()
@@ -76,7 +77,7 @@ public final class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appWillTerminate() {
-        willResignActive()
+        willChange()
     }
 
     public var wasInBackground: Bool {
@@ -95,6 +96,6 @@ public final class DefaultAppStateListener: AppStateListener {
 
     private var isInBackgroundStorage = false
     private var wasInBackgroundStorage = false
-    private var willResignActiveStorage: () -> Void = {}
+    private var willChangeStorage: () -> Void = {}
     private let lock = NSLock()
 }

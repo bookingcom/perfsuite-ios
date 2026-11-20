@@ -42,7 +42,7 @@ private final class AppStateListenerSpies {
         var wasInBackground = false
         var isInBackground = false
         var didChange: () -> Void = {}
-        var willResignActive: () -> Void = {}
+        var willChange: () -> Void = {}
     }
 
     private var spies: [Spy] = []
@@ -54,7 +54,17 @@ private final class AppStateListenerSpies {
     }
 
     func resignActive() {
-        spies.forEach { $0.willResignActive() }
+        spies.forEach {
+            $0.isInBackground = true
+            $0.willChange()
+        }
+    }
+
+    func becomeActive() {
+        spies.forEach {
+            $0.isInBackground = false
+            $0.willChange()
+        }
     }
 }
 
@@ -486,6 +496,8 @@ final class OTelInstrumenterTests: XCTestCase {
         instrumenter.appRenderingSessionStarted(at: Date(timeIntervalSince1970: 1_699_999_000))
         instrumenter.appRenderingMetricsReceived(metrics: renderingMetrics(sessionMs: 2_000))
 
+        appStateListeners.becomeActive()
+        XCTAssertTrue(provider.tracer.builders.allSatisfy { $0.startedSpan?.ended == false }, "only resigning active ends them")
         appStateListeners.resignActive()
 
         let screenSpan = try XCTUnwrap(provider.tracer.builders.first { $0.spanName == "screen-rendering.homescreen" }?.startedSpan)

@@ -12,7 +12,7 @@ import OpenTelemetryApi
 import PerformanceSuite
 #endif
 
-/// Live screen-rendering span that ends itself with its latest metrics on `willResignActive`, before a backend
+/// Live screen-rendering span that ends itself with its latest metrics when the app resigns active, before a backend
 /// auto-terminates it when its session ends on didEnterBackground. Called from any thread; whichever end comes
 /// first wins and the others are no-ops.
 final class OTelRenderingSpanContext: MeasurementHandle {
@@ -30,12 +30,14 @@ final class OTelRenderingSpanContext: MeasurementHandle {
         self.emitter = emitter
         self.now = now
         self.appStateListener = appStateListener
-        appStateListener.willResignActive = { [weak self] in
-            self?.end(metrics: nil)
+        appStateListener.willChange = { [weak self, weak appStateListener] in
+            if appStateListener?.isInBackground == true {
+                self?.end(metrics: nil)
+            }
         }
     }
 
-    /// Keeps `metrics` for an end on `willResignActive`, and applies them so an auto-terminated span has them too.
+    /// Keeps `metrics` for an end when the app resigns active, and applies them so an auto-terminated span has them too.
     func update(metrics: RenderingMetrics) {
         lock.lock()
         guard !isEnded else {

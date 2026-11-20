@@ -58,7 +58,7 @@ public final class OTelInstrumenter<Screen, Fragment> {
     ///   - autoTerminationAttribute: Optional `(key, value)` stamped on live spans at start for a backend
     ///     to close on unclean exit. `nil` = vendor-neutral. Embrace: `("emb.auto_termination.code", "user_abandon")`.
     ///   - now: Clock for deterministic tests.
-    ///   - appStateListenerFactory: App state source for the rendering spans, which end themselves on `willResignActive`.
+    ///   - appStateListenerFactory: App state source for the rendering spans, which end themselves when the app resigns active.
     public init(
         screenIdentifier: ((UIViewController) -> Screen?)? = nil,
         tracerProvider: (any TracerProvider)? = nil,

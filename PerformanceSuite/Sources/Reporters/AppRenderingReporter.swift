@@ -132,10 +132,9 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     }
 
     /// Drains the pending throttled chunk, then signals session-end (FIFO on serial consumerQueue:
-    /// queued chunks → drain chunk → end). `synchronously` is `true` only for `willTerminate` (must
-    /// finish before the process dies); `didEnterBackground` is async to keep the transition off main
-    /// and avoid a `main → PM.queue → consumerQueue → main` deadlock. A finalize that misses
-    /// suspension is covered by the caller-injected auto-termination attribute.
+    /// queued chunks → drain chunk → end). `synchronously` is `true` for `willResignActive` and
+    /// `willTerminate`, so the end finishes within that notification turn; `didEnterBackground` is async.
+    /// A finalize that misses suspension is covered by the caller-injected auto-termination attribute.
     /// With `Experiments.fixFatalHangOnResignActive` nothing waits: `consumerQueue` runs receiver code,
     /// which may wait for main.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {

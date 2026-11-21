@@ -381,18 +381,53 @@ class RenderingObserverTests: XCTestCase {
 
         listener.willChange()
         listener.isInBackground = true
-        waitForEvents()
+        drainQueuesAfterMainTurn()
         XCTAssertEqual(metricsReceiver.endedCalls.count, 1)
         XCTAssertEqual(metricsReceiver.endedCalls.first?.metrics.droppedFrames, 9)
 
         listener.willChange()
         listener.isInBackground = false
-        waitForEvents()
+        drainQueuesAfterMainTurn()
         XCTAssertEqual(metricsReceiver.liveMetrics.count, 2, "restarted with fresh metrics")
 
         observer.beforeViewWillDisappear()
         waitForEvents()
         XCTAssertEqual(metricsReceiver.endedCalls.count, 2)
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testEndOnResignIsDeliveredAfterTheMainTurnAndBeforeTheRestart() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        // A real monitoring queue rather than main, to tell a delivery through it from one after the main turn.
+        PerformanceMonitoring.changeQueueForTests(DispatchQueue(label: "monitoring_queue_for_tests", qos: .userInteractive))
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+            PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
+        }
+        let listener = AppStateListenerStub()
+        let metricsReceiver = LiveRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let observer = RenderingObserver(
+            screen: UIViewController(), metricsReceiver: metricsReceiver, framesMeter: framesMeter,
+            makeAppStateListener: { listener })
+        observer.beforeInit()
+        observer.afterViewWillAppear()
+        observer.afterViewDidAppear()
+        drainQueuesAfterMainTurn()
+
+        // The rest of the willResignActive turn on main, where a live measurement may end itself in its own
+        // `willChange`: the end must not reach the receiver meanwhile.
+        listener.willChange()
+        listener.isInBackground = true
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 0, "the end waits for the main turn")
+
+        listener.willChange()
+        listener.isInBackground = false
+        drainQueuesAfterMainTurn()
+        XCTAssertEqual(metricsReceiver.endedCalls.count, 1)
+        XCTAssertEqual(metricsReceiver.liveMetrics.count, 2, "the restart runs after the end")
     }
 
     private func waitForEvents() {

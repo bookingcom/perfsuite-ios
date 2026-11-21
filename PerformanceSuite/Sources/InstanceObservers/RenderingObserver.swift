@@ -191,8 +191,12 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             // Doesn't wait for `consumerQueue`: it runs receiver code, which may wait for main.
-            PerformanceMonitoring.queue.async {
-                self.endForBackground()
+            // Starts after the current main turn, so a measurement ending itself in `AppStateListener.willChange`
+            // on main always does it first.
+            DispatchQueue.main.async {
+                PerformanceMonitoring.queue.async {
+                    self.endForBackground()
+                }
             }
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup.
@@ -237,22 +241,39 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private func handleDidBecomeActive() {
         // Capture the wall-clock anchor synchronously before the queue hop (same as afterViewDidAppear).
         let sessionStarted = Date()
-        PerformanceMonitoring.queue.async {
-            // Only restart if we ended early for background AND the screen is still appeared.
-            guard self.endedForBackground, self.didAppearProcessed else { return }
-            self.endedForBackground = false
-            self.metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
-            self.framesMeter.subscribe(receiver: self)
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
-                    // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-                    self.measurementHandle = live.screenRenderingStarted(
-                        screen: self.screen, sessionStarted: sessionStarted, liveMetrics: self.liveMetrics)
-                } else {
-                    // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            // Through main like the end in `handleWillResignActive`, so the restart stays behind it.
+            DispatchQueue.main.async {
+                PerformanceMonitoring.queue.async {
+                    self.restartAfterBackground(sessionStarted: sessionStarted)
+                }
+            }
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                // Only restart if we ended early for background AND the screen is still appeared.
+                guard self.endedForBackground, self.didAppearProcessed else { return }
+                self.endedForBackground = false
+                self.metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
+                self.framesMeter.subscribe(receiver: self)
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                     self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
                 }
             }
+        }
+    }
+
+    // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+    private func restartAfterBackground(sessionStarted: Date) {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        // Only restart if we ended early for background AND the screen is still appeared.
+        guard endedForBackground, didAppearProcessed else { return }
+        endedForBackground = false
+        metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
+        framesMeter.subscribe(receiver: self)
+        if #available(iOS 16.0, *), let live = metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+            measurementHandle = live.screenRenderingStarted(screen: screen, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
         }
     }
 

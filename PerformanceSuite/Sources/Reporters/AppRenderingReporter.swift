@@ -136,22 +136,25 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
     /// `willTerminate`, so the end finishes within that notification turn; `didEnterBackground` is async.
     /// A finalize that misses suspension is covered by the caller-injected auto-termination attribute.
     /// With `Experiments.fixFatalHangOnResignActive` nothing waits: `consumerQueue` runs receiver code,
-    /// which may wait for main.
+    /// which may wait for main. The end starts after the current main turn, so a receiver ending its session
+    /// itself in `AppStateListener.willChange` on main always does it first.
     private func drainAndEndSession(synchronously: Bool, completion: (() -> Void)? = nil) {
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            PerformanceMonitoring.queue.async {
-                self.liveMetrics = nil
-                self.scheduledSending?.cancel()
-                self.scheduledSending = nil
-                let metrics = self.metrics
-                self.metrics = .zero
-                PerformanceMonitoring.consumerQueue.async {
-                    if metrics != .zero {
-                        self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
+            DispatchQueue.main.async {
+                PerformanceMonitoring.queue.async {
+                    self.liveMetrics = nil
+                    self.scheduledSending?.cancel()
+                    self.scheduledSending = nil
+                    let metrics = self.metrics
+                    self.metrics = .zero
+                    PerformanceMonitoring.consumerQueue.async {
+                        if metrics != .zero {
+                            self.metricsReceiver.appRenderingMetricsReceived(metrics: metrics)
+                        }
+                        (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
+                        completion?()
                     }
-                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionEnded()
-                    completion?()
                 }
             }
         } else {
@@ -182,13 +185,15 @@ final class AppRenderingReporter: FramesMeterReceiver, AppMetricsReporter {
         let startedAt = Date()
         if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-            // Session ends are queued through `queue` too, so this stays behind the previous session's end.
-            PerformanceMonitoring.queue.async {
-                let liveMetrics = LiveRenderingMetrics(.zero)
-                self.liveMetrics = liveMetrics
-                PerformanceMonitoring.consumerQueue.async {
-                    (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(
-                        at: startedAt, liveMetrics: liveMetrics)
+            // Session ends are queued through main and `queue` too, so this stays behind the previous session's end.
+            DispatchQueue.main.async {
+                PerformanceMonitoring.queue.async {
+                    let liveMetrics = LiveRenderingMetrics(.zero)
+                    self.liveMetrics = liveMetrics
+                    PerformanceMonitoring.consumerQueue.async {
+                        (self.metricsReceiver as? LiveAppRenderingMetricsReceiver)?.appRenderingSessionStarted(
+                            at: startedAt, liveMetrics: liveMetrics)
+                    }
                 }
             }
         } else {

@@ -227,7 +227,7 @@ class AppRenderingReceiverTests: XCTestCase {
 
         NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         waitForThreshold()
-        PerformanceMonitoring.consumerQueue.sync {}
+        drainQueuesAfterMainTurn()
         framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
         framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
 
@@ -250,9 +250,37 @@ class AppRenderingReceiverTests: XCTestCase {
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         waitForThreshold()
-        PerformanceMonitoring.consumerQueue.sync {}
+        drainQueuesAfterMainTurn()
 
         XCTAssertEqual(metricsReceiver.sessionEvents, ["started", "ended", "started"])
+        _ = receiver
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testSessionEndOnResignIsDeliveredAfterTheMainTurn() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        // A real monitoring queue rather than main, to tell a delivery through it from one after the main turn.
+        PerformanceMonitoring.changeQueueForTests(DispatchQueue(label: "monitoring_queue_for_tests", qos: .userInteractive))
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+            PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        drainQueuesAfterMainTurn()
+
+        // The rest of the willResignActive turn on main, where a live receiver may end its session itself in
+        // `AppStateListener.willChange`: the end must not reach it meanwhile.
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+        XCTAssertEqual(metricsReceiver.endedCount, 0, "the end waits for the main turn")
+
+        drainQueuesAfterMainTurn()
+        XCTAssertEqual(metricsReceiver.endedCount, 1)
         _ = receiver
     }
 

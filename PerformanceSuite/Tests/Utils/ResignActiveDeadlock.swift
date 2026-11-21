@@ -42,12 +42,19 @@ extension XCTestCase {
         wait(for: [consumerDone], timeout: 5)
         XCTAssertFalse(mainWorkTimedOut, "willResignActive deadlocked waiting for consumerQueue", file: file, line: line)
 
-        // Let the deliveries queued by willResignActive run. A `consumerQueue.sync` from main would itself be
-        // reported as waiting on a lower-QoS thread.
-        let drained = expectation(description: "consumerQueue drained")
-        PerformanceMonitoring.consumerQueue.async(qos: .userInteractive, flags: .enforceQoS) {
-            drained.fulfill()
+        drainQueuesAfterMainTurn()
+    }
+
+    /// Lets the deliveries queued so far run: those queued on main after the current turn first, then on
+    /// `PerformanceMonitoring.queue` and `consumerQueue`. Waiting with expectations rather than `sync`, which
+    /// from main would be reported as waiting on a lower-QoS thread.
+    func drainQueuesAfterMainTurn() {
+        for queue in [DispatchQueue.main, PerformanceMonitoring.queue, PerformanceMonitoring.consumerQueue] {
+            let drained = expectation(description: "\(queue.label) drained")
+            queue.async(qos: .userInteractive, flags: .enforceQoS) {
+                drained.fulfill()
+            }
+            wait(for: [drained], timeout: 5)
         }
-        wait(for: [drained], timeout: 5)
     }
 }

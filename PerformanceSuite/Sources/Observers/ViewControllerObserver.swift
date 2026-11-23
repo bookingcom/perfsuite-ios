@@ -79,12 +79,12 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.beforeInit() }
-            return
-        }
-        // releaseViewControllersOnMain: base implementation; remove on cleanup.
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.beforeInit()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeInit()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
@@ -92,12 +92,12 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.beforeViewDidLoad() }
-            return
-        }
-        // releaseViewControllersOnMain: base implementation; remove on cleanup.
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.beforeViewDidLoad()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewDidLoad()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
@@ -105,12 +105,12 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.afterViewDidAppear() }
-            return
-        }
-        // releaseViewControllersOnMain: base implementation; remove on cleanup.
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.afterViewDidAppear()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.afterViewDidAppear()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
@@ -118,12 +118,12 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.beforeViewWillDisappear() }
-            return
-        }
-        // releaseViewControllersOnMain: base implementation; remove on cleanup.
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.beforeViewWillDisappear()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewWillDisappear()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
@@ -131,12 +131,12 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
             PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.afterViewWillAppear() }
-            return
-        }
-        // releaseViewControllersOnMain: base implementation; remove on cleanup.
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.afterViewWillAppear()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.afterViewWillAppear()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 

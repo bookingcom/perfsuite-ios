@@ -159,4 +159,9 @@ private final class LiveRenderingStub: LiveRenderingMetricsReceiver {
     func screenRenderingEnded(metrics: RenderingMetrics, screen: String, context: (any MeasurementHandle)?) {
         endedContexts.append(context)
     }
+    func screenRenderingStarted(
+        screen: String, sessionStarted: Date, liveMetrics: LiveRenderingMetrics
+    ) -> (any MeasurementHandle)? {
+        screenRenderingStarted(screen: screen, sessionStarted: sessionStarted)
+    }
 }

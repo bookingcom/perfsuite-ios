@@ -19,8 +19,11 @@ final class MockTracer: Tracer {
     /// span" rather than iterating through every emission.
     var lastBuilder: MockSpanBuilder? { builders.last }
 
+    /// Runs inside every `startSpan()`, e.g. to block it.
+    var onStartSpan: () -> Void = {}
+
     func spanBuilder(spanName: String) -> SpanBuilder {
-        let builder = MockSpanBuilder(spanName: spanName)
+        let builder = MockSpanBuilder(spanName: spanName, onStartSpan: onStartSpan)
         builders.append(builder)
         return builder
     }

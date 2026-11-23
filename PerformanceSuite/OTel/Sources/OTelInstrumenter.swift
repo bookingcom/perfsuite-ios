@@ -36,6 +36,7 @@ public final class OTelInstrumenter<Screen, Fragment> {
     let logEmitter: OTelLogEmitter
     let appRenderingAccumulator: AppRenderingSessionAccumulator
     let now: () -> Date
+    let appStateListenerFactory: () -> AppStateListener
 
     /// In-flight hang span. Guarded by `hangContextLock` since the public receiver methods could be
     /// called off the documented serial consumerQueue.
@@ -57,6 +58,7 @@ public final class OTelInstrumenter<Screen, Fragment> {
     ///   - autoTerminationAttribute: Optional `(key, value)` stamped on live spans at start for a backend
     ///     to close on unclean exit. `nil` = vendor-neutral. Embrace: `("emb.auto_termination.code", "user_abandon")`.
     ///   - now: Clock for deterministic tests.
+    ///   - appStateListenerFactory: App state source for the rendering spans, which end themselves when the app resigns active.
     public init(
         screenIdentifier: ((UIViewController) -> Screen?)? = nil,
         tracerProvider: (any TracerProvider)? = nil,
@@ -67,10 +69,12 @@ public final class OTelInstrumenter<Screen, Fragment> {
         attributeProvider: OTelAttributeProvider? = nil,
         shouldEmit: ((PerformanceSuiteSignalContext) -> Bool)? = nil,
         autoTerminationAttribute: (key: String, value: String)? = nil,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        appStateListenerFactory: @escaping () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self._screenIdentifier = screenIdentifier
         self.now = now
+        self.appStateListenerFactory = appStateListenerFactory
         let emitter = OTelSpanEmitter(
             tracerProvider: tracerProvider,
             instrumentationName: instrumentationName,
@@ -91,7 +95,8 @@ public final class OTelInstrumenter<Screen, Fragment> {
         )
         self.appRenderingAccumulator = AppRenderingSessionAccumulator(
             emitter: emitter,
-            now: now
+            now: now,
+            makeAppStateListener: appStateListenerFactory
         )
     }
 

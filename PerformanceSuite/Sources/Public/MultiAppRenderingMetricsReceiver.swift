@@ -35,4 +35,8 @@ public final class MultiAppRenderingMetricsReceiver: LiveAppRenderingMetricsRece
     public func appRenderingSessionEnded() {
         liveReceiver?.appRenderingSessionEnded()
     }
+
+    public func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
+        liveReceiver?.appRenderingSessionStarted(at: startedAt, liveMetrics: liveMetrics)
+    }
 }

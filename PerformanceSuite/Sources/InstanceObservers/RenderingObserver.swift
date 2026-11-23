@@ -12,12 +12,13 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     init(
         screen: R.ScreenIdentifier,
         metricsReceiver: R,
-        framesMeter: FramesMeter
+        framesMeter: FramesMeter,
+        makeAppStateListener: () -> AppStateListener = { DefaultAppStateListener() }
     ) {
         self.screen = screen
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
-        registerAppLifecycleObservers()
+        registerAppLifecycleObservers(makeAppStateListener: makeAppStateListener)
     }
 
     private let screen: R.ScreenIdentifier
@@ -25,7 +26,28 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private let framesMeter: FramesMeter
 
 
-    private var metrics = RenderingMetrics.zero
+    /// Set/read only on PerformanceMonitoring.queue.
+    private var metrics: RenderingMetrics {
+        get {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                return liveMetrics.current
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `storedMetrics`.
+                return storedMetrics
+            }
+        }
+        set {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                liveMetrics.update(newValue)
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `storedMetrics`.
+                storedMetrics = newValue
+            }
+        }
+    }
+    private var storedMetrics = RenderingMetrics.zero
 
     /// Live measurement handle returned by `metricsReceiver.screenRenderingStarted`. Stored on
     /// `PerformanceMonitoring.queue`. Consumed at `beforeViewWillDisappear` (success path)
@@ -45,6 +67,12 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// Block-based app-lifecycle observers (RenderingObserver is generic, so it can't expose @objc
     /// selectors). Removed in deinit.
     private var lifecycleObservers: [any NSObjectProtocol] = []
+    /// Replaces `lifecycleObservers` with `Experiments.fixFatalHangOnResignActive` enabled.
+    private var appStateListener: AppStateListener?
+    /// Storage of `metrics` with `Experiments.fixFatalHangOnResignActive` enabled, shared with the live receiver.
+    /// Replaced when a measurement ends, so that measurement keeps its final metrics. Set only on
+    /// PerformanceMonitoring.queue.
+    private var liveMetrics = LiveRenderingMetrics(.zero)
 
     func beforeInit() {}
 
@@ -62,10 +90,20 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             // mutated) to avoid racing a beforeViewWillDisappear that lands mid-start. Live receivers
             // build the measurement handle here (thread-safely); only resolved on iOS 16.
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                self.measurementHandle = live.screenRenderingStarted(
-                    screen: self.screen,
-                    sessionStarted: sessionStarted
-                )
+                if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                    // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                    self.measurementHandle = live.screenRenderingStarted(
+                        screen: self.screen,
+                        sessionStarted: sessionStarted,
+                        liveMetrics: self.liveMetrics
+                    )
+                } else {
+                    // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                    self.measurementHandle = live.screenRenderingStarted(
+                        screen: self.screen,
+                        sessionStarted: sessionStarted
+                    )
+                }
             }
             self.didAppearProcessed = true
             // Sync-push-pop queued the disappear before setup ran; finish the (zero-length) session now.
@@ -100,7 +138,14 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         // disappear: unsubscribe the FramesMeter, report, and end the live span.
         if !endedForBackground {
             framesMeter.unsubscribe(receiver: self)
-            reportMetricsIfNeeded()
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                reportMetricsIfNeeded()
+                liveMetrics = LiveRenderingMetrics(.zero)
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                reportMetricsIfNeeded()
+            }
         }
         // Reset the latch + counters so a reused VC instance starts a clean session next appearance.
         // Without this, a second sync push-then-pop runs the disappear before the re-appear setup —
@@ -117,21 +162,49 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     /// auto-terminated by the backend (e.g. Embrace, `user_abandon`). End it synchronously on
     /// willResignActive — which precedes the backend's didEnterBackground session-end — and restart it
     /// on didBecomeActive while the screen is still visible. Mirrors AppRenderingReporter's handling.
-    private func registerAppLifecycleObservers() {
-        let resign = NotificationCenter.default.addObserver(
-            forName: UIApplication.willResignActiveNotification, object: nil, queue: nil
-        ) { [weak self] _ in self?.handleWillResignActive() }
-        let active = NotificationCenter.default.addObserver(
-            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
-        ) { [weak self] _ in self?.handleDidBecomeActive() }
-        lifecycleObservers = [resign, active]
+    private func registerAppLifecycleObservers(makeAppStateListener: () -> AppStateListener) {
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            let listener = makeAppStateListener()
+            listener.willChange = { [weak self, weak listener] in
+                // Called before the state changes: not in background yet means the app is resigning active.
+                if listener?.isInBackground == false {
+                    self?.handleWillResignActive()
+                } else {
+                    self?.handleDidBecomeActive()
+                }
+            }
+            appStateListener = listener
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup, with `lifecycleObservers`.
+            let resign = NotificationCenter.default.addObserver(
+                forName: UIApplication.willResignActiveNotification, object: nil, queue: nil
+            ) { [weak self] _ in self?.handleWillResignActive() }
+            let active = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
+            ) { [weak self] _ in self?.handleDidBecomeActive() }
+            lifecycleObservers = [resign, active]
+        }
     }
 
     private func handleWillResignActive() {
-        // Synchronous so the live span ends within this notification turn — before the backend ends
-        // the session on didEnterBackground and auto-terminates the still-open span.
-        PerformanceMonitoring.runOnQueue {
-            self.endForBackground()
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            // Doesn't wait for `consumerQueue`: it runs receiver code, which may wait for main.
+            // Starts after the current main turn, so a measurement ending itself in `AppStateListener.willChange`
+            // on main always does it first.
+            DispatchQueue.main.async {
+                PerformanceMonitoring.queue.async {
+                    self.endForBackground()
+                }
+            }
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            // Synchronous so the live span ends within this notification turn — before the backend ends
+            // the session on didEnterBackground and auto-terminates the still-open span.
+            PerformanceMonitoring.runOnQueue {
+                self.endForBackground()
+            }
         }
     }
 
@@ -142,12 +215,25 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         let metrics = self.metrics
         self.measurementHandle = nil
         self.endedForBackground = true
-        // Synchronous finalize to win the race against the backend's session-end auto-termination.
-        PerformanceMonitoring.consumerQueue.sync {
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
-            } else {
-                self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            liveMetrics = LiveRenderingMetrics(.zero)
+            PerformanceMonitoring.consumerQueue.async {
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+                    live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
+                } else {
+                    self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
+                }
+            }
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            // Synchronous finalize to win the race against the backend's session-end auto-termination.
+            PerformanceMonitoring.consumerQueue.sync {
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+                    live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
+                } else {
+                    self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
+                }
             }
         }
     }
@@ -155,15 +241,39 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
     private func handleDidBecomeActive() {
         // Capture the wall-clock anchor synchronously before the queue hop (same as afterViewDidAppear).
         let sessionStarted = Date()
-        PerformanceMonitoring.queue.async {
-            // Only restart if we ended early for background AND the screen is still appeared.
-            guard self.endedForBackground, self.didAppearProcessed else { return }
-            self.endedForBackground = false
-            self.metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
-            self.framesMeter.subscribe(receiver: self)
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+            // Through main like the end in `handleWillResignActive`, so the restart stays behind it.
+            DispatchQueue.main.async {
+                PerformanceMonitoring.queue.async {
+                    self.restartAfterBackground(sessionStarted: sessionStarted)
+                }
             }
+        } else {
+            // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                // Only restart if we ended early for background AND the screen is still appeared.
+                guard self.endedForBackground, self.didAppearProcessed else { return }
+                self.endedForBackground = false
+                self.metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
+                self.framesMeter.subscribe(receiver: self)
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+                    self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
+                }
+            }
+        }
+    }
+
+    // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+    private func restartAfterBackground(sessionStarted: Date) {
+        dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
+        // Only restart if we ended early for background AND the screen is still appeared.
+        guard endedForBackground, didAppearProcessed else { return }
+        endedForBackground = false
+        metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
+        framesMeter.subscribe(receiver: self)
+        if #available(iOS 16.0, *), let live = metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+            measurementHandle = live.screenRenderingStarted(screen: screen, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
         }
     }
 

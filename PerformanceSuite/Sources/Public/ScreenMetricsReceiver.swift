@@ -133,4 +133,12 @@ public protocol LiveRenderingMetricsReceiver<ScreenIdentifier>: RenderingMetrics
         screen: ScreenIdentifier,
         context: (any MeasurementHandle)?
     )
+    // fixFatalHangOnResignActive: keep on cleanup, replacing `screenRenderingStarted(screen:sessionStarted:)`.
+    /// Like `screenRenderingStarted(screen:sessionStarted:)`, with the measurement's metrics so far, used with
+    /// `Experiments.fixFatalHangOnResignActive` enabled.
+    func screenRenderingStarted(
+        screen: ScreenIdentifier,
+        sessionStarted: Date,
+        liveMetrics: LiveRenderingMetrics
+    ) -> (any MeasurementHandle)?
 }

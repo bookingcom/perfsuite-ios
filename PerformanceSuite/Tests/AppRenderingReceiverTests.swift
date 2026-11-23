@@ -180,6 +180,7 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: base behavior; remove on cleanup.
     func testWillResignActiveEndsSessionSynchronously() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -196,6 +197,93 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testWillResignActiveDoesNotDeadlockWhenConsumerQueueWaitsForMain() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        assertWillResignActiveDoesNotDeadlock()
+
+        XCTAssertEqual(metricsReceiver.endedCount, 1, "the session still ends once consumerQueue drains")
+        _ = receiver
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testLiveMetricsHaveTheSessionMetricsSoFar() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        waitForThreshold()
+        drainQueuesAfterMainTurn()
+        framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
+        framesMeter.report(frameDuration: 0.016 * 10, refreshRateDuration: 0.016)
+
+        XCTAssertEqual(metricsReceiver.liveMetrics?.current.droppedFrames, 18)
+        _ = receiver
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testSessionEndIsDeliveredBeforeTheNextSessionStart() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        waitForThreshold()
+        drainQueuesAfterMainTurn()
+
+        XCTAssertEqual(metricsReceiver.sessionEvents, ["started", "ended", "started"])
+        _ = receiver
+    }
+
+    // fixFatalHangOnResignActive: variant test; keep on cleanup, without the experiment setup.
+    func testSessionEndOnResignIsDeliveredAfterTheMainTurn() {
+        PerformanceMonitoring.experiments = Experiments(fixFatalHangOnResignActive: true)
+        // A real monitoring queue rather than main, to tell a delivery through it from one after the main turn.
+        PerformanceMonitoring.changeQueueForTests(DispatchQueue(label: "monitoring_queue_for_tests", qos: .userInteractive))
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+            PerformanceMonitoring.changeQueueForTests(DispatchQueue.main)
+        }
+        let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
+        let framesMeter = FramesMeterStub()
+        let receiver = AppRenderingReporter(
+            metricsReceiver: metricsReceiver, framesMeter: framesMeter, sendingThrottleInterval: throttleInterval)
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        drainQueuesAfterMainTurn()
+
+        // The rest of the willResignActive turn on main, where a live receiver may end its session itself in
+        // `AppStateListener.willChange`: the end must not reach it meanwhile.
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+        XCTAssertEqual(metricsReceiver.endedCount, 0, "the end waits for the main turn")
+
+        drainQueuesAfterMainTurn()
+        XCTAssertEqual(metricsReceiver.endedCount, 1)
+        _ = receiver
+    }
+
     func testDidBecomeActiveStartsSession() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -209,6 +297,7 @@ class AppRenderingReceiverTests: XCTestCase {
         _ = receiver
     }
 
+    // fixFatalHangOnResignActive: base behavior; on cleanup, let the main queue run before checking the counts.
     func testBackgroundCycleEndsThenRestarts() {
         let metricsReceiver = LiveAppRenderingMetricsReceiverStub()
         let framesMeter = FramesMeterStub()
@@ -250,13 +339,21 @@ final class LiveAppRenderingMetricsReceiverStub: LiveAppRenderingMetricsReceiver
     var appRenderingMetrics: RenderingMetrics?
     var startedCount = 0
     var endedCount = 0
+    var sessionEvents: [String] = []
+    var liveMetrics: LiveRenderingMetrics?
     func appRenderingMetricsReceived(metrics: RenderingMetrics) {
         appRenderingMetrics = metrics
     }
     func appRenderingSessionStarted(at startedAt: Date) {
         startedCount += 1
+        sessionEvents.append("started")
     }
     func appRenderingSessionEnded() {
         endedCount += 1
+        sessionEvents.append("ended")
+    }
+    func appRenderingSessionStarted(at startedAt: Date, liveMetrics: LiveRenderingMetrics) {
+        self.liveMetrics = liveMetrics
+        appRenderingSessionStarted(at: startedAt)
     }
 }

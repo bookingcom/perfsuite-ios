@@ -7,16 +7,27 @@
 
 import UIKit
 
-protocol AppStateListener: AnyObject {
+/// Tracks whether the app is active, from the moment the listener is created. A new listener assumes the app
+/// is active, whatever its actual state.
+public protocol AppStateListener: AnyObject {
+    /// Whether the app resigned active at least once since the listener was created.
     var wasInBackground: Bool { get }
+    /// Whether the app isn't active: `true` from `willResignActive` until `didBecomeActive`, so also while a
+    /// system alert or Control Center covers the app, not only in background.
     var isInBackground: Bool { get }
 
+    /// Called on `PerformanceMonitoring.queue` after each `willResignActive` / `didBecomeActive`.
     var didChange: () -> Void { get set }
+
+    /// Called synchronously on main before `isInBackground` changes, so work done here finishes within the
+    /// `willResignActive` / `didBecomeActive` notification turn. Not called when the state doesn't change, e.g. on
+    /// the first `didBecomeActive` after launch. `didChange` follows asynchronously.
+    var willChange: () -> Void { get set }
 }
 
-class DefaultAppStateListener: AppStateListener {
+public final class DefaultAppStateListener: AppStateListener {
 
-    init() {
+    public init() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appWillResignActive),
@@ -27,12 +38,53 @@ class DefaultAppStateListener: AppStateListener {
             selector: #selector(appDidBecomeActive),
             name: UIApplication.didBecomeActiveNotification,
             object: nil)
-
     }
 
-    var didChange: () -> Void = {}
+    public var didChange: () -> Void {
+        get {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                lock.lock()
+                defer { lock.unlock() }
+                return didChangeStorage
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                return didChangeStorage
+            }
+        }
+        set {
+            if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+                // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
+                lock.lock()
+                defer { lock.unlock() }
+                didChangeStorage = newValue
+            } else {
+                // fixFatalHangOnResignActive: base implementation; remove on cleanup.
+                didChangeStorage = newValue
+            }
+        }
+    }
+
+    public var willChange: () -> Void {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return willChangeStorage
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            willChangeStorage = newValue
+        }
+    }
 
     @objc private func appWillResignActive() {
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if !isInBackground {
+                willChange()
+            }
+        }
         lock.lock()
         wasInBackgroundStorage = true
         isInBackgroundStorage = true
@@ -44,6 +96,12 @@ class DefaultAppStateListener: AppStateListener {
     }
 
     @objc private func appDidBecomeActive() {
+        if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
+            // fixFatalHangOnResignActive: keep on cleanup, without the flag check.
+            if isInBackground {
+                willChange()
+            }
+        }
         self.lock.lock()
         self.isInBackgroundStorage = false
         self.lock.unlock()
@@ -53,14 +111,14 @@ class DefaultAppStateListener: AppStateListener {
         }
     }
 
-    var wasInBackground: Bool {
+    public var wasInBackground: Bool {
         lock.lock()
         let result = wasInBackgroundStorage
         lock.unlock()
         return result
     }
 
-    var isInBackground: Bool {
+    public var isInBackground: Bool {
         lock.lock()
         let result = isInBackgroundStorage
         lock.unlock()
@@ -69,5 +127,7 @@ class DefaultAppStateListener: AppStateListener {
 
     private var isInBackgroundStorage = false
     private var wasInBackgroundStorage = false
+    private var didChangeStorage: () -> Void = {}
+    private var willChangeStorage: () -> Void = {}
     private let lock = NSLock()
 }

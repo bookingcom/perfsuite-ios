@@ -158,6 +158,81 @@ class ViewControllerObserverTests: XCTestCase {
         factory.beforeViewWillDisappear(viewController: vc1)
         XCTAssertNil(lastObserverCreated)
     }
+
+    func testAsyncReleasingOnMainReleasesOnMainWhenMainRunsBeforeWorkEnds() {
+        var viewController: MyViewController? = MyViewController()
+        weak var weakViewController = viewController
+        let workStarted = DispatchSemaphore(value: 0)
+        let mainDrained = DispatchSemaphore(value: 0)
+
+        PerformanceMonitoring.queue.asyncReleasingOnMain(viewController!) { _ in
+            workStarted.signal()
+            // The queue thread is preempted here: main runs everything it has before the work ends.
+            mainDrained.wait()
+        }
+        workStarted.wait()
+        viewController = nil
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertNotNil(weakViewController)
+
+        mainDrained.signal()
+        waitUntilDeallocated { weakViewController == nil }
+        // MyViewController.deinit asserts that it runs on the main thread.
+    }
+
+    func testFactoryReleasesViewControllerOnMainWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        var observers: [MethodsRecordingObserver] = []
+        let factory = ViewControllerObserverFactory<MethodsRecordingObserver, StringScreenReceiver>(metricsReceiver: StringScreenReceiver()) { _ in
+            let observer = MethodsRecordingObserver()
+            observers.append(observer)
+            return observer
+        }
+
+        var viewController: MyViewController? = MyViewController()
+        weak var weakViewController = viewController
+        factory.beforeInit(viewController: viewController!)
+        factory.beforeViewDidLoad(viewController: viewController!)
+        factory.afterViewWillAppear(viewController: viewController!)
+        factory.afterViewDidAppear(viewController: viewController!)
+        factory.beforeViewWillDisappear(viewController: viewController!)
+        viewController = nil
+        PerformanceMonitoring.queue.sync { }
+
+        XCTAssertEqual(observers.count, 1)
+        XCTAssertEqual(observers.first?.methods, [.beforeInit, .beforeViewDidLoad, .afterViewWillAppear, .afterViewDidAppear, .beforeViewWillDisappear])
+        // Every queue item has finished, but the view controller is only released by the items queued on main.
+        XCTAssertNotNil(weakViewController)
+        waitUntilDeallocated { weakViewController == nil }
+    }
+
+    private func waitUntilDeallocated(_ isDeallocated: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
+        let deadline = Date().addingTimeInterval(2)
+        while !isDeallocated() && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertTrue(isDeallocated(), file: file, line: line)
+    }
+}
+
+private final class StringScreenReceiver: ScreenMetricsReceiver {
+    func screenIdentifier(for viewController: UIViewController) -> String? {
+        return String(describing: type(of: viewController))
+    }
+}
+
+private final class MethodsRecordingObserver: ViewControllerInstanceObserver {
+    static let identifier: AnyObject = NSObject()
+    private(set) var methods: [ObserverMethods] = []
+
+    func beforeInit() { methods.append(.beforeInit) }
+    func beforeViewDidLoad() { methods.append(.beforeViewDidLoad) }
+    func afterViewWillAppear() { methods.append(.afterViewWillAppear) }
+    func afterViewDidAppear() { methods.append(.afterViewDidAppear) }
+    func beforeViewWillDisappear() { methods.append(.beforeViewWillDisappear) }
 }
 
 private class MetricsConsumerForSwiftUITest: ScreenMetricsReceiver {

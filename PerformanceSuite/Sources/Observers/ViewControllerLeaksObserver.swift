@@ -154,8 +154,16 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
             return
         }
 
-        PerformanceMonitoring.consumerQueue.async {
-            self.metricsReceiver.viewControllerLeakReceived(viewController: viewController)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            PerformanceMonitoring.consumerQueue.asyncReleasingOnMain(viewController) {
+                self.metricsReceiver.viewControllerLeakReceived(viewController: $0)
+            }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.consumerQueue.async {
+                self.metricsReceiver.viewControllerLeakReceived(viewController: viewController)
+            }
         }
     }
 

@@ -18,7 +18,8 @@ public protocol ScreenMetricsReceiver<ScreenIdentifier>: AnyObject {
     associatedtype ScreenIdentifier
 
     /// Converts a `UIViewController` to `ScreenIdentifier`. Return `nil` to skip tracking.
-    /// Called once on the main thread during `UIViewController` initialization; keep it fast.
+    /// Called once on `PerformanceMonitoring.queue` during `UIViewController` initialization; keep it fast and only read
+    /// state that is safe to read off main.
     /// Default returns nil for non-main-bundle view controllers and the controller itself otherwise.
     func screenIdentifier(for viewController: UIViewController) -> ScreenIdentifier?
 }

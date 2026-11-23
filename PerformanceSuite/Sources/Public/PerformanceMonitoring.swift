@@ -35,14 +35,21 @@ public struct Experiments {
     /// The wait deadlocks if a `consumerQueue` item is waiting for main. Defaults to `false`.
     public var fixFatalHangOnResignActive: Bool
 
+    // releaseViewControllersOnMain: remove on cleanup.
+    /// Whether work on PerformanceSuite queues borrows a view controller instead of owning it, so its final
+    /// release always happens on main. Defaults to `false`.
+    public var releaseViewControllersOnMain: Bool
+
     public init(
         pendingScreenTTIMeasurements: Bool = true,
         fragmentRenderingMetrics: Bool = false,
-        fixFatalHangOnResignActive: Bool = false
+        fixFatalHangOnResignActive: Bool = false,
+        releaseViewControllersOnMain: Bool = false
     ) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
         self.fragmentRenderingMetrics = fragmentRenderingMetrics
         self.fixFatalHangOnResignActive = fixFatalHangOnResignActive
+        self.releaseViewControllersOnMain = releaseViewControllersOnMain
     }
 }
 

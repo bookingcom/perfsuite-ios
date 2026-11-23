@@ -45,6 +45,7 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
     private let metricsReceiver: S
     private let observerMaker: (S.ScreenIdentifier) -> T
 
+    // releaseViewControllersOnMain: remove on cleanup.
     private func ensureDeallocationOnTheMainThread(viewController: UIViewController) {
         DispatchQueue.main.async { [viewController] in
             // Make sure viewController is deallocated on the main thread, because
@@ -75,37 +76,67 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
     }
 
     func beforeInit(viewController: UIViewController) {
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.beforeInit()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.beforeInit() }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeInit()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
     func beforeViewDidLoad(viewController: UIViewController) {
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.beforeViewDidLoad()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.beforeViewDidLoad() }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewDidLoad()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
     func afterViewDidAppear(viewController: UIViewController) {
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.afterViewDidAppear()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.afterViewDidAppear() }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.afterViewDidAppear()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
     func beforeViewWillDisappear(viewController: UIViewController) {
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.beforeViewWillDisappear()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.beforeViewWillDisappear() }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.beforeViewWillDisappear()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
     func afterViewWillAppear(viewController: UIViewController) {
-        PerformanceMonitoring.queue.async {
-            self.observer(for: viewController)?.afterViewWillAppear()
-            self.ensureDeallocationOnTheMainThread(viewController: viewController)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { self.observer(for: $0)?.afterViewWillAppear() }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            PerformanceMonitoring.queue.async {
+                self.observer(for: viewController)?.afterViewWillAppear()
+                self.ensureDeallocationOnTheMainThread(viewController: viewController)
+            }
         }
     }
 
@@ -178,5 +209,23 @@ final class ViewControllerObserverFactoryHelper {
             vc = current.parent
         }
         return nil
+    }
+}
+
+extension DispatchQueue {
+    /// Runs `work` with `viewController` on this queue without this queue ever owning it.
+    ///
+    /// UIKit marks a view controller as deallocating when its last reference is released off main, but runs
+    /// `dealloc` later on main. If its view leaves the window in between, `viewDidMoveToWindow:shouldAppearOrDisappear:`
+    /// forms a weak reference to it and the app aborts. So the only extra retain is taken here, on the calling thread,
+    /// and released on main after `work` returns: `work` borrows the view controller and can never release it last.
+    func asyncReleasingOnMain(_ viewController: UIViewController, _ work: @escaping (UIViewController) -> Void) {
+        let reference = Unmanaged.passRetained(viewController)
+        async {
+            work(reference.takeUnretainedValue())
+            DispatchQueue.main.async {
+                reference.release()
+            }
+        }
     }
 }

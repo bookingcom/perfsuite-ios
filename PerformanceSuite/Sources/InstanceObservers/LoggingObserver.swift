@@ -36,40 +36,44 @@ public protocol ViewControllerLoggingReceiver<ScreenIdentifier>: ScreenMetricsRe
 final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerInstanceObserver {
 
     init(screen: V.ScreenIdentifier, receiver: V) {
-        self.screen = screen
+        self.screen = ReceiverIdentifier(screen)
         self.receiver = receiver
     }
 
-    private let screen: V.ScreenIdentifier
+    private let screen: ReceiverIdentifier<V.ScreenIdentifier>
     private let receiver: V
+
+    func attach(viewController: UIViewController) {
+        screen.viewController = viewController
+    }
 
     func beforeInit() {
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onInit(screen: self.screen)
+            self.screen.withIdentifier { self.receiver.onInit(screen: $0) }
         }
     }
 
     func beforeViewDidLoad() {
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewDidLoad(screen: self.screen)
+            self.screen.withIdentifier { self.receiver.onViewDidLoad(screen: $0) }
         }
     }
 
     func afterViewWillAppear() {
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewWillAppear(screen: self.screen)
+            self.screen.withIdentifier { self.receiver.onViewWillAppear(screen: $0) }
         }
     }
 
     func afterViewDidAppear() {
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewDidAppear(screen: self.screen)
+            self.screen.withIdentifier { self.receiver.onViewDidAppear(screen: $0) }
         }
     }
 
     func beforeViewWillDisappear() {
         PerformanceMonitoring.consumerQueue.async {
-            self.receiver.onViewWillDisappear(screen: self.screen)
+            self.screen.withIdentifier { self.receiver.onViewWillDisappear(screen: $0) }
         }
     }
 

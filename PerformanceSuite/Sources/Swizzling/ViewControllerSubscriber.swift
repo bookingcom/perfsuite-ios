@@ -46,15 +46,39 @@ final class ViewControllerSubscriber {
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewWillAppearSelector) { (vc: UIViewController) in
             dispatchPrecondition(condition: .onQueue(.main))
-            DispatchQueue.main.async {
-                observer.afterViewWillAppear(viewController: vc)
+            if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+                // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+                // Weak, so that a deferred callback never keeps the view controller alive past a leak check.
+                DispatchQueue.main.async { [weak vc] in
+                    guard let vc else {
+                        return
+                    }
+                    observer.afterViewWillAppear(viewController: vc)
+                }
+            } else {
+                // releaseViewControllersOnMain: base implementation; remove on cleanup.
+                DispatchQueue.main.async {
+                    observer.afterViewWillAppear(viewController: vc)
+                }
             }
         }
 
         try Swizzler.swizzle(class: classToSwizzle, selector: viewDidAppearSelector) { (vc: UIViewController) in
             dispatchPrecondition(condition: .onQueue(.main))
-            DispatchQueue.main.async {
-                observer.afterViewDidAppear(viewController: vc)
+            if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+                // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+                // Weak, so that a deferred callback never keeps the view controller alive past a leak check.
+                DispatchQueue.main.async { [weak vc] in
+                    guard let vc else {
+                        return
+                    }
+                    observer.afterViewDidAppear(viewController: vc)
+                }
+            } else {
+                // releaseViewControllersOnMain: base implementation; remove on cleanup.
+                DispatchQueue.main.async {
+                    observer.afterViewDidAppear(viewController: vc)
+                }
             }
         }
 

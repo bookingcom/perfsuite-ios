@@ -128,6 +128,71 @@ class ViewControllerLeaksObserverTests: XCTestCase {
         // to avoid deallocation use viewController here
         _ = viewController
     }
+
+    func testLeakReportDoesNotRetainViewControllerWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
+        let receiver = BlockingLeaksReceiver()
+        let consumerQueueGate = DispatchSemaphore(value: 0)
+        addTeardownBlock { consumerQueueGate.signal() }
+        PerformanceMonitoring.consumerQueue.async { consumerQueueGate.wait() }
+
+        var viewController: DismissedViewController? = DismissedViewController()
+        weak var weakViewController = viewController
+        detectLeak(of: viewController!, receiver: receiver)
+        viewController = nil
+        let deallocated = weakViewController == nil
+        consumerQueueGate.signal()
+        PerformanceMonitoring.consumerQueue.sync { }
+
+        XCTAssertTrue(deallocated)
+        XCTAssertFalse(receiver.called)
+    }
+
+    func testLeakReportReleasesViewControllerOnMainWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
+        let receiverEntered = DispatchSemaphore(value: 0)
+        let receiverMayReturn = DispatchSemaphore(value: 0)
+        let reportFinished = DispatchSemaphore(value: 0)
+        addTeardownBlock { receiverMayReturn.signal() }
+        let receiver = BlockingLeaksReceiver()
+        receiver.onLeakReceived = {
+            receiverEntered.signal()
+            receiverMayReturn.wait()
+            // Runs right after the report block, once it has dropped its references.
+            PerformanceMonitoring.consumerQueue.async { reportFinished.signal() }
+        }
+
+        var viewController: DismissedViewController? = DismissedViewController()
+        weak var weakViewController = viewController
+        detectLeak(of: viewController!, receiver: receiver)
+        XCTAssertEqual(receiverEntered.wait(timeout: .now() + 5), .success)
+        // From here only the report holds the view controller.
+        viewController = nil
+        receiverMayReturn.signal()
+        XCTAssertEqual(reportFinished.wait(timeout: .now() + 5), .success)
+
+        // The report block is done, but its last reference is released by a block queued on main.
+        XCTAssertNotNil(weakViewController)
+        let deadline = Date().addingTimeInterval(5)
+        while weakViewController != nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertNil(weakViewController)
+        // DismissedViewController.deinit asserts that it runs on the main thread.
+    }
+
+    /// Runs the dismissal callbacks and returns once the leak check has queued the report on the consumer queue.
+    private func detectLeak(of viewController: UIViewController, receiver: BlockingLeaksReceiver) {
+        let observer = ViewControllerLeaksObserver(metricsReceiver: receiver, detectionTimeout: .milliseconds(10))
+        let checked = expectation(description: "leak checked")
+        receiver.onShouldTrack = { checked.fulfill() }
+        observer.beforeViewWillDisappear(viewController: viewController)
+        observer.beforeViewDidDisappear(viewController: viewController)
+        // `shouldTrack` is called on main right before the report is queued, in the same main queue block.
+        wait(for: [checked], timeout: 5)
+    }
 }
 
 private class UIViewControllerLeakIgnored: UIViewController, LeakCheckDisabled {}
@@ -145,4 +210,28 @@ private class ViewControllerLeaksReceiverStub: ViewControllerLeaksReceiver {
     }
     var leakDetected: UIViewController?
     var expectation: XCTestExpectation?
+}
+
+private class DismissedViewController: UIViewController {
+    override var isBeingDismissed: Bool { true }
+
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
+    }
+}
+
+private class BlockingLeaksReceiver: ViewControllerLeaksReceiver {
+    var onShouldTrack: (() -> Void)?
+    var onLeakReceived: (() -> Void)?
+    private(set) var called = false
+
+    func shouldTrack(viewController: UIViewController) -> Bool {
+        onShouldTrack?()
+        return true
+    }
+
+    func viewControllerLeakReceived(viewController: UIViewController) {
+        called = true
+        onLeakReceived?()
+    }
 }

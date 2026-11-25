@@ -5,6 +5,7 @@
 //  Created by Gleb Tarasov on 21/12/2022.
 //
 
+import UIKit
 import XCTest
 
 @testable import PerformanceSuite
@@ -227,6 +228,67 @@ final class FragmentTTIReporterTests: XCTestCase {
 
         try PerformanceMonitoring.disable()
     }
+
+    func testViewControllerFragmentIsNotRetainedWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
+        let metricsReceiver = ViewControllerFragmentReceiverStub()
+        let appStateListener = AppStateListenerStub()
+        let reporter = FragmentTTIReporter(
+            metricsReceiver: metricsReceiver, timeProvider: TimeProviderStub(), appStateListenerFactory: { appStateListener })
+
+        var viewController: MainThreadReleasedFragmentController? = MainThreadReleasedFragmentController()
+        weak var weakViewController = viewController
+        let trackable = reporter.start(identifier: viewController! as UIViewController)
+        viewController = nil
+
+        // The trackable lives on and is used off main, so it must not own a view controller identifier.
+        XCTAssertNil(weakViewController)
+        trackable.fragmentIsReady()
+        PerformanceMonitoring.queue.sync {}
+        PerformanceMonitoring.consumerQueue.sync {}
+        XCTAssertFalse(metricsReceiver.received)
+    }
+
+    func testReferencedViewControllerIsReleasedOnMainWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
+        let loaded = expectation(description: "loaded")
+        let receiverMayReturn = DispatchSemaphore(value: 0)
+        addTeardownBlock { receiverMayReturn.signal() }
+        let metricsReceiver = ReferencingFragmentReceiverStub()
+        metricsReceiver.onReceived = { fragment in
+            let strongViewController = fragment.referencedViewController
+            loaded.fulfill()
+            receiverMayReturn.wait()
+            withExtendedLifetime(strongViewController) {}
+        }
+        let appStateListener = AppStateListenerStub()
+        let reporter = FragmentTTIReporter(
+            metricsReceiver: metricsReceiver, timeProvider: TimeProviderStub(), appStateListenerFactory: { appStateListener })
+
+        var viewController: MainThreadReleasedFragmentController? = MainThreadReleasedFragmentController()
+        weak var weakViewController = viewController
+        let trackable = reporter.start(identifier: ViewControllerFragment(viewController: viewController!))
+        trackable.fragmentIsReady()
+        wait(for: [loaded], timeout: 30)
+        // From here only the receiver's temporary references the view controller.
+        viewController = nil
+        let mainDrained = expectation(description: "mainDrained")
+        DispatchQueue.main.async { mainDrained.fulfill() }
+        wait(for: [mainDrained], timeout: 5)
+        receiverMayReturn.signal()
+        PerformanceMonitoring.consumerQueue.sync {}
+
+        // The receiver's temporary was not the last reference: the last one is released by a block queued on main.
+        XCTAssertNotNil(weakViewController)
+        let deadline = Date().addingTimeInterval(5)
+        while weakViewController != nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertNil(weakViewController)
+        withExtendedLifetime(trackable) {}
+    }
 }
 
 private class FragmentTTIMetricsReceiverStub: FragmentTTIMetricsReceiver {
@@ -241,6 +303,36 @@ private class FragmentTTIMetricsReceiverStub: FragmentTTIMetricsReceiver {
     func clear() {
         metrics = nil
         identifier = nil
+    }
+}
+
+private class ViewControllerFragmentReceiverStub: FragmentTTIMetricsReceiver {
+    private(set) var received = false
+
+    func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment: UIViewController) {
+        received = true
+    }
+}
+
+private struct ViewControllerFragment: ViewControllerReferencing {
+    weak var viewController: UIViewController?
+
+    var referencedViewController: UIViewController? {
+        return viewController
+    }
+}
+
+private class ReferencingFragmentReceiverStub: FragmentTTIMetricsReceiver {
+    var onReceived: ((ViewControllerFragment) -> Void)?
+
+    func fragmentTTIMetricsReceived(metrics: TTIMetrics, fragment: ViewControllerFragment) {
+        onReceived?(fragment)
+    }
+}
+
+private class MainThreadReleasedFragmentController: UIViewController {
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
     }
 }
 

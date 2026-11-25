@@ -106,6 +106,30 @@ private final class StubHostingController: UIViewController, RootViewIntrospecta
     func introspectRootView() -> Any { StubRootView() }
 }
 
+/// Introspects to a root view that is the only owner of a newly captured object, like a SwiftUI view whose
+/// captured objects only the introspected copy still references after main replaced the root view.
+private final class CapturingHostingController: UIViewController, RootViewIntrospectable {
+    weak var lastCapturedObject: MainThreadReleasedObject?
+    var introspectedOnMain: Bool?
+
+    func introspectRootView() -> Any {
+        introspectedOnMain = Thread.isMainThread
+        let object = MainThreadReleasedObject()
+        lastCapturedObject = object
+        return CapturingRootView(object: object)
+    }
+}
+
+private struct CapturingRootView {
+    let object: MainThreadReleasedObject
+}
+
+private final class MainThreadReleasedObject {
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
+    }
+}
+
 /// File-scope (rather than nested inside ``StubHostingController``) so it
 /// stays at one level of nesting depth.
 private struct StubRootView {}
@@ -401,6 +425,33 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
             builder.attributes["vc.class_name"]?.stringValue, "StubRootView",
             "When the VC conforms to RootViewIntrospectable, the refined root-view type must drive vc.class_name"
         )
+    }
+
+    func testLeakLogIntrospectsOnMainWithReleaseViewControllersOnMain() throws {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        let loggerProvider = MockLoggerProvider()
+        let instrumenter = makeInstrumenter(provider: MockTracerProvider(), loggerProvider: loggerProvider)
+        let viewController = CapturingHostingController()
+        let reported = DispatchSemaphore(value: 0)
+
+        PerformanceMonitoring.consumerQueue.async {
+            instrumenter.viewControllerLeakReceived(viewController: viewController)
+            reported.signal()
+        }
+        XCTAssertEqual(reported.wait(timeout: .now() + 30), .success)
+        let deadline = Date().addingTimeInterval(5)
+        while loggerProvider.logger.lastBuilder == nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+
+        // Introspection copies the root view and the objects it captures, so it must not run on the consumer queue.
+        let builder = try XCTUnwrap(loggerProvider.logger.lastBuilder)
+        XCTAssertEqual(builder.attributes["vc.class_name"]?.stringValue, "CapturingRootView")
+        XCTAssertEqual(viewController.introspectedOnMain, true)
+        XCTAssertNil(viewController.lastCapturedObject)
     }
 
     func testLeakLogPlainViewControllerUsesConcreteSwiftType() throws {

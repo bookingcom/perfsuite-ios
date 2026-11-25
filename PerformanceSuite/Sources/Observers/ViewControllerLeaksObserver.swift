@@ -156,8 +156,14 @@ final class ViewControllerLeaksObserver: ViewControllerObserver {
 
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
-            PerformanceMonitoring.consumerQueue.asyncReleasingOnMain(viewController) {
-                self.metricsReceiver.viewControllerLeakReceived(viewController: $0)
+            // Weak, so that reporting a leak never keeps the view controller alive.
+            PerformanceMonitoring.consumerQueue.async { [weak viewController] in
+                retainingViewController({ viewController }, during: {
+                    guard let viewController else {
+                        return
+                    }
+                    self.metricsReceiver.viewControllerLeakReceived(viewController: viewController)
+                })
             }
         } else {
             // releaseViewControllersOnMain: base implementation; remove on cleanup.

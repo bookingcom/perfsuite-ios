@@ -15,13 +15,13 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         framesMeter: FramesMeter,
         makeAppStateListener: () -> AppStateListener = { DefaultAppStateListener() }
     ) {
-        self.screen = screen
+        self.screen = ReceiverIdentifier(screen)
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
         registerAppLifecycleObservers(makeAppStateListener: makeAppStateListener)
     }
 
-    private let screen: R.ScreenIdentifier
+    private let screen: ReceiverIdentifier<R.ScreenIdentifier>
     private let metricsReceiver: R
     private let framesMeter: FramesMeter
 
@@ -92,17 +92,14 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
                 if PerformanceMonitoring.experiments.fixFatalHangOnResignActive {
                     // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
-                    self.measurementHandle = live.screenRenderingStarted(
-                        screen: self.screen,
-                        sessionStarted: sessionStarted,
-                        liveMetrics: self.liveMetrics
-                    )
+                    self.measurementHandle = self.screen.withIdentifier {
+                        live.screenRenderingStarted(screen: $0, sessionStarted: sessionStarted, liveMetrics: self.liveMetrics)
+                    }
                 } else {
                     // fixFatalHangOnResignActive: base implementation; remove on cleanup.
-                    self.measurementHandle = live.screenRenderingStarted(
-                        screen: self.screen,
-                        sessionStarted: sessionStarted
-                    )
+                    self.measurementHandle = self.screen.withIdentifier {
+                        live.screenRenderingStarted(screen: $0, sessionStarted: sessionStarted)
+                    }
                 }
             }
             self.didAppearProcessed = true
@@ -129,6 +126,10 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
 
     static var identifier: AnyObject {
         return renderingObserverIdentifier
+    }
+
+    func attach(viewController: UIViewController) {
+        screen.viewController = viewController
     }
 
     private func processDisappear() {
@@ -219,21 +220,13 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
             // fixFatalHangOnResignActive: variant implementation; keep on cleanup.
             liveMetrics = LiveRenderingMetrics(.zero)
             PerformanceMonitoring.consumerQueue.async {
-                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                    live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
-                } else {
-                    self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
-                }
+                self.sendMetrics(metrics, context: context)
             }
         } else {
             // fixFatalHangOnResignActive: base implementation; remove on cleanup.
             // Synchronous finalize to win the race against the backend's session-end auto-termination.
             PerformanceMonitoring.consumerQueue.sync {
-                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                    live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
-                } else {
-                    self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
-                }
+                self.sendMetrics(metrics, context: context)
             }
         }
     }
@@ -258,7 +251,7 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
                 self.metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
                 self.framesMeter.subscribe(receiver: self)
                 if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                    self.measurementHandle = live.screenRenderingStarted(screen: self.screen, sessionStarted: sessionStarted)
+                    self.measurementHandle = self.screen.withIdentifier { live.screenRenderingStarted(screen: $0, sessionStarted: sessionStarted) }
                 }
             }
         }
@@ -273,7 +266,9 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         metrics = RenderingMetrics.zero(sessionStarted: sessionStarted)
         framesMeter.subscribe(receiver: self)
         if #available(iOS 16.0, *), let live = metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-            measurementHandle = live.screenRenderingStarted(screen: screen, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
+            measurementHandle = screen.withIdentifier {
+                live.screenRenderingStarted(screen: $0, sessionStarted: sessionStarted, liveMetrics: liveMetrics)
+            }
         }
     }
 
@@ -294,11 +289,21 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         }
         guard metrics != countersZero || context != nil else { return }
         PerformanceMonitoring.consumerQueue.async {
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
-                live.screenRenderingEnded(metrics: metrics, screen: self.screen, context: context)
+            self.sendMetrics(metrics, context: context)
+        }
+    }
+
+    /// Called on `PerformanceMonitoring.consumerQueue`.
+    private func sendMetrics(_ metrics: RenderingMetrics, context: (any MeasurementHandle)?) {
+        let reported: Void? = screen.withIdentifier { screen in
+            if #available(iOS 16.0, *), let live = metricsReceiver as? any LiveRenderingMetricsReceiver<R.ScreenIdentifier> {
+                live.screenRenderingEnded(metrics: metrics, screen: screen, context: context)
             } else {
-                self.metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: self.screen)
+                metricsReceiver.renderingMetricsReceived(metrics: metrics, screen: screen)
             }
+        }
+        if reported == nil, let context {
+            screen.retainingViewControllers { context.cancel() }
         }
     }
 
@@ -315,7 +320,9 @@ final class RenderingObserver<R: RenderingMetricsReceiver>: ViewControllerInstan
         // delivering the willDisappear lifecycle, or a stand-alone observer scope).
         // Discard any live measurement so it never leaks as half-finished. Idempotent.
         lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
-        self.measurementHandle?.cancel()
+        if let context = measurementHandle {
+            screen.retainingViewControllers { context.cancel() }
+        }
     }
 }
 

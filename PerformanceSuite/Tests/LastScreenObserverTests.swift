@@ -47,6 +47,60 @@ final class LastScreenObserverTests: XCTestCase {
             "MyView3",
         ])
     }
+
+    func testViewControllerIsNotPassedToQueueWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        AppInfoHolder.resetForTests()
+        let queueGate = DispatchSemaphore(value: 0)
+        addTeardownBlock { queueGate.signal() }
+        PerformanceMonitoring.queue.async { queueGate.wait() }
+        let observer = LastOpenedScreenObserver()
+        var viewController: MainThreadDeallocatedViewController? = MainThreadDeallocatedViewController()
+        weak var weakViewController = viewController
+
+        observer.afterViewDidAppear(viewController: viewController!)
+        let mainDrained = expectation(description: "mainDrained")
+        DispatchQueue.main.async { mainDrained.fulfill() }
+        wait(for: [mainDrained], timeout: 5)
+        viewController = nil
+
+        // The top screen check on main has run; nothing queued on PerformanceMonitoring.queue holds the view controller.
+        XCTAssertNil(weakViewController)
+        queueGate.signal()
+        PerformanceMonitoring.queue.sync { }
+        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, ["MainThreadDeallocatedViewController"])
+    }
+
+    func testDeferredTopScreenCheckDoesNotRetainViewControllerWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        AppInfoHolder.resetForTests()
+        let observer = LastOpenedScreenObserver()
+        var viewController: MainThreadDeallocatedViewController? = MainThreadDeallocatedViewController()
+        weak var weakViewController = viewController
+
+        observer.afterViewDidAppear(viewController: viewController!)
+        viewController = nil
+
+        // The check is still queued on main; it must not keep the view controller alive past a leak check.
+        XCTAssertNil(weakViewController)
+        let mainDrained = expectation(description: "mainDrained")
+        DispatchQueue.main.async { mainDrained.fulfill() }
+        wait(for: [mainDrained], timeout: 5)
+        PerformanceMonitoring.queue.sync { }
+        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [])
+    }
+}
+
+private class MainThreadDeallocatedViewController: UIViewController {
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
+    }
 }
 
 private class MyViewController1: UIViewController { }

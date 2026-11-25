@@ -15,7 +15,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
          timeProvider: TimeProvider = defaultTimeProvider,
          appStateListener: AppStateListener = DefaultAppStateListener()
     ) {
-        self.screen = screen
+        self.screen = ReceiverIdentifier(screen)
         self.metricsReceiver = metricsReceiver
         self.timeProvider = timeProvider
         self.appStateListener = appStateListener
@@ -24,7 +24,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         }
     }
 
-    private let screen: T.ScreenIdentifier
+    private let screen: ReceiverIdentifier<T.ScreenIdentifier>
     private let metricsReceiver: T
     private let timeProvider: TimeProvider
     private let appStateListener: AppStateListener
@@ -81,10 +81,12 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
             if !self.ttiCalculated && !self.ignoreThisScreen && self.measurementHandle == nil,
                #available(iOS 16.0, *),
                let live = self.metricsReceiver as? any LiveTTIMetricsReceiver<T.ScreenIdentifier> {
-                if let pending = TTIObserverHelper.adoptPendingMeasurement(now: now) {
-                    self.measurementHandle = live.screenTTIPendingMeasurementAdopted(pending, screen: self.screen)
-                } else {
-                    self.measurementHandle = live.screenTTIMeasurementStarted(screen: self.screen)
+                // Adopts only when the screen is available, so an unavailable one leaves the pending measurement to end normally.
+                self.measurementHandle = self.screen.withIdentifier { screen in
+                    if let pending = TTIObserverHelper.adoptPendingMeasurement(now: now) {
+                        return live.screenTTIPendingMeasurementAdopted(pending, screen: screen)
+                    }
+                    return live.screenTTIMeasurementStarted(screen: screen)
                 }
             }
         }
@@ -161,6 +163,14 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         return TTIObserverHelper.identifier
     }
 
+    func attach(viewController: UIViewController) {
+        screen.viewController = viewController
+    }
+
+    private var screenDescription: String {
+        screen.withIdentifier { "\($0)" } ?? "a deallocated screen"
+    }
+
     func screenIsReady() {
         let now = timeProvider.now()
         PerformanceMonitoring.queue.async {
@@ -187,7 +197,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         let ttiEndTime = max(screenIsReadyTime, viewDidAppearTime)
         let tti = ttiStartTime.distance(to: ttiEndTime)
         if tti < .zero {
-            assertionFailure("We received negative TTI  for \(screen). That should never happen")
+            assertionFailure("We received negative TTI  for \(screenDescription). That should never happen")
             cancelMeasurement()
             return
         }
@@ -197,7 +207,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         let ttfrEndTime = viewWillAppearTime
         let ttfr = ttfrStartTime.distance(to: ttfrEndTime)
         if ttfr < .zero {
-            assertionFailure("We received negative TTFR  for \(screen). That should never happen")
+            assertionFailure("We received negative TTFR  for \(screenDescription). That should never happen")
             cancelMeasurement()
             return
         }
@@ -214,10 +224,15 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         let context = self.measurementHandle
         self.measurementHandle = nil
         PerformanceMonitoring.consumerQueue.async {
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveTTIMetricsReceiver<T.ScreenIdentifier> {
-                live.screenTTIMeasurementEnded(metrics: metrics, screen: self.screen, context: context)
-            } else {
-                self.metricsReceiver.ttiMetricsReceived(metrics: metrics, screen: self.screen)
+            let reported: Void? = self.screen.withIdentifier { screen in
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveTTIMetricsReceiver<T.ScreenIdentifier> {
+                    live.screenTTIMeasurementEnded(metrics: metrics, screen: screen, context: context)
+                } else {
+                    self.metricsReceiver.ttiMetricsReceived(metrics: metrics, screen: screen)
+                }
+            }
+            if reported == nil, let context {
+                self.screen.retainingViewControllers { context.cancel() }
             }
         }
 
@@ -247,7 +262,7 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
     private func cancelMeasurement() {
         dispatchPrecondition(condition: .onQueue(PerformanceMonitoring.queue))
         if let context = self.measurementHandle {
-            context.cancel()
+            screen.retainingViewControllers { context.cancel() }
             self.measurementHandle = nil
         }
     }
@@ -256,7 +271,9 @@ final class TTIObserver<T: TTIMetricsReceiver>: ViewControllerInstanceObserver, 
         // VC went away before TTI completed: discard any open measurement. measurementHandle is mutated only on
         // PerformanceMonitoring.queue and queued closures retain self, so deinit runs only after
         // that work drains — direct access is race-free.
-        self.measurementHandle?.cancel()
+        if let context = measurementHandle {
+            screen.retainingViewControllers { context.cancel() }
+        }
     }
 }
 

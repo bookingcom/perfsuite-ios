@@ -357,6 +357,18 @@ extension OTelInstrumenter:
     // MARK: - ViewControllerLeaksReceiver
 
     public func viewControllerLeakReceived(viewController: UIViewController) {
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain && !Thread.isMainThread {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            // Root view introspection copies the root view and the objects it captures, so the log is built on main.
+            // Weak, so that the queued log never keeps the view controller alive.
+            DispatchQueue.main.async { [weak viewController] in
+                guard let viewController else {
+                    return
+                }
+                self.viewControllerLeakReceived(viewController: viewController)
+            }
+            return
+        }
         logEmitter.emitViewControllerLeakLog(
             viewController: viewController,
             appStartedWithPrewarming: PerformanceMonitoring.appStartInfo.appStartedWithPrewarming

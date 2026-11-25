@@ -25,13 +25,29 @@ final class LastOpenedScreenObserver: ViewControllerObserver {
     // MARK: - Top screen detection
 
     private func rememberOpenedScreenIfNeeded(_ viewController: UIViewController) {
-        DispatchQueue.main.async {
-            guard isTopScreen(viewController) else {
-                return
-            }
-            PerformanceMonitoring.queue.async {
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            // Weak, so that the deferred check never keeps the view controller alive past a leak check.
+            DispatchQueue.main.async { [weak viewController] in
+                guard let viewController, isTopScreen(viewController) else {
+                    return
+                }
+                // Introspection copies the root view and the objects it captures, so it runs on main too.
                 let description = RootViewIntrospection.shared.description(viewController: viewController)
-                AppInfoHolder.screenOpened(description)
+                PerformanceMonitoring.queue.async {
+                    AppInfoHolder.screenOpened(description)
+                }
+            }
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            DispatchQueue.main.async {
+                guard isTopScreen(viewController) else {
+                    return
+                }
+                PerformanceMonitoring.queue.async {
+                    let description = RootViewIntrospection.shared.description(viewController: viewController)
+                    AppInfoHolder.screenOpened(description)
+                }
             }
         }
     }

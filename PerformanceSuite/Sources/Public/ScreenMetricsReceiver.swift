@@ -15,11 +15,14 @@ import UIKit
 /// Base protocol for screen-level TTI and Rendering receivers
 public protocol ScreenMetricsReceiver<ScreenIdentifier>: AnyObject {
     /// ScreenIdentifier can be String, some enum, or UIViewController itself.
+    /// It is kept and passed to receivers off main, so a custom identifier must reference a view controller only weakly,
+    /// and adopt `ViewControllerReferencing` if that is not the screen's own view controller.
     associatedtype ScreenIdentifier
 
     /// Converts a `UIViewController` to `ScreenIdentifier`. Return `nil` to skip tracking.
     /// Called once on `PerformanceMonitoring.queue` during `UIViewController` initialization; keep it fast and only read
-    /// state that is safe to read off main.
+    /// state that is safe to read off main. Don't load other view controllers here, like `parent`: this code could
+    /// release them last, off main.
     /// Default returns nil for non-main-bundle view controllers and the controller itself otherwise.
     func screenIdentifier(for viewController: UIViewController) -> ScreenIdentifier?
 }

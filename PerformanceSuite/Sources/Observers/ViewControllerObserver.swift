@@ -32,6 +32,14 @@ protocol ViewControllerInstanceObserver {
     func beforeViewWillDisappear()
 
     static var identifier: AnyObject { get }
+
+    /// Called once on `PerformanceMonitoring.queue` right after the observer is created for `viewController`.
+    /// The observer must not keep a strong reference to it.
+    func attach(viewController: UIViewController)
+}
+
+extension ViewControllerInstanceObserver {
+    func attach(viewController: UIViewController) {}
 }
 
 
@@ -65,12 +73,38 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
             return observer
         }
 
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            // In a pool, so the receiver's autoreleased references are gone before the screen is released on main.
+            let (observer, screenReferences) = autoreleasepool { makeObserver(for: viewController) }
+            // The screen can be another view controller; `makeObserver`'s reference to it is gone by now.
+            releaseOnMain(screenReferences)
+            return observer
+        }
+
+        // releaseViewControllersOnMain: base implementation; remove on cleanup.
         guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
             return nil
         }
+        return makeObserver(for: viewController, screen: screen)
+    }
 
+    // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+    /// Also returns retains of the view controllers the screen references, to be released on main.
+    func makeObserver(for viewController: UIViewController) -> (T?, [Unmanaged<UIViewController>]) {
+        guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
+            return (nil, [])
+        }
+        let screenReferences = retain {
+            [screen as? UIViewController, (screen as? ViewControllerReferencing)?.referencedViewController]
+        }
+        return (makeObserver(for: viewController, screen: screen), screenReferences)
+    }
+
+    private func makeObserver(for viewController: UIViewController, screen: S.ScreenIdentifier) -> T {
         let tPointer = unsafeBitCast(T.identifier, to: UnsafeRawPointer.self)
         let observer = observerMaker(screen)
+        observer.attach(viewController: viewController)
         objc_setAssociatedObject(viewController, tPointer, observer, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         return observer
     }
@@ -217,15 +251,18 @@ extension DispatchQueue {
     ///
     /// UIKit marks a view controller as deallocating when its last reference is released off main, but runs
     /// `dealloc` later on main. If its view leaves the window in between, `viewDidMoveToWindow:shouldAppearOrDisappear:`
-    /// forms a weak reference to it and the app aborts. So the only extra retain is taken here, on the calling thread,
-    /// and released on main after `work` returns: `work` borrows the view controller and can never release it last.
+    /// forms a weak reference to it and the app aborts. So while queued, the view controller is held weakly, which also
+    /// keeps a queue backlog from delaying its deallocation, and `work` is skipped if it is gone by then. While `work`
+    /// runs, it is retained and released on main afterwards: `work` borrows it and can never release it last.
+    /// Work that `work` queues must not capture it; instance observers call receivers through `ReceiverIdentifier`.
     func asyncReleasingOnMain(_ viewController: UIViewController, _ work: @escaping (UIViewController) -> Void) {
-        let reference = Unmanaged.passRetained(viewController)
-        async {
-            work(reference.takeUnretainedValue())
-            DispatchQueue.main.async {
-                reference.release()
-            }
+        async { [weak viewController] in
+            retainingViewControllersUntilMain({ [viewController] }, during: {
+                guard let viewController else {
+                    return
+                }
+                work(viewController)
+            })
         }
     }
 }

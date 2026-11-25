@@ -15,6 +15,8 @@ public protocol FragmentRenderingTrackable: AnyObject {
 
 /// Implement this protocol to receive fragment-level rendering metrics (freeze time, session duration, etc.).
 public protocol FragmentRenderingMetricsReceiver<FragmentIdentifier>: AnyObject {
+    /// It is kept and passed to receivers off main, so it must reference a view controller only weakly, and adopt
+    /// `ViewControllerReferencing` then.
     associatedtype FragmentIdentifier
     func fragmentRenderingMetricsReceived(metrics: RenderingMetrics, fragment: FragmentIdentifier)
 }
@@ -33,7 +35,7 @@ public protocol LiveFragmentRenderingMetricsReceiver<FragmentIdentifier>: Fragme
 
 private class Trackable<F: FragmentRenderingMetricsReceiver>: FragmentRenderingTrackable, FramesMeterReceiver {
 
-    private let identifier: F.FragmentIdentifier
+    private let identifier: ReceiverIdentifier<F.FragmentIdentifier>
     private let metricsReceiver: F
     private let framesMeter: FramesMeter
     private let appStateListener: AppStateListener
@@ -48,7 +50,7 @@ private class Trackable<F: FragmentRenderingMetricsReceiver>: FragmentRenderingT
         framesMeter: FramesMeter,
         appStateListener: AppStateListener
     ) {
-        self.identifier = identifier
+        self.identifier = ReceiverIdentifier(identifier)
         self.metricsReceiver = metricsReceiver
         self.framesMeter = framesMeter
         self.appStateListener = appStateListener
@@ -59,7 +61,7 @@ private class Trackable<F: FragmentRenderingMetricsReceiver>: FragmentRenderingT
         }
 
         if #available(iOS 16.0, *), let live = metricsReceiver as? any LiveFragmentRenderingMetricsReceiver<F.FragmentIdentifier> {
-            self.measurementHandle = live.fragmentRenderingStarted(fragment: identifier)
+            self.measurementHandle = self.identifier.withIdentifier { live.fragmentRenderingStarted(fragment: $0) }
         }
     }
 
@@ -89,17 +91,22 @@ private class Trackable<F: FragmentRenderingMetricsReceiver>: FragmentRenderingT
         guard metrics != countersZero || context != nil else { return }
 
         PerformanceMonitoring.consumerQueue.async {
-            if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveFragmentRenderingMetricsReceiver<F.FragmentIdentifier> {
-                live.fragmentRenderingEnded(metrics: metrics, fragment: self.identifier, context: context)
-            } else {
-                self.metricsReceiver.fragmentRenderingMetricsReceived(metrics: metrics, fragment: self.identifier)
+            let reported: Void? = self.identifier.withIdentifier { fragment in
+                if #available(iOS 16.0, *), let live = self.metricsReceiver as? any LiveFragmentRenderingMetricsReceiver<F.FragmentIdentifier> {
+                    live.fragmentRenderingEnded(metrics: metrics, fragment: fragment, context: context)
+                } else {
+                    self.metricsReceiver.fragmentRenderingMetricsReceived(metrics: metrics, fragment: fragment)
+                }
+            }
+            if reported == nil, let context {
+                self.identifier.retainingViewControllers { context.cancel() }
             }
         }
     }
 
     private func cancelMeasurement() {
         if let context = self.measurementHandle {
-            context.cancel()
+            identifier.retainingViewControllers { context.cancel() }
             self.measurementHandle = nil
         }
     }
@@ -113,7 +120,9 @@ private class Trackable<F: FragmentRenderingMetricsReceiver>: FragmentRenderingT
     }
 
     deinit {
-        self.measurementHandle?.cancel()
+        if let context = measurementHandle {
+            identifier.retainingViewControllers { context.cancel() }
+        }
     }
 }
 

@@ -15,19 +15,21 @@ import UIKit
 final class ReceiverIdentifier<Identifier> {
 
     init(_ identifier: Identifier) {
-        // releaseViewControllersOnMain: on cleanup, keep the branches and drop the experiment check.
-        if PerformanceMonitoring.experiments.releaseViewControllersOnMain, let viewController = identifier as? UIViewController {
-            self.strongIdentifier = nil
-            self.identifierViewController = viewController
-        } else {
-            self.strongIdentifier = identifier
-        }
         if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
             // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            if let viewController = identifier as? UIViewController {
+                self.strongIdentifier = nil
+                self.identifierViewController = viewController
+            } else {
+                self.strongIdentifier = identifier
+            }
             // Kept weakly, so it stays protected after a view controller identifier is gone.
             let references = retain { [(identifier as? ViewControllerReferencing)?.referencedViewController] }
             referencedViewController = references.first?.takeUnretainedValue()
             releaseOnMain(references)
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            self.strongIdentifier = identifier
         }
     }
 
@@ -73,13 +75,13 @@ final class ReceiverIdentifier<Identifier> {
 /// Code in `body` that loads a view controller from a weak reference, like a receiver resolving its screen, gets a
 /// strong temporary that could otherwise be the last reference, released off main.
 func retainingViewControllers(_ viewControllers: () -> [UIViewController?], during body: () -> Void) {
-    guard PerformanceMonitoring.experiments.releaseViewControllersOnMain else {
+    if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+        // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+        retainingViewControllersUntilMain(viewControllers, during: body)
+    } else {
         // releaseViewControllersOnMain: base implementation; remove on cleanup.
         body()
-        return
     }
-    // releaseViewControllersOnMain: variant implementation; keep on cleanup.
-    retainingViewControllersUntilMain(viewControllers, during: body)
 }
 
 /// ``retainingViewControllers(_:during:)`` regardless of the experiment.

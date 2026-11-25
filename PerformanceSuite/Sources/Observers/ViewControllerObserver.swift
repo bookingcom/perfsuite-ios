@@ -80,13 +80,13 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
             // The screen can be another view controller; `makeObserver`'s reference to it is gone by now.
             releaseOnMain(screenReferences)
             return observer
+        } else {
+            // releaseViewControllersOnMain: base implementation; remove on cleanup.
+            guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
+                return nil
+            }
+            return makeObserver(for: viewController, screen: screen)
         }
-
-        // releaseViewControllersOnMain: base implementation; remove on cleanup.
-        guard let screen = metricsReceiver.screenIdentifier(for: viewController) else {
-            return nil
-        }
-        return makeObserver(for: viewController, screen: screen)
     }
 
     // releaseViewControllersOnMain: variant implementation; keep on cleanup.

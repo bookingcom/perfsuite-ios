@@ -435,13 +435,11 @@ final class OTelInstrumenterAttributeProviderTests: XCTestCase {
         let loggerProvider = MockLoggerProvider()
         let instrumenter = makeInstrumenter(provider: MockTracerProvider(), loggerProvider: loggerProvider)
         let viewController = CapturingHostingController()
-        let reported = DispatchSemaphore(value: 0)
 
         PerformanceMonitoring.consumerQueue.async {
             instrumenter.viewControllerLeakReceived(viewController: viewController)
-            reported.signal()
         }
-        XCTAssertEqual(reported.wait(timeout: .now() + 30), .success)
+        PerformanceMonitoring.consumerQueue.sync {}
         let deadline = Date().addingTimeInterval(5)
         while loggerProvider.logger.lastBuilder == nil && Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.01))

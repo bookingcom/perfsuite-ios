@@ -368,19 +368,19 @@ class ViewControllerObserverTests: XCTestCase {
     ) {
         var viewController: MyViewController? = MyViewController()
         weak var weakViewController = viewController
-        let loaded = expectation(description: "loaded")
+        let loaded = DispatchSemaphore(value: 0)
         let receiverMayReturn = DispatchSemaphore(value: 0)
         var loadedViewController = false
 
         schedule(viewController!) { load in
             let strongViewController = load()
             loadedViewController = strongViewController != nil
-            loaded.fulfill()
+            loaded.signal()
             receiverMayReturn.wait()
             withExtendedLifetime(strongViewController) {}
         }
-        // The background-QoS consumer queue can be slow on a busy simulator.
-        guard XCTWaiter().wait(for: [loaded], timeout: 30) == .completed else {
+        prioritizeConsumerQueue()
+        guard loaded.wait(timeout: .now() + 30) == .success else {
             receiverMayReturn.signal()
             XCTFail("The receiver was not called", file: file, line: line)
             return

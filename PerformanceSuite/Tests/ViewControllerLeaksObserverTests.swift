@@ -154,24 +154,23 @@ class ViewControllerLeaksObserverTests: XCTestCase {
         addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
         let receiverEntered = DispatchSemaphore(value: 0)
         let receiverMayReturn = DispatchSemaphore(value: 0)
-        let reportFinished = DispatchSemaphore(value: 0)
         addTeardownBlock { receiverMayReturn.signal() }
         let receiver = BlockingLeaksReceiver()
         receiver.onLeakReceived = {
             receiverEntered.signal()
             receiverMayReturn.wait()
-            // Runs right after the report block, once it has dropped its references.
-            PerformanceMonitoring.consumerQueue.async { reportFinished.signal() }
         }
 
         var viewController: DismissedViewController? = DismissedViewController()
         weak var weakViewController = viewController
         detectLeak(of: viewController!, receiver: receiver)
-        XCTAssertEqual(receiverEntered.wait(timeout: .now() + 5), .success)
+        prioritizeConsumerQueue()
+        XCTAssertEqual(receiverEntered.wait(timeout: .now() + 30), .success)
         // From here only the report holds the view controller.
         viewController = nil
         receiverMayReturn.signal()
-        XCTAssertEqual(reportFinished.wait(timeout: .now() + 5), .success)
+        // Waits without draining main, which would run the release under test.
+        PerformanceMonitoring.consumerQueue.sync {}
 
         // The report block is done, but its last reference is released by a block queued on main.
         XCTAssertNotNil(weakViewController)

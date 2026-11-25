@@ -253,13 +253,13 @@ final class FragmentTTIReporterTests: XCTestCase {
     func testReferencedViewControllerIsReleasedOnMainWithReleaseViewControllersOnMain() {
         PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
         addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
-        let loaded = expectation(description: "loaded")
+        let loaded = DispatchSemaphore(value: 0)
         let receiverMayReturn = DispatchSemaphore(value: 0)
         addTeardownBlock { receiverMayReturn.signal() }
         let metricsReceiver = ReferencingFragmentReceiverStub()
         metricsReceiver.onReceived = { fragment in
             let strongViewController = fragment.referencedViewController
-            loaded.fulfill()
+            loaded.signal()
             receiverMayReturn.wait()
             withExtendedLifetime(strongViewController) {}
         }
@@ -271,7 +271,8 @@ final class FragmentTTIReporterTests: XCTestCase {
         weak var weakViewController = viewController
         let trackable = reporter.start(identifier: ViewControllerFragment(viewController: viewController!))
         trackable.fragmentIsReady()
-        wait(for: [loaded], timeout: 30)
+        prioritizeConsumerQueue()
+        XCTAssertEqual(loaded.wait(timeout: .now() + 30), .success)
         // From here only the receiver's temporary references the view controller.
         viewController = nil
         let mainDrained = expectation(description: "mainDrained")

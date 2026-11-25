@@ -98,23 +98,34 @@ final class RootViewIntrospection {
             // For SwiftUI hosting controller we are trying to find a root view, not the controller itself.
             // This is happening only on a new screen appearance, so shouldn't affect performance a lot.
             let root = introspectable.introspectRootView()
-            return description(rootView: root)
+            let meaningful = meaningfulViews(view: root)
+            return meaningful
+                .map { description($0) }
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+
         } else {
             return description(viewController)
         }
     }
 
-    /// Describes the meaningful views of a root view from `RootViewIntrospectable.introspectRootView()`.
-    func description(rootView: Any) -> String {
-        return meaningfulViews(view: rootView)
-            .map { description($0) }
-            .filter { !$0.isEmpty }
-            .joined(separator: ", ")
+    /// The type names that `description(viewController:)` describes. Reflects the view controller's views, so it should
+    /// run on main.
+    func typeNames(viewController: UIViewController) -> [String] {
+        if let introspectable = viewController as? RootViewIntrospectable {
+            return meaningfulViews(view: introspectable.introspectRootView()).map { String(describing: type(of: $0)) }
+        } else {
+            return [String(describing: type(of: viewController))]
+        }
     }
 
-    /// Describes a type name, like `String(describing: type(of: viewController))`.
-    func description(typeName: String) -> String {
-        return collapseSwiftUIGenerics(type: typeName)
+    /// The same as `description(viewController:)` for its `typeNames(viewController:)`. Parsing the generic types is
+    /// the slow part and can run on any queue.
+    func description(typeNames: [String]) -> String {
+        return typeNames
+            .map { collapseSwiftUIGenerics(type: $0) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 
     private func collapseSwiftUIGenerics(type: String) -> String {

@@ -96,12 +96,15 @@ final class LastScreenObserverTests: XCTestCase {
         XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [])
     }
 
-    func testRootViewIsReleasedOnMainAfterDescriptionWithReleaseViewControllersOnMain() {
+    func testRootViewDoesNotReachQueueWithReleaseViewControllersOnMain() {
         PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
         defer {
             PerformanceMonitoring.experiments = Experiments()
         }
         AppInfoHolder.resetForTests()
+        let queueGate = DispatchSemaphore(value: 0)
+        addTeardownBlock { queueGate.signal() }
+        PerformanceMonitoring.queue.async { queueGate.wait() }
         let observer = LastOpenedScreenObserver()
         let viewController = CapturingRootViewController()
 
@@ -109,17 +112,12 @@ final class LastScreenObserverTests: XCTestCase {
         let mainDrained = expectation(description: "mainDrained")
         DispatchQueue.main.async { mainDrained.fulfill() }
         wait(for: [mainDrained], timeout: 5)
-        PerformanceMonitoring.queue.sync { }
 
-        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, ["CapturingRootView"])
-        // The description is done on the queue, but the root view and its captured object are released on main.
-        XCTAssertNotNil(viewController.lastCapturedObject)
-        let deadline = Date().addingTimeInterval(5)
-        while viewController.lastCapturedObject != nil && Date() < deadline {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
-        }
+        // The views were reflected on main, and nothing queued holds them or the objects they capture.
         XCTAssertNil(viewController.lastCapturedObject)
-        // MainThreadReleasedObject.deinit asserts that it runs on the main thread.
+        queueGate.signal()
+        PerformanceMonitoring.queue.sync { }
+        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, ["CapturingRootView"])
     }
 }
 

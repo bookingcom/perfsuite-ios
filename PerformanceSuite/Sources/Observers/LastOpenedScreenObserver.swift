@@ -32,10 +32,21 @@ final class LastOpenedScreenObserver: ViewControllerObserver {
                 guard let viewController, isTopScreen(viewController) else {
                     return
                 }
-                // Introspection copies the root view and the objects it captures, so it runs on main too.
-                let description = RootViewIntrospection.shared.description(viewController: viewController)
+                guard let introspectable = viewController as? RootViewIntrospectable else {
+                    let typeName = String(describing: type(of: viewController))
+                    PerformanceMonitoring.queue.async {
+                        AppInfoHolder.screenOpened(RootViewIntrospection.shared.description(typeName: typeName))
+                    }
+                    return
+                }
+                // Describing the root view is slow, so it runs on the queue. The walk copies the view values and the
+                // objects they capture, which the root view taken here keeps alive until it is released on main.
+                let rootView = Unmanaged.passRetained(RootView(introspectable.introspectRootView()))
                 PerformanceMonitoring.queue.async {
-                    AppInfoHolder.screenOpened(description)
+                    AppInfoHolder.screenOpened(rootView.takeUnretainedValue().description)
+                    DispatchQueue.main.async {
+                        rootView.release()
+                    }
                 }
             }
         } else {
@@ -50,5 +61,19 @@ final class LastOpenedScreenObserver: ViewControllerObserver {
                 }
             }
         }
+    }
+}
+
+// releaseViewControllersOnMain: variant implementation; keep on cleanup.
+private final class RootView {
+    init(_ view: Any) {
+        self.view = view
+    }
+
+    let view: Any
+
+    /// A separate scope, so the walk's copies are gone before the root view is released.
+    var description: String {
+        return RootViewIntrospection.shared.description(rootView: view)
     }
 }

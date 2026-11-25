@@ -95,6 +95,32 @@ final class LastScreenObserverTests: XCTestCase {
         PerformanceMonitoring.queue.sync { }
         XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, [])
     }
+
+    func testRootViewIsReleasedOnMainAfterDescriptionWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        AppInfoHolder.resetForTests()
+        let observer = LastOpenedScreenObserver()
+        let viewController = CapturingRootViewController()
+
+        observer.afterViewDidAppear(viewController: viewController)
+        let mainDrained = expectation(description: "mainDrained")
+        DispatchQueue.main.async { mainDrained.fulfill() }
+        wait(for: [mainDrained], timeout: 5)
+        PerformanceMonitoring.queue.sync { }
+
+        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, ["CapturingRootView"])
+        // The description is done on the queue, but the root view and its captured object are released on main.
+        XCTAssertNotNil(viewController.lastCapturedObject)
+        let deadline = Date().addingTimeInterval(5)
+        while viewController.lastCapturedObject != nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertNil(viewController.lastCapturedObject)
+        // MainThreadReleasedObject.deinit asserts that it runs on the main thread.
+    }
 }
 
 private class MainThreadDeallocatedViewController: UIViewController {
@@ -114,4 +140,26 @@ private class MyViewController3: UIHostingController<MyView3> { }
 // it shouldn't be private to have non-random type description
 struct MyViewForLastScreenObserverTests: View {
     var body: some View { return Text("blabla") }
+}
+
+/// Its root view is the only owner of a newly captured object, like a SwiftUI view whose captured objects only the
+/// introspected copy still references after main replaced the root view.
+private class CapturingRootViewController: UIViewController, RootViewIntrospectable {
+    weak var lastCapturedObject: MainThreadReleasedObject?
+
+    func introspectRootView() -> Any {
+        let object = MainThreadReleasedObject()
+        lastCapturedObject = object
+        return CapturingRootView(object: object)
+    }
+}
+
+private struct CapturingRootView {
+    let object: MainThreadReleasedObject
+}
+
+private final class MainThreadReleasedObject {
+    deinit {
+        XCTAssertTrue(Thread.isMainThread)
+    }
 }

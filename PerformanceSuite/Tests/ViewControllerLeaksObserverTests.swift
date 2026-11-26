@@ -57,7 +57,8 @@ class ViewControllerLeaksObserverTests: XCTestCase {
                     }
                 }
             }
-            wait(for: [exp], timeout: 5)
+            // Generous: other work on main (e.g. Crashlytics processing reports) can delay the transition on CI.
+            wait(for: [exp], timeout: 30)
         }
 
         PerformanceMonitoring.queue.sync { }

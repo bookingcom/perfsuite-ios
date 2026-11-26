@@ -232,10 +232,14 @@ extension DispatchQueue {
     /// `dealloc` later on main. If its view leaves the window in between, `viewDidMoveToWindow:shouldAppearOrDisappear:`
     /// forms a weak reference to it and the app aborts. So the only extra retain is taken here, on the calling thread,
     /// and released on main after `work` returns: `work` borrows the view controller and can never release it last.
+    /// `work` runs in its own autorelease pool: these queues do not drain one per work item, so a reference that `work`
+    /// autoreleases could otherwise be dropped on this queue after main has released ours.
     func asyncReleasingOnMain(_ viewController: UIViewController, _ work: @escaping (UIViewController) -> Void) {
         let reference = Unmanaged.passRetained(viewController)
         async {
-            work(reference.takeUnretainedValue())
+            autoreleasepool {
+                work(reference.takeUnretainedValue())
+            }
             DispatchQueue.main.async {
                 reference.release()
             }

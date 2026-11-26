@@ -99,6 +99,46 @@ final class LoggingObserverTests: XCTestCase {
         XCTAssertEqual(receiver.loadedViewControllers, 0)
     }
 
+    func testViewControllerAutoreleasedByReceiverIsNotReleasedLastWithReleaseViewControllersOnMain() {
+        enableReleaseViewControllersOnMain()
+        let receiver = ViewControllerLoadingReceiver()
+        receiver.autoreleasesViewController = true
+        let factory = makeLoggingFactory(receiver: receiver)
+        let gate = DispatchSemaphore(value: 0)
+        let nextItemStarted = DispatchSemaphore(value: 0)
+        let nextItemBlocked = DispatchSemaphore(value: 0)
+        addTeardownBlock {
+            gate.signal()
+            nextItemBlocked.signal()
+        }
+
+        // Queue the receiver call and a blocking item behind a gate, so one consumer thread runs both without returning
+        // in between: that thread cannot drain a pool of its own until the blocking item ends.
+        PerformanceMonitoring.consumerQueue.async {
+            gate.wait()
+        }
+        weak var weakViewController: UIViewController?
+        autoreleasepool {
+            let viewController = UIViewController()
+            weakViewController = viewController
+            factory.afterViewDidAppear(viewController: viewController)
+        }
+        PerformanceMonitoring.queue.sync { }
+        PerformanceMonitoring.consumerQueue.async {
+            nextItemStarted.signal()
+            nextItemBlocked.wait()
+        }
+        gate.signal()
+        nextItemStarted.wait()
+        // The receiver's autoreleased reference is gone already: main releases the last one.
+        waitUntilDeallocated { weakViewController == nil }
+
+        nextItemBlocked.signal()
+        PerformanceMonitoring.consumerQueue.sync { }
+        XCTAssertEqual(receiver.methods, ["onViewDidAppear"])
+        XCTAssertEqual(receiver.loadedViewControllers, 1)
+    }
+
     private func enableReleaseViewControllersOnMain() {
         PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
         addTeardownBlock {
@@ -198,6 +238,8 @@ private final class ViewControllerLoadingReceiver: ViewControllerLoggingReceiver
     private(set) var loadedViewControllers = 0
     /// Called on consumerQueue while the receiver holds the view controller it loaded. Set before any callback.
     var whileHoldingViewController: (() -> Void)?
+    /// Whether the receiver also autoreleases the view controller it loaded. Set before any callback.
+    var autoreleasesViewController = false
 
     func screenIdentifier(for viewController: UIViewController) -> WeakScreen? {
         return WeakScreen(viewController: viewController)
@@ -215,6 +257,9 @@ private final class ViewControllerLoadingReceiver: ViewControllerLoggingReceiver
             return
         }
         loadedViewControllers += 1
+        if autoreleasesViewController {
+            _ = Unmanaged.passRetained(viewController).autorelease()
+        }
         withExtendedLifetime(viewController) {
             whileHoldingViewController?()
         }

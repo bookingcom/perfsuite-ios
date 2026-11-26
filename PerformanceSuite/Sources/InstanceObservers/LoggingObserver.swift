@@ -61,10 +61,13 @@ final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerIns
     /// So while the receiver runs this observer holds one extra retain, released on main after the receiver returns.
     /// While the block waits on the queue the view controller is held weakly: queue backlogs do not delay its
     /// deallocation. If it is already gone or deallocating when the block runs, the receiver is called as before.
+    /// The receiver runs in its own autorelease pool, so whatever it autoreleases is dropped before our release is queued.
     private func asyncCallingReceiver(_ call: @escaping (V, V.ScreenIdentifier) -> Void) {
         PerformanceMonitoring.consumerQueue.async {
             let reference = self.retainViewController()
-            call(self.receiver, self.screen)
+            autoreleasepool {
+                call(self.receiver, self.screen)
+            }
             if let reference {
                 DispatchQueue.main.async {
                     reference.release()

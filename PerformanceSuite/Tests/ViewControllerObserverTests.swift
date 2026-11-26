@@ -180,6 +180,39 @@ class ViewControllerObserverTests: XCTestCase {
         // MyViewController.deinit asserts that it runs on the main thread.
     }
 
+    func testAsyncReleasingOnMainDrainsReferencesAutoreleasedByWork() {
+        weak var weakViewController: UIViewController?
+        let gate = DispatchSemaphore(value: 0)
+        let nextItemStarted = DispatchSemaphore(value: 0)
+        let nextItemBlocked = DispatchSemaphore(value: 0)
+        addTeardownBlock {
+            gate.signal()
+            nextItemBlocked.signal()
+        }
+
+        // Queue the work and a blocking item behind a gate, so one queue thread runs both without returning in between:
+        // that thread cannot drain a pool of its own until the blocking item ends.
+        PerformanceMonitoring.queue.async {
+            gate.wait()
+        }
+        autoreleasepool {
+            let viewController = UIViewController()
+            weakViewController = viewController
+            PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) { viewController in
+                _ = Unmanaged.passRetained(viewController).autorelease()
+            }
+        }
+        PerformanceMonitoring.queue.async {
+            nextItemStarted.signal()
+            nextItemBlocked.wait()
+        }
+        gate.signal()
+        nextItemStarted.wait()
+        // The reference autoreleased by the work is gone already: main releases the last one.
+        waitUntilDeallocated { weakViewController == nil }
+        nextItemBlocked.signal()
+    }
+
     func testFactoryReleasesViewControllerOnMainWithReleaseViewControllersOnMain() {
         PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
         defer {

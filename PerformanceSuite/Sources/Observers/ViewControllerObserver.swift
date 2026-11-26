@@ -31,7 +31,16 @@ protocol ViewControllerInstanceObserver {
     func afterViewDidAppear()
     func beforeViewWillDisappear()
 
+    // releaseViewControllersOnMain: keep on cleanup.
+    /// Called once on `PerformanceMonitoring.queue` right after the observer is created, while the caller holds `viewController`.
+    func didCreate(for viewController: UIViewController)
+
     static var identifier: AnyObject { get }
+}
+
+extension ViewControllerInstanceObserver {
+    // releaseViewControllersOnMain: keep on cleanup.
+    func didCreate(for viewController: UIViewController) { }
 }
 
 
@@ -72,6 +81,10 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         let tPointer = unsafeBitCast(T.identifier, to: UnsafeRawPointer.self)
         let observer = observerMaker(screen)
         objc_setAssociatedObject(viewController, tPointer, observer, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            observer.didCreate(for: viewController)
+        }
         return observer
     }
 
@@ -218,11 +231,16 @@ extension DispatchQueue {
     /// UIKit marks a view controller as deallocating when its last reference is released off main, but runs
     /// `dealloc` later on main. If its view leaves the window in between, `viewDidMoveToWindow:shouldAppearOrDisappear:`
     /// forms a weak reference to it and the app aborts. So the only extra retain is taken here, on the calling thread,
-    /// and released on main after `work` returns: `work` borrows the view controller and can never release it last.
+    /// and released on main after `work` returns: `work` borrows the view controller, and references it drops
+    /// synchronously can never be the last one (a reference `work` hands to another queue is not covered).
+    /// `work` runs in its own autorelease pool: these queues do not drain one per work item, so a reference that `work`
+    /// autoreleases could otherwise be dropped on this queue after main has released ours.
     func asyncReleasingOnMain(_ viewController: UIViewController, _ work: @escaping (UIViewController) -> Void) {
         let reference = Unmanaged.passRetained(viewController)
         async {
-            work(reference.takeUnretainedValue())
+            autoreleasepool {
+                work(reference.takeUnretainedValue())
+            }
             DispatchQueue.main.async {
                 reference.release()
             }

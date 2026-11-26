@@ -31,7 +31,16 @@ protocol ViewControllerInstanceObserver {
     func afterViewDidAppear()
     func beforeViewWillDisappear()
 
+    // releaseViewControllersOnMain: keep on cleanup.
+    /// Called once on `PerformanceMonitoring.queue` right after the observer is created, while the caller holds `viewController`.
+    func didCreate(for viewController: UIViewController)
+
     static var identifier: AnyObject { get }
+}
+
+extension ViewControllerInstanceObserver {
+    // releaseViewControllersOnMain: keep on cleanup.
+    func didCreate(for viewController: UIViewController) { }
 }
 
 
@@ -72,6 +81,10 @@ final class ViewControllerObserverFactory<T: ViewControllerInstanceObserver, S: 
         let tPointer = unsafeBitCast(T.identifier, to: UnsafeRawPointer.self)
         let observer = observerMaker(screen)
         objc_setAssociatedObject(viewController, tPointer, observer, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+            // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+            observer.didCreate(for: viewController)
+        }
         return observer
     }
 

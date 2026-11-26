@@ -62,9 +62,7 @@ final class LastScreenObserverTests: XCTestCase {
 
     func testViewControllerIsReleasedOnMainWithReleaseViewControllersOnMain() {
         PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
-        defer {
-            PerformanceMonitoring.experiments = Experiments()
-        }
+        addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
         AppInfoHolder.resetForTests()
         let queueGate = DispatchSemaphore(value: 0)
         addTeardownBlock { queueGate.signal() }
@@ -87,9 +85,11 @@ final class LastScreenObserverTests: XCTestCase {
         // The queue is done and did not release it: the last reference is released on main.
         // (A view controller's dealloc thread proves nothing, UIKit defers dealloc to main.)
         XCTAssertNotNil(weakViewController)
-        let releasedOnMain = expectation(description: "releasedOnMain")
-        DispatchQueue.main.async { releasedOnMain.fulfill() }
-        wait(for: [releasedOnMain], timeout: 5)
+        // UIKit can keep an extra retain for a moment, so poll the main run loop instead of a single main turn.
+        let deadline = Date().addingTimeInterval(2)
+        while weakViewController != nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
         XCTAssertNil(weakViewController)
     }
 }

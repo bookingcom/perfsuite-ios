@@ -128,6 +128,7 @@ final class LoggingObserverTests: XCTestCase {
             nextItemStarted.signal()
             nextItemBlocked.wait()
         }
+        boostConsumerQueue()
         gate.signal()
         nextItemStarted.wait()
         // The receiver's autoreleased reference is gone already: main releases the last one.
@@ -144,6 +145,14 @@ final class LoggingObserverTests: XCTestCase {
         addTeardownBlock {
             PerformanceMonitoring.experiments = Experiments()
         }
+    }
+
+    /// Raises consumerQueue to main's QoS until it reaches the items queued so far.
+    ///
+    /// consumerQueue has background QoS, and main waiting on a semaphore donates no priority to it: on a loaded CI
+    /// runner its items were starved for over a minute. An enforced higher-QoS item behind them overrides the queue.
+    private func boostConsumerQueue() {
+        PerformanceMonitoring.consumerQueue.async(qos: .userInteractive, flags: .enforceQoS) { }
     }
 
     private func makeLoggingFactory(receiver: ViewControllerLoadingReceiver) -> ViewControllerObserver {
@@ -171,7 +180,10 @@ final class LoggingObserverTests: XCTestCase {
             let viewController = UIViewController()
             weakViewController = viewController
             callback.call(factory, viewController)
-            // Generous: consumerQueue has background QoS and can be starved on a loaded machine.
+            // The factory hops through PerformanceMonitoring.queue: once it is idle, the receiver call is on consumerQueue.
+            PerformanceMonitoring.queue.sync { }
+            boostConsumerQueue()
+            // Generous, in case the machine is loaded.
             XCTAssertEqual(loaded.wait(timeout: .now() + 60), .success, file: file, line: line)
         }
         // Let the factory's own main-queue release run: only the receiver (and the observer, if any) hold it now.

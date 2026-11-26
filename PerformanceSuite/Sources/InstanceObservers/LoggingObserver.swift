@@ -53,7 +53,7 @@ final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerIns
     }
 
     // releaseViewControllersOnMain: keep on cleanup.
-    /// Calls the receiver on `consumerQueue` so that it can never release the view controller last.
+    /// Calls the receiver on `consumerQueue` so that references it drops synchronously can never be the last one.
     ///
     /// A receiver may load the view controller from its screen identifier and drop it last on `consumerQueue`. UIKit
     /// then marks it as deallocating off main but runs `dealloc` later on main; if its view leaves the window in
@@ -61,12 +61,14 @@ final class LoggingObserver<V: ViewControllerLoggingReceiver>: ViewControllerIns
     /// So while the receiver runs this observer holds one extra retain, released on main after the receiver returns.
     /// While the block waits on the queue the view controller is held weakly: queue backlogs do not delay its
     /// deallocation. If it is already gone or deallocating when the block runs, the receiver is called as before.
-    /// The receiver runs in its own autorelease pool, so whatever it autoreleases is dropped before our release is queued.
+    /// The weak load and the receiver run in one autorelease pool, so whatever they autorelease on this thread is dropped
+    /// before our release is queued. A receiver that hands the view controller to another queue is not covered.
     private func asyncCallingReceiver(_ call: @escaping (V, V.ScreenIdentifier) -> Void) {
         PerformanceMonitoring.consumerQueue.async {
-            let reference = self.retainViewController()
-            autoreleasepool {
+            let reference = autoreleasepool { () -> Unmanaged<UIViewController>? in
+                let reference = self.retainViewController()
                 call(self.receiver, self.screen)
+                return reference
             }
             if let reference {
                 DispatchQueue.main.async {

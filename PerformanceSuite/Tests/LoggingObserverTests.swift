@@ -171,7 +171,8 @@ final class LoggingObserverTests: XCTestCase {
             let viewController = UIViewController()
             weakViewController = viewController
             callback.call(factory, viewController)
-            loaded.wait()
+            // Generous: consumerQueue has background QoS and can be starved on a loaded machine.
+            XCTAssertEqual(loaded.wait(timeout: .now() + 60), .success, file: file, line: line)
         }
         // Let the factory's own main-queue release run: only the receiver (and the observer, if any) hold it now.
         PerformanceMonitoring.queue.sync { }

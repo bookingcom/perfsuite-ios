@@ -26,10 +26,6 @@ public struct Experiments {
     /// feature existed, and no measurement is opened on the caller's thread.
     public var pendingScreenTTIMeasurements: Bool
 
-    /// Whether fragment-level rendering metrics (freeze time, session duration, etc.) are collected
-    /// via ``FragmentRenderingMetricsReceiver``. Defaults to `false`; pass `true` to enable.
-    public var fragmentRenderingMetrics: Bool
-
     // fixFatalHangOnResignActive: remove on cleanup.
     /// Whether main stops waiting for `consumerQueue` when live rendering sessions end on `willResignActive`.
     /// The wait deadlocks if a `consumerQueue` item is waiting for main. Defaults to `false`.
@@ -42,12 +38,10 @@ public struct Experiments {
 
     public init(
         pendingScreenTTIMeasurements: Bool = true,
-        fragmentRenderingMetrics: Bool = false,
         fixFatalHangOnResignActive: Bool = false,
         releaseViewControllersOnMain: Bool = false
     ) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
-        self.fragmentRenderingMetrics = fragmentRenderingMetrics
         self.fixFatalHangOnResignActive = fixFatalHangOnResignActive
         self.releaseViewControllersOnMain = releaseViewControllersOnMain
     }
@@ -345,7 +339,7 @@ public enum PerformanceMonitoring {
 
         appendTTIObservers(config: config, vcObservers: &vcObservers)
         let framesMeter = appendRenderingObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)
-        if let framesMeter, experiments.fragmentRenderingMetrics {
+        if let framesMeter {
             appendFragmentRenderingReporter(config: config, framesMeter: framesMeter, appReporters: &appReporters)
         }
         let startupProvider = appendStartupObservers(config: config, vcObservers: &vcObservers, appReporters: &appReporters)

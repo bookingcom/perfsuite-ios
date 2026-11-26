@@ -182,10 +182,7 @@ final class FragmentRenderingReporterTests: XCTestCase {
             .fragmentRendering(metricsReceiver),
             .appLevelRendering(FragmentTestAppRenderingReceiverStub()),
         ]
-        try PerformanceMonitoring.enable(
-            config: config,
-            experiments: Experiments(fragmentRenderingMetrics: true)
-        )
+        try PerformanceMonitoring.enable(config: config)
 
         let trackable = PerformanceMonitoring.startFragmentRendering(identifier: "new_fragment")
         let exp = expectation(description: "wait")

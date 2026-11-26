@@ -9,7 +9,6 @@ on:
       - '*'
 jobs:
   swiftpm-build:
-    if: false
     runs-on: macos-26
     steps:
       - name: Set Xcode version
@@ -79,11 +78,6 @@ jobs:
           git checkout -- Project.xcodeproj
           git checkout -- Project.xcworkspace
   unit-tests:
-    name: unit-tests (${{ matrix.attempt }})
-    strategy:
-      fail-fast: false
-      matrix:
-        attempt: [1, 2, 3, 4, 5]
     runs-on: macos-26
     steps:
       - name: Set Xcode version
@@ -142,7 +136,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: unit-test-results-${{ matrix.attempt }}
+          name: unit-test-results
           path: UnitTestResults.xcresult
           retention-days: 30
 
@@ -161,17 +155,16 @@ jobs:
       - name: Upload code_coverage.txt
         uses: actions/upload-artifact@v4
         with:
-          name: code_coverage.txt-${{ matrix.attempt }}
+          name: code_coverage.txt
           path: code_coverage.txt
 
       - name: Upload cobertura.xml
         uses: actions/upload-artifact@v4
         with:
-          name: cobertura.xml-${{ matrix.attempt }}
+          name: cobertura.xml
           path: cobertura.xml
 
   ui-tests:
-    if: false
     runs-on: macos-26
     steps:
       - name: Set Xcode version
@@ -236,7 +229,6 @@ jobs:
           retention-days: 30
 
   coverage-report:
-    if: false
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
@@ -272,7 +264,7 @@ jobs:
 
 
   coverage-badge:
-    if: false
+    if: github.ref == 'refs/heads/main'
     needs: unit-tests
     runs-on: ubuntu-latest
     steps:

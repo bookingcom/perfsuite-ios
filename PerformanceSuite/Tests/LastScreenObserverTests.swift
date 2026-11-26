@@ -13,6 +13,18 @@ import UIKit
 final class LastScreenObserverTests: XCTestCase {
 
     func testRuntimeInfoIsSaved() {
+        checkRuntimeInfoIsSaved()
+    }
+
+    func testRuntimeInfoIsSavedWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        defer {
+            PerformanceMonitoring.experiments = Experiments()
+        }
+        checkRuntimeInfoIsSaved()
+    }
+
+    private func checkRuntimeInfoIsSaved() {
         AppInfoHolder.resetForTests()
         let vcs = [
             UIViewController(), // ignored, UIKit
@@ -46,6 +58,39 @@ final class LastScreenObserverTests: XCTestCase {
             "MyViewController1",
             "MyView3",
         ])
+    }
+
+    func testViewControllerIsReleasedOnMainWithReleaseViewControllersOnMain() {
+        PerformanceMonitoring.experiments = Experiments(releaseViewControllersOnMain: true)
+        addTeardownBlock { PerformanceMonitoring.experiments = Experiments() }
+        AppInfoHolder.resetForTests()
+        let queueGate = DispatchSemaphore(value: 0)
+        addTeardownBlock { queueGate.signal() }
+        PerformanceMonitoring.queue.async { queueGate.wait() }
+        let observer = LastOpenedScreenObserver()
+        var viewController: MyViewController1? = MyViewController1()
+        weak var weakViewController = viewController
+
+        observer.afterViewDidAppear(viewController: viewController!)
+        let mainDrained = expectation(description: "mainDrained")
+        DispatchQueue.main.async { mainDrained.fulfill() }
+        wait(for: [mainDrained], timeout: 5)
+        viewController = nil
+
+        // The queued description borrows the view controller, so it is alive while the queue works.
+        XCTAssertNotNil(weakViewController)
+        queueGate.signal()
+        PerformanceMonitoring.queue.sync { }
+        XCTAssertEqual(AppInfoHolder.appRuntimeInfo.openedScreens, ["MyViewController1"])
+        // The queue is done and did not release it: the last reference is released on main.
+        // (A view controller's dealloc thread proves nothing, UIKit defers dealloc to main.)
+        XCTAssertNotNil(weakViewController)
+        // UIKit can keep an extra retain for a moment, so poll the main run loop instead of a single main turn.
+        let deadline = Date().addingTimeInterval(2)
+        while weakViewController != nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertNil(weakViewController)
     }
 }
 

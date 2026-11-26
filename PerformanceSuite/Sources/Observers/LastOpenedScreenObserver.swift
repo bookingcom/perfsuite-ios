@@ -29,9 +29,18 @@ final class LastOpenedScreenObserver: ViewControllerObserver {
             guard isTopScreen(viewController) else {
                 return
             }
-            PerformanceMonitoring.queue.async {
-                let description = RootViewIntrospection.shared.description(viewController: viewController)
-                AppInfoHolder.screenOpened(description)
+            if PerformanceMonitoring.experiments.releaseViewControllersOnMain {
+                // releaseViewControllersOnMain: variant implementation; keep on cleanup.
+                PerformanceMonitoring.queue.asyncReleasingOnMain(viewController) {
+                    let description = RootViewIntrospection.shared.description(viewController: $0)
+                    AppInfoHolder.screenOpened(description)
+                }
+            } else {
+                // releaseViewControllersOnMain: base implementation; remove on cleanup.
+                PerformanceMonitoring.queue.async {
+                    let description = RootViewIntrospection.shared.description(viewController: viewController)
+                    AppInfoHolder.screenOpened(description)
+                }
             }
         }
     }

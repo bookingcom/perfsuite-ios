@@ -36,14 +36,22 @@ public struct Experiments {
     /// release always happens on main. Defaults to `false`.
     public var releaseViewControllersOnMain: Bool
 
+    // recordHangsWithoutSuspendingThreads: remove on cleanup.
+    /// Whether Crashlytics records a started hang without suspending the other threads. With suspension,
+    /// recording can deadlock on a lock held by a suspended thread and freeze the app for good.
+    /// Defaults to `false`.
+    public var recordHangsWithoutSuspendingThreads: Bool
+
     public init(
         pendingScreenTTIMeasurements: Bool = true,
         fixFatalHangOnResignActive: Bool = false,
-        releaseViewControllersOnMain: Bool = false
+        releaseViewControllersOnMain: Bool = false,
+        recordHangsWithoutSuspendingThreads: Bool = false
     ) {
         self.pendingScreenTTIMeasurements = pendingScreenTTIMeasurements
         self.fixFatalHangOnResignActive = fixFatalHangOnResignActive
         self.releaseViewControllersOnMain = releaseViewControllersOnMain
+        self.recordHangsWithoutSuspendingThreads = recordHangsWithoutSuspendingThreads
     }
 }
 

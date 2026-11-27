@@ -16,10 +16,25 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         // Crashlytics' context-init promise. Without settling it here, it runs during the next test's first
         // wait and can recreate the marker after that test's clean-state removal.
         settleDeferredCrashlyticsWork()
+        PerformanceMonitoring.experiments = Experiments()
         super.tearDown()
     }
 
     func testReportHangStarted_CreatesCrashReportFile_WhenFatalHangsAsCrashesIsTrue() throws {
+        try checkFatalHangReport()
+    }
+
+    func testReportHangStarted_CreatesCrashReportFile_WhenFatalHangsAsCrashesIsTrue_WithoutSuspendingThreads() throws {
+        PerformanceMonitoring.experiments = Experiments(recordHangsWithoutSuspendingThreads: true)
+        try checkFatalHangReport()
+    }
+
+    func testReportHangStarted_DoesNotCreateCrashReportFile_WhenFatalHangsAsCrashesIsFalse_WithoutSuspendingThreads() throws {
+        PerformanceMonitoring.experiments = Experiments(recordHangsWithoutSuspendingThreads: true)
+        try testReportHangStarted_DoesNotCreateCrashReportFile_WhenFatalHangsAsCrashesIsFalse()
+    }
+
+    private func checkFatalHangReport() throws {
         let reporter = CrashlyticsIssueReporter(fatalHangsAsCrashes: true, firebaseHangReason: hangReason)
         let reportPath = reporter.reportHangStarted(withType: hangType, stackTrace: stack)
 
@@ -42,7 +57,7 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
             XCTAssertTrue(exceptionContents.contains("\($0)"))
         }
 
-        // all threads are recorded (without suspending them), and the recording did not stop early
+        // all threads are recorded, and the recording did not stop early
         let threads = try XCTUnwrap(section("threads", in: exceptionContents) as? [[String: Any]])
         let threadNames = try XCTUnwrap(section("thread_names", in: exceptionContents) as? [Any])
         XCTAssertGreaterThan(threads.count, 1)

@@ -23,21 +23,6 @@ private let firebaseNativeErrorType: Int32 = 1
 private let crashMarkerPollInterval: TimeInterval = 0.005
 private let crashMarkerPollMaxAttempts = 100
 
-// `shouldSuspendThread` argument (added in Firebase 11.9.0) of the on-demand recording functions.
-//
-// It must stay `false`. With `true`, Firebase's `FIRCLSHandler` suspends every other thread and,
-// while they are suspended, still runs code that takes process-wide locks: the crash marker
-// write goes through `-[NSFileManager attributesOfItemAtPath:]`, which allocates memory. If any
-// suspended thread holds a lock that code needs (for example a malloc zone lock - the hanging
-// main thread is often allocating), the recording thread blocks forever and nothing ever resumes
-// the suspended threads, so a recoverable hang turns into a permanent freeze.
-//
-// The flag only controls suspension: all threads are still recorded (Firebase reads their stacks
-// with fault-tolerant memory reads), and the hanging main thread's stack is passed to the report
-// separately. Firebase also records on-demand exceptions without suspension when the server-side
-// `on_demand_thread_recording_suspension_enabled` setting is off.
-private let shouldSuspendThreads = false
-
 protocol CrashlyticsIssueReporting {
     func reportHangStarted(withType hangType: String, stackTrace: String) -> String
     func changeExistingHangReport(toType type: String, stackTrace: String, reportPath: String)
@@ -62,6 +47,19 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
 
     func reportHangStarted(withType type: String, stackTrace: String) -> String {
         let model = exceptionModel(withName: type, stackTrace: stackTrace)
+        // `shouldSuspendThread` argument (added in Firebase 11.9.0) of the on-demand recording functions.
+        //
+        // With `true`, Firebase's `FIRCLSHandler` suspends every other thread and, while they are
+        // suspended, still runs code that takes process-wide locks: the crash marker write goes through
+        // `-[NSFileManager attributesOfItemAtPath:]`, which allocates memory. If any suspended thread
+        // holds a lock that code needs (for example a malloc zone lock), the recording thread blocks
+        // forever and nothing resumes the suspended threads, so a recoverable hang becomes a permanent
+        // freeze.
+        //
+        // With `false` all threads are still recorded, just not at one single instant. The hanging main
+        // thread's stack (`stackTrace`) is captured separately by `MainThreadCallStack` while main is
+        // suspended, so it stays consistent either way.
+        let shouldSuspendThreads = !PerformanceMonitoring.experiments.recordHangsWithoutSuspendingThreads
         let result: String
         if fatalHangsAsCrashes {
             guard let name = (type as NSString).utf8String,

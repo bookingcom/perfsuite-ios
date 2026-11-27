@@ -7,6 +7,16 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
     override func setUp() {
         super.setUp()
         configureFirebase()
+        // Let any Crashlytics work an earlier test left deferred land now, not in the middle of this test.
+        settleDeferredCrashlyticsWork()
+    }
+
+    override func tearDown() {
+        // `changeExistingHangReport` defers its on-demand record (and the crash marker it writes) behind
+        // Crashlytics' context-init promise. Without settling it here, it runs during the next test's first
+        // wait and can recreate the marker after that test's clean-state removal.
+        settleDeferredCrashlyticsWork()
+        super.tearDown()
     }
 
     func testReportHangStarted_CreatesCrashReportFile_WhenFatalHangsAsCrashesIsTrue() throws {
@@ -157,11 +167,9 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
             "exception.clsrecord should be present (non-empty) only when fatalHangsAsCrashes is true",
             file: file, line: line)
 
-        // The marker an on-demand recording writes must be gone after reportHangStarted. Give any
-        // deferred Crashlytics work a moment to run before checking (see below).
-        let afterReportHangStarted = expectation(description: "deferred crashlytics work")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { afterReportHangStarted.fulfill() }
-        wait(for: [afterReportHangStarted], timeout: 10)
+        // The marker an on-demand recording writes must be gone after reportHangStarted. Let any
+        // deferred Crashlytics work run before checking (see below).
+        settleDeferredCrashlyticsWork()
         XCTAssertFalse(
             fileManager.fileExists(atPath: markerPath),
             "Crash marker present after reportHangStarted",
@@ -170,16 +178,45 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         // 2. Hang recovers -> replace with a non-fatal report; the marker must end up removed.
         reporter.changeExistingHangReport(toType: hangType, stackTrace: stack, reportPath: reportPath)
 
-        // `record(onDemandExceptionModel:)` runs on the main queue, and newer Firebase (>= 12.x)
-        // defers it behind a context-init promise that resolves shortly after this call - so the
-        // marker it (incorrectly) leaves appears a moment later. Wait for it to settle, then assert.
-        let afterChangeExistingHangReport = expectation(description: "deferred crashlytics work")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { afterChangeExistingHangReport.fulfill() }
-        wait(for: [afterChangeExistingHangReport], timeout: 10)
+        // `record(onDemandExceptionModel:)` runs on the main queue, and newer Firebase (>= 12.11)
+        // defers it behind a context-init promise - so the marker it writes appears only after this
+        // call, and the reporter removes it a moment later. Wait for both, then assert.
+        settleDeferredCrashlyticsWork()
         XCTAssertFalse(
             fileManager.fileExists(atPath: markerPath),
             "Crash marker present after a recovered non-fatal hang: the next launch would mis-report it as an app crash",
             file: file, line: line)
+    }
+
+    /// Waits until the Crashlytics work deferred behind its context-init promise so far has run, and until
+    /// `CrashlyticsIssueReporter` has removed any crash marker that work wrote.
+    ///
+    /// A fixed delay is not enough. If the deferred `record(onDemandExceptionModel:)` runs right before the
+    /// delay ends, the check races the reporter's removal, which runs on a background queue. On a
+    /// CPU-starved runner the check can win and see the marker for a moment.
+    ///
+    /// Context-init observers run on the main queue in the order they were registered. So the observer
+    /// below runs after every deferred on-demand record (which writes the marker synchronously) and after
+    /// the reporter's own callback. That callback then removes the marker from a background queue shortly
+    /// after. We wait for that removal with a bound well above the reporter's 0.5 s poll budget. If the
+    /// marker is never removed, we stop waiting and the caller's assertion fails instead of the test hanging.
+    private func settleDeferredCrashlyticsWork(file: StaticString = #filePath, line: UInt = #line) {
+        guard let markerPath = getCrashMarkerFilePath() else {
+            XCTFail("Failed to get path for Crashlytics crash marker file", file: file, line: line)
+            return
+        }
+        let settled = expectation(description: "Deferred Crashlytics work settled")
+        Crashlytics.crashlytics().wait(forContextInit: "perfSuiteTestsSettle") {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let deadline = Date().addingTimeInterval(markerRemovalTimeout)
+                while FileManager.default.fileExists(atPath: markerPath), Date() < deadline {
+                    usleep(5_000)
+                }
+                settled.fulfill()
+            }
+        }
+        // Generous: the first call waits for Crashlytics to finish initializing, which is slow on loaded CI runners.
+        wait(for: [settled], timeout: 60)
     }
 
     // Helper method to get the crash marker file path
@@ -354,6 +391,10 @@ private let addresses: [UInt] = [
     0x0000_0001_00f4_9738,
     0x0000_0001_e3e9_cdec,
 ]
+
+/// How long `settleDeferredCrashlyticsWork` waits for the reporter to remove the crash marker.
+/// Must stay well above the reporter's own 0.5 s poll budget.
+private let markerRemovalTimeout: TimeInterval = 2
 
 private let hangType = "TestHangType"
 private let hangReason = "Test Hang Reason"

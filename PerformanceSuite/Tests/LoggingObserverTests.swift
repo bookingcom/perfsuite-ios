@@ -128,8 +128,9 @@ final class LoggingObserverTests: XCTestCase {
             nextItemStarted.signal()
             nextItemBlocked.wait()
         }
+        boostConsumerQueue()
         gate.signal()
-        nextItemStarted.wait()
+        XCTAssertEqual(nextItemStarted.wait(timeout: .now() + 60), .success)
         // The receiver's autoreleased reference is gone already: main releases the last one.
         waitUntilDeallocated { weakViewController == nil }
 
@@ -144,6 +145,14 @@ final class LoggingObserverTests: XCTestCase {
         addTeardownBlock {
             PerformanceMonitoring.experiments = Experiments()
         }
+    }
+
+    /// Raises consumerQueue to main's QoS until it reaches the items queued so far.
+    ///
+    /// consumerQueue has background QoS, and main waiting on a semaphore donates no priority to it: on a loaded CI
+    /// runner its items were starved for over a minute. An enforced higher-QoS item behind them overrides the queue.
+    private func boostConsumerQueue() {
+        PerformanceMonitoring.consumerQueue.async(qos: .userInteractive, flags: .enforceQoS) { }
     }
 
     private func makeLoggingFactory(receiver: ViewControllerLoadingReceiver) -> ViewControllerObserver {
@@ -171,7 +180,10 @@ final class LoggingObserverTests: XCTestCase {
             let viewController = UIViewController()
             weakViewController = viewController
             callback.call(factory, viewController)
-            // Generous: consumerQueue has background QoS and can be starved on a loaded machine.
+            // The factory hops through PerformanceMonitoring.queue: once it is idle, the receiver call is on consumerQueue.
+            PerformanceMonitoring.queue.sync { }
+            boostConsumerQueue()
+            // Generous, in case the machine is loaded.
             XCTAssertEqual(loaded.wait(timeout: .now() + 60), .success, file: file, line: line)
         }
         // Let the factory's own main-queue release run: only the receiver (and the observer, if any) hold it now.
@@ -190,8 +202,17 @@ final class LoggingObserverTests: XCTestCase {
         return survived
     }
 
+    /// Runs main until the releases queued on it so far have run, then polls for the deallocation.
+    ///
+    /// Draining main first, rather than only polling against a short deadline: on a loaded CI runner the whole process
+    /// stalled for almost a minute, and the deadline passed before main ran the queued releases.
     private func waitUntilDeallocated(_ isDeallocated: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
-        let deadline = Date().addingTimeInterval(2)
+        let mainDrained = expectation(description: "main drained")
+        DispatchQueue.main.async {
+            mainDrained.fulfill()
+        }
+        wait(for: [mainDrained], timeout: 60)
+        let deadline = Date().addingTimeInterval(5)
         while !isDeallocated() && Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.01))
         }

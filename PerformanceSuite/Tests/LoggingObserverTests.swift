@@ -130,7 +130,7 @@ final class LoggingObserverTests: XCTestCase {
         }
         boostConsumerQueue()
         gate.signal()
-        nextItemStarted.wait()
+        XCTAssertEqual(nextItemStarted.wait(timeout: .now() + 60), .success)
         // The receiver's autoreleased reference is gone already: main releases the last one.
         waitUntilDeallocated { weakViewController == nil }
 
@@ -202,8 +202,17 @@ final class LoggingObserverTests: XCTestCase {
         return survived
     }
 
+    /// Runs main until the releases queued on it so far have run, then polls for the deallocation.
+    ///
+    /// Draining main first, rather than only polling against a short deadline: on a loaded CI runner the whole process
+    /// stalled for almost a minute, and the deadline passed before main ran the queued releases.
     private func waitUntilDeallocated(_ isDeallocated: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
-        let deadline = Date().addingTimeInterval(2)
+        let mainDrained = expectation(description: "main drained")
+        DispatchQueue.main.async {
+            mainDrained.fulfill()
+        }
+        wait(for: [mainDrained], timeout: 60)
+        let deadline = Date().addingTimeInterval(5)
         while !isDeallocated() && Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.01))
         }

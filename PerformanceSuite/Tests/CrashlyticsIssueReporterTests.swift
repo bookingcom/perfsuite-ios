@@ -16,10 +16,25 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         // Crashlytics' context-init promise. Without settling it here, it runs during the next test's first
         // wait and can recreate the marker after that test's clean-state removal.
         settleDeferredCrashlyticsWork()
+        PerformanceMonitoring.experiments = Experiments()
         super.tearDown()
     }
 
     func testReportHangStarted_CreatesCrashReportFile_WhenFatalHangsAsCrashesIsTrue() throws {
+        try checkFatalHangReport()
+    }
+
+    func testReportHangStarted_CreatesCrashReportFile_WhenFatalHangsAsCrashesIsTrue_WithoutSuspendingThreads() throws {
+        PerformanceMonitoring.experiments = Experiments(recordHangsWithoutSuspendingThreads: true)
+        try checkFatalHangReport()
+    }
+
+    func testReportHangStarted_DoesNotCreateCrashReportFile_WhenFatalHangsAsCrashesIsFalse_WithoutSuspendingThreads() throws {
+        PerformanceMonitoring.experiments = Experiments(recordHangsWithoutSuspendingThreads: true)
+        try testReportHangStarted_DoesNotCreateCrashReportFile_WhenFatalHangsAsCrashesIsFalse()
+    }
+
+    private func checkFatalHangReport() throws {
         let reporter = CrashlyticsIssueReporter(fatalHangsAsCrashes: true, firebaseHangReason: hangReason)
         let reportPath = reporter.reportHangStarted(withType: hangType, stackTrace: stack)
 
@@ -41,6 +56,12 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
         addresses.forEach {
             XCTAssertTrue(exceptionContents.contains("\($0)"))
         }
+
+        // all threads are recorded, and the recording did not stop early
+        let threads = try XCTUnwrap(section("threads", in: exceptionContents) as? [[String: Any]])
+        let threadNames = try XCTUnwrap(section("thread_names", in: exceptionContents) as? [Any])
+        XCTAssertGreaterThan(threads.count, 1)
+        XCTAssertEqual(threads.count, threadNames.count)
 
         // check that exception is logged
         let logPath = (reportPath as NSString).appendingPathComponent("sdk.log")
@@ -228,6 +249,15 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
 
         let crashedMarkerFileFullPath = (rootPath as NSString).appendingPathComponent(crashedMarkerFileName)
         return crashedMarkerFileFullPath
+    }
+
+    /// Crashlytics `.clsrecord` files hold one JSON object per line: `{"<section name>": <value>}`.
+    private func section(_ name: String, in contents: String) -> Any? {
+        for line in contents.split(separator: "\n") where line.hasPrefix("{\"\(name)\":") {
+            let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+            return object?[name]
+        }
+        return nil
     }
 
     // Helper method to remove any crash reports created during tests

@@ -42,6 +42,12 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
             XCTAssertTrue(exceptionContents.contains("\($0)"))
         }
 
+        // all threads are recorded (without suspending them), and the recording did not stop early
+        let threads = try XCTUnwrap(section("threads", in: exceptionContents) as? [[String: Any]])
+        let threadNames = try XCTUnwrap(section("thread_names", in: exceptionContents) as? [Any])
+        XCTAssertGreaterThan(threads.count, 1)
+        XCTAssertEqual(threads.count, threadNames.count)
+
         // check that exception is logged
         let logPath = (reportPath as NSString).appendingPathComponent("sdk.log")
         let logContents = try String(contentsOfFile: logPath)
@@ -228,6 +234,15 @@ final class CrashlyticsIssueReporterTests: XCTestCase {
 
         let crashedMarkerFileFullPath = (rootPath as NSString).appendingPathComponent(crashedMarkerFileName)
         return crashedMarkerFileFullPath
+    }
+
+    /// Crashlytics `.clsrecord` files hold one JSON object per line: `{"<section name>": <value>}`.
+    private func section(_ name: String, in contents: String) -> Any? {
+        for line in contents.split(separator: "\n") where line.hasPrefix("{\"\(name)\":") {
+            let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+            return object?[name]
+        }
+        return nil
     }
 
     // Helper method to remove any crash reports created during tests

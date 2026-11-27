@@ -23,6 +23,21 @@ private let firebaseNativeErrorType: Int32 = 1
 private let crashMarkerPollInterval: TimeInterval = 0.005
 private let crashMarkerPollMaxAttempts = 100
 
+// `shouldSuspendThread` argument (added in Firebase 11.9.0) of the on-demand recording functions.
+//
+// It must stay `false`. With `true`, Firebase's `FIRCLSHandler` suspends every other thread and,
+// while they are suspended, still runs code that takes process-wide locks: the crash marker
+// write goes through `-[NSFileManager attributesOfItemAtPath:]`, which allocates memory. If any
+// suspended thread holds a lock that code needs (for example a malloc zone lock - the hanging
+// main thread is often allocating), the recording thread blocks forever and nothing ever resumes
+// the suspended threads, so a recoverable hang turns into a permanent freeze.
+//
+// The flag only controls suspension: all threads are still recorded (Firebase reads their stacks
+// with fault-tolerant memory reads), and the hanging main thread's stack is passed to the report
+// separately. Firebase also records on-demand exceptions without suspension when the server-side
+// `on_demand_thread_recording_suspension_enabled` setting is off.
+private let shouldSuspendThreads = false
+
 protocol CrashlyticsIssueReporting {
     func reportHangStarted(withType hangType: String, stackTrace: String) -> String
     func changeExistingHangReport(toType type: String, stackTrace: String, reportPath: String)
@@ -57,16 +72,13 @@ class CrashlyticsIssueReporter: CrashlyticsIssueReporting {
 
             // We are passing crash error type here, so that stack trace is recorded
             // for all the threads.
-            // Last argument is `shouldSuspendThread` (added in Firebase 11.9.0); we pass `true`
-            // to match Firebase's own default and preserve the all-thread snapshot behavior.
-            result = FIRCLSExceptionRecordOnDemand(firebaseNativeErrorType, name, reason, model.stackTrace, true, 0, 0, true)
+            result = FIRCLSExceptionRecordOnDemand(firebaseNativeErrorType, name, reason, model.stackTrace, true, 0, 0,
+                                                   shouldSuspendThreads)
         } else {
             // We are not using `record(onDemandExceptionModel: model)` here,
             // because then the report will be sent right away,
             // but we do not know if it should by fatal or non-fatal hang yet.
-            // Last argument is `shouldSuspendThread` (added in Firebase 11.9.0); we pass `true`
-            // to match Firebase's own default.
-            result = FIRCLSExceptionRecordOnDemandModel(model, 0, 0, true)
+            result = FIRCLSExceptionRecordOnDemandModel(model, 0, 0, shouldSuspendThreads)
         }
 
         // Ensure, that crash marker is not created

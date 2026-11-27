@@ -60,27 +60,33 @@ class HangReporterTests: XCTestCase {
 
         receiver.wait()
 
-        let exp = expectation(description: "wait background thread")
+        // Main stays blocked, as in a hang, until the background thread has seen the hang reported as started.
+        // Not fixed sleeps on both threads: on a loaded CI runner the background check could run after main's
+        // sleep was over, when the hang was already reported as finished.
+        let hangCanFinish = DispatchSemaphore(value: 0)
+        var hangJustStarted: Bool?
+        var hangInfoReported = false
         DispatchQueue.global().async {
-            Thread.sleep(forTimeInterval: self.sleepInterval / 2)
-            PerformanceMonitoring.queue.sync {}
-            PerformanceMonitoring.consumerQueue.sync {}
-            // we should detect that hang started
-            XCTAssertEqual(self.receiver.hangJustStarted, true)
-            XCTAssertNotNil(self.receiver.hangInfo)
-
-            Thread.sleep(forTimeInterval: self.sleepInterval)
-            PerformanceMonitoring.queue.sync {}
-            PerformanceMonitoring.consumerQueue.sync {}
-
-            // hang finished
-            XCTAssertEqual(self.receiver.hangJustStarted, nil)
-            XCTAssertNotNil(self.receiver.hangInfo)
-
-            exp.fulfill()
+            let deadline = Date().addingTimeInterval(30)
+            repeat {
+                Thread.sleep(forTimeInterval: 0.01)
+                PerformanceMonitoring.queue.sync {}
+                PerformanceMonitoring.consumerQueue.sync {}
+            } while self.receiver.hangJustStarted == nil && Date() < deadline
+            hangJustStarted = self.receiver.hangJustStarted
+            hangInfoReported = self.receiver.hangInfo != nil
+            hangCanFinish.signal()
         }
-        Thread.sleep(forTimeInterval: sleepInterval)
-        wait(for: [exp], timeout: 1)
+        XCTAssertEqual(hangCanFinish.wait(timeout: .now() + 60), .success)
+
+        // we should detect that hang started
+        XCTAssertEqual(hangJustStarted, true)
+        XCTAssertTrue(hangInfoReported)
+
+        // main is unblocked, so the hang finished
+        receiver.wait()
+        XCTAssertNil(receiver.hangJustStarted)
+        XCTAssertNotNil(receiver.hangInfo)
     }
 
     func testNonFatalHang() {
@@ -585,7 +591,8 @@ class HangsReceiverStub: HangsReceiver {
             }
         }
         let waiter = XCTWaiter()
-        waiter.wait(for: [exp], timeout: 1)
+        // Generous: it returns as soon as main runs the block, but a loaded CI runner can stall the process.
+        waiter.wait(for: [exp], timeout: 30)
 
         // and again wait for all the queues
         PerformanceMonitoring.queue.sync {}
